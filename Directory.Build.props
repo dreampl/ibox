@@ -1,0 +1,44 @@
+<Project>
+  <!--
+    Product identity. Change these (and src/JackiVpn.Domain/ProductInfo.cs) to rename the product.
+  -->
+  <PropertyGroup>
+    <ProductName>JackiVpn</ProductName>
+    <ProductDisplayName>Jacki VPN</ProductDisplayName>
+    <ProductCompany>Jacki</ProductCompany>
+    <Version>1.3.0</Version>
+    <Company>$(ProductCompany)</Company>
+    <Product>$(ProductDisplayName)</Product>
+    <Copyright>Copyright © $(ProductCompany)</Copyright>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Deterministic>true</Deterministic>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+    <PlatformTarget>x64</PlatformTarget>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <RepoRoot>$(MSBuildThisFileDirectory)</RepoRoot>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute" Condition="'$(IsTestProject)' != 'true' and !$(MSBuildProjectName.EndsWith('Benchmarks'))">
+      <_Parameter1>JackiVpn.UnitTests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute" Condition="'$(IsTestProject)' != 'true' and !$(MSBuildProjectName.EndsWith('Benchmarks'))">
+      <_Parameter1>JackiVpn.IntegrationTests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute" Condition="'$(IsTestProject)' != 'true' and !$(MSBuildProjectName.EndsWith('Benchmarks'))">
+      <_Parameter1>JackiVpn.E2E</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute" Condition="'$(IsTestProject)' != 'true' and !$(MSBuildProjectName.EndsWith('Benchmarks'))">
+      <_Parameter1>JackiVpn.Benchmarks</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+</Project>

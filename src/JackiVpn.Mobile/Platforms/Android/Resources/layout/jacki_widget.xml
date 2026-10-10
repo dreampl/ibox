@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Home-screen widget (4x2): status with a live dot / spinner, session timer, rotating stats (ping, speed, data),
+     Connect/Disconnect, fastest server and the server list. Only RemoteViews-safe views are used. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent" android:layout_height="match_parent"
+    android:background="@drawable/widget_bg"
+    android:orientation="vertical"
+    android:padding="14dp"
+    android:animateLayoutChanges="true">
+
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:gravity="center_vertical">
+        <ImageView android:layout_width="20dp" android:layout_height="20dp"
+            android:src="@drawable/ic_stat_jacki" android:tint="#FFFFFFFF" android:contentDescription="@null" />
+        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+            android:layout_marginStart="8dp" android:text="IBOX" android:textColor="#CCFFFFFF"
+            android:textSize="13sp" android:textStyle="bold" />
+        <Chronometer android:id="@+id/widget_timer" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginEnd="6dp" android:textColor="#FFA6ADBB" android:textSize="12sp" android:visibility="gone" />
+        <FrameLayout android:layout_width="18dp" android:layout_height="18dp">
+            <ImageView android:id="@+id/widget_dot_idle" android:layout_width="8dp" android:layout_height="8dp"
+                android:layout_gravity="center" android:src="@drawable/widget_dot_idle" android:contentDescription="@null" />
+            <ProgressBar android:id="@+id/widget_dot_live" android:layout_width="18dp" android:layout_height="18dp"
+                android:indeterminate="true" android:indeterminateOnly="true"
+                android:indeterminateDrawable="@drawable/widget_pulse" android:visibility="gone" />
+            <ProgressBar android:id="@+id/widget_spinner" style="?android:attr/progressBarStyleSmall"
+                android:layout_width="18dp" android:layout_height="18dp" android:layout_gravity="center"
+                android:indeterminateTint="#FFF59E0B" android:visibility="gone" />
+        </FrameLayout>
+    </LinearLayout>
+
+    <TextView android:id="@+id/widget_state" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="8dp" android:text="Not connected" android:textColor="#FFFFFFFF"
+        android:textSize="19sp" android:textStyle="bold" android:singleLine="true" android:ellipsize="end" />
+    <TextView android:id="@+id/widget_detail" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="Tap Connect - smart mode picks the fastest server" android:textColor="#FFA6ADBB" android:textSize="12sp"
+        android:singleLine="true" android:ellipsize="end" />
+
+    <!-- Live numbers while connected: ping, download, upload. -->
+    <LinearLayout android:id="@+id/widget_stats" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="10dp" android:orientation="horizontal" android:visibility="gone">
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+            android:orientation="vertical" android:background="@drawable/widget_chip" android:paddingTop="6dp" android:paddingBottom="6dp" android:gravity="center">
+            <TextView android:id="@+id/widget_ping" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="-" android:textColor="#FFFFFFFF" android:textSize="15sp" android:textStyle="bold" android:singleLine="true" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="ms ping"
+                android:textColor="#FF8B93A3" android:textSize="10sp" />
+        </LinearLayout>
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="6dp"
+            android:orientation="vertical" android:background="@drawable/widget_chip" android:paddingTop="6dp" android:paddingBottom="6dp" android:gravity="center">
+            <TextView android:id="@+id/widget_down" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="-" android:textColor="#FF4ADE80" android:textSize="15sp" android:textStyle="bold" android:singleLine="true" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="download"
+                android:textColor="#FF8B93A3" android:textSize="10sp" />
+        </LinearLayout>
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="6dp"
+            android:orientation="vertical" android:background="@drawable/widget_chip" android:paddingTop="6dp" android:paddingBottom="6dp" android:gravity="center">
+            <TextView android:id="@+id/widget_up" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="-" android:textColor="#FF60A5FA" android:textSize="15sp" android:textStyle="bold" android:singleLine="true" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="upload"
+                android:textColor="#FF8B93A3" android:textSize="10sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Rotating line: session data / server / tips (slides up every few seconds). -->
+    <ViewFlipper android:id="@+id/widget_flipper" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="8dp" android:autoStart="true" android:flipInterval="3500"
+        android:inAnimation="@anim/widget_in" android:outAnimation="@anim/widget_out">
+        <TextView android:id="@+id/widget_stat_ping" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:textColor="#FFC9CED8" android:textSize="12sp" android:singleLine="true" android:ellipsize="end" />
+        <TextView android:id="@+id/widget_stat_speed" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:textColor="#FFC9CED8" android:textSize="12sp" android:singleLine="true" android:ellipsize="end" />
+        <TextView android:id="@+id/widget_stat_data" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:textColor="#FFC9CED8" android:textSize="12sp" android:singleLine="true" android:ellipsize="end" />
+    </ViewFlipper>
+
+    <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+        android:layout_marginTop="10dp" android:orientation="horizontal" android:gravity="bottom">
+        <TextView android:id="@+id/widget_toggle" android:layout_width="0dp" android:layout_height="40dp" android:layout_weight="1"
+            android:gravity="center" android:background="@drawable/widget_button_off" android:text="Connect"
+            android:textColor="#FFFFFFFF" android:textSize="14sp" android:textStyle="bold" />
+        <ImageView android:id="@+id/widget_best" android:layout_width="44dp" android:layout_height="40dp"
+            android:layout_marginStart="8dp" android:background="@drawable/widget_chip" android:src="@drawable/ic_bolt"
+            android:scaleType="center" android:contentDescription="Fastest server" />
+        <ImageView android:id="@+id/widget_servers" android:layout_width="44dp" android:layout_height="40dp"
+            android:layout_marginStart="8dp" android:background="@drawable/widget_chip" android:src="@drawable/ic_servers"
+            android:scaleType="center" android:contentDescription="Servers" />
+    </LinearLayout>
+</LinearLayout>

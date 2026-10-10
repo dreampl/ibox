@@ -1,0 +1,190 @@
+<Window x:Class="JackiVpn.Desktop.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:JackiVpn.Desktop.ViewModels"
+        xmlns:v="clr-namespace:JackiVpn.Desktop.Views"
+        Title="IBOX" Width="1220" Height="820" MinWidth="960" MinHeight="640"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource B.Window}" Foreground="{DynamicResource B.Text}"
+        FontFamily="{StaticResource UiFont}" FontSize="13"
+        UseLayoutRounding="True" TextOptions.TextFormattingMode="Ideal"
+        Icon="pack://application:,,,/JackiVpn;component/Assets/jacki.ico">
+    <Window.Resources>
+        <DataTemplate DataType="{x:Type vm:DashboardViewModel}"><v:DashboardView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:ServersViewModel}"><v:ServersView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:SubscriptionsViewModel}"><v:SubscriptionsView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:RoutingViewModel}"><v:RoutingView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:DnsViewModel}"><v:DnsView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:UsageViewModel}"><v:UsageView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:NetworkViewModel}"><v:NetworkView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:AdvancedViewModel}"><v:AdvancedView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:LogsViewModel}"><v:LogsView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:SettingsViewModel}"><v:SettingsView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:AboutViewModel}"><v:AboutView /></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:EcosystemViewModel}"><v:EcosystemView /></DataTemplate>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="236" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- Ambient accent glow behind the content area -->
+        <Rectangle Grid.Column="1" Fill="{DynamicResource B.WindowGlow}" IsHitTestVisible="False" />
+
+        <!-- Sidebar -->
+        <Border Background="{DynamicResource B.Sidebar}" BorderBrush="{DynamicResource B.Border}" BorderThickness="0,0,1,0">
+            <DockPanel Margin="14,20,14,14">
+                <StackPanel DockPanel.Dock="Top" Margin="12,4,0,26">
+                    <!-- IBOX wordmark (vector, same geometry as assets/brand/ibox-wordmark.svg). -->
+                    <Viewbox Height="22" HorizontalAlignment="Left" Stretch="Uniform" AutomationProperties.Name="IBOX">
+                        <Canvas Width="515" Height="127">
+                            <Path Fill="{DynamicResource B.Text}" Data="M1,0H13V127H1Z M19,0H29V127H19Z M38,0H45V127H38Z M62,0H68V127H62Z" />
+                            <Path Fill="{DynamicResource B.Text}" Data="F0 M96 0H176Q190 0 190 14V50H204Q218 50 218 64V97Q218 127 188 127H96ZM123 27H163V50H123ZM123 73H191V100H123Z" />
+                            <Path Fill="{DynamicResource B.Text}" Data="M272 0H368V127H250Q242 127 242 119V30H269V100H341V27H272Z" />
+                            <Path Fill="{DynamicResource B.Text}" Data="F1 M416 0H448L514 127H482Z M376 127L479 0H511L408 127Z" />
+                            <Rectangle Canvas.Left="309" Canvas.Top="53" Width="22" Height="22" Fill="#FF3D9BFF" />
+                        </Canvas>
+                    </Viewbox>
+                    <TextBlock Text="Secure · Smart · Fast" Style="{StaticResource Text.Caption}" Margin="0,8,0,0" />
+                </StackPanel>
+
+                <!-- Connection status card -->
+                <Border DockPanel.Dock="Bottom" Background="{DynamicResource B.Card}" BorderBrush="{DynamicResource B.Border}" BorderThickness="1"
+                        CornerRadius="10" Padding="12,10" Margin="0,12,0,0">
+                    <StackPanel Orientation="Horizontal">
+                        <Grid Width="12" Height="12" Margin="0,0,10,0" VerticalAlignment="Center">
+                            <Ellipse x:Name="StatusHalo" Fill="{DynamicResource B.TextMuted}" Opacity="0">
+                                <Ellipse.Effect><BlurEffect Radius="6" /></Ellipse.Effect>
+                            </Ellipse>
+                            <Ellipse x:Name="StatusDot" Width="8" Height="8" Fill="{DynamicResource B.TextMuted}" />
+                        </Grid>
+                        <TextBlock Text="{Binding StatusLine}" Style="{StaticResource Text.Caption}" FontSize="12" TextTrimming="CharacterEllipsis" MaxWidth="165"
+                                   v:Motion.FadeOnChange="True" />
+                    </StackPanel>
+                </Border>
+
+                <Grid>
+                    <!-- Selection highlight that glides to the selected item -->
+                    <Canvas IsHitTestVisible="False" ClipToBounds="False">
+                        <Border x:Name="NavHighlight" Width="208" Height="38" CornerRadius="9" Background="{DynamicResource B.Card}"
+                                BorderBrush="{DynamicResource B.Border}" BorderThickness="1" Opacity="0">
+                            <Border.RenderTransform>
+                                <TranslateTransform x:Name="NavHighlightY" />
+                            </Border.RenderTransform>
+                            <Border Width="3" Height="18" CornerRadius="2" HorizontalAlignment="Left" Margin="-1,0,0,0" Background="{DynamicResource B.AccentGradient}" />
+                        </Border>
+                    </Canvas>
+                    <ListBox x:Name="Nav" ItemsSource="{Binding Pages}" SelectedItem="{Binding Selected}" Background="Transparent" BorderThickness="0"
+                             ItemContainerStyle="{StaticResource NavItem}" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.VerticalScrollBarVisibility="Disabled" AutomationProperties.Name="Navigation">
+                        <ListBox.Template>
+                            <ControlTemplate TargetType="ListBox">
+                                <ItemsPresenter />
+                            </ControlTemplate>
+                        </ListBox.Template>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Height="20">
+                                    <TextBlock Text="{Binding Glyph}" Style="{StaticResource Icon}" Width="22" FontSize="15" />
+                                    <TextBlock Text="{Binding Title}" Margin="10,0,0,0" FontSize="13.5" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </DockPanel>
+        </Border>
+
+        <!-- Page host -->
+        <ContentControl x:Name="PageHost" Grid.Column="1" Content="{Binding Selected.Page}" Focusable="False" />
+
+        <!-- Update banner: slides in from the top when a new version is available. -->
+        <Border Grid.Column="1" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,14,0,0" Padding="16,10" CornerRadius="14"
+                MaxWidth="720" BorderThickness="1" BorderBrush="{DynamicResource B.Accent}" Background="{DynamicResource B.Card}"
+                DataContext="{Binding Update}" RenderTransformOrigin="0.5,0">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Setter Property="RenderTransform"><Setter.Value><TranslateTransform Y="-20" /></Setter.Value></Setter>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding ShowBanner}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <DataTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)" From="-24" To="0" Duration="0:0:0.45">
+                                            <DoubleAnimation.EasingFunction><BackEase EasingMode="EaseOut" Amplitude="0.35" /></DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                        <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:0.3" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </DataTrigger.EnterActions>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="&#xE896;" FontFamily="Segoe MDL2 Assets" FontSize="20" VerticalAlignment="Center" Foreground="{DynamicResource B.Accent}" />
+                <StackPanel Grid.Column="1" Margin="12,0,16,0" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding Notes}" Style="{StaticResource Text.Hint}" TextTrimming="CharacterEllipsis" MaxWidth="380" HorizontalAlignment="Left" />
+                    <ProgressBar Value="{Binding Progress, Mode=OneWay}" Maximum="1" Height="4" Margin="0,6,0,0" Visibility="{Binding IsDownloading, Converter={StaticResource Bool2Vis}}" />
+                    <TextBlock Text="{Binding Status}" Style="{StaticResource Text.Hint}" Visibility="{Binding Status, Converter={StaticResource Null2Vis}}" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="Skip" Style="{StaticResource Button.Ghost}" Command="{Binding SkipCommand}" Margin="0,0,4,0" />
+                    <Button Content="Later" Style="{StaticResource Button.Ghost}" Command="{Binding LaterCommand}" Margin="0,0,8,0" />
+                    <Button Content="Update now" Style="{StaticResource Button.Primary}" Command="{Binding InstallCommand}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- In-app toasts -->
+        <ItemsControl Grid.Column="1" ItemsSource="{Binding Toasts}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,22,22"
+                      Width="350" Focusable="False">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="{x:Type vm:ToastItem}">
+                    <Border x:Name="Toast" Background="{DynamicResource B.Card}" BorderBrush="{DynamicResource B.Border}" BorderThickness="1"
+                            CornerRadius="12" Padding="14,12" Margin="0,8,0,0" v:Motion.SlideIn="True">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="22" ShadowDepth="6" Opacity="0.4" />
+                        </Border.Effect>
+                        <DockPanel>
+                            <Border x:Name="IconHost" DockPanel.Dock="Left" Width="30" Height="30" CornerRadius="15" Margin="0,0,12,0"
+                                    Background="{DynamicResource B.AccentSoft}" VerticalAlignment="Top">
+                                <TextBlock x:Name="Glyph" Style="{StaticResource Icon}" Text="&#xE946;" FontSize="14" Foreground="{DynamicResource B.Accent}" />
+                            </Border>
+                            <StackPanel>
+                                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding Message}" Style="{StaticResource Text.Hint}" Foreground="{DynamicResource B.TextSecondary}" />
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+                    <DataTemplate.Triggers>
+                        <DataTrigger Binding="{Binding IsWarning}" Value="True">
+                            <Setter TargetName="IconHost" Property="Background" Value="{DynamicResource B.WarningSoft}" />
+                            <Setter TargetName="Glyph" Property="Foreground" Value="{DynamicResource B.Warning}" />
+                            <Setter TargetName="Glyph" Property="Text" Value="&#xE7BA;" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding IsClosing}" Value="True">
+                            <DataTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Toast" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.25" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </DataTrigger.EnterActions>
+                        </DataTrigger>
+                    </DataTemplate.Triggers>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </Grid>
+</Window>

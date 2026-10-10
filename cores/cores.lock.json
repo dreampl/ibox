@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "comment": "Pinned third-party core binaries. scripts/fetch-cores.ps1 downloads each archive, verifies the archive SHA-256 below, extracts the listed files into cores/bin and writes cores/bin/manifest.json with per-file SHA-256 hashes that the app verifies before every launch.",
+  "cores": [
+    {
+      "id": "sing-box",
+      "version": "1.14.2",
+      "url": "https://github.com/SagerNet/sing-box/releases/download/v1.14.2/sing-box-1.14.2-windows-amd64.zip",
+      "sha256": "c2d8bfff918755808781dfdeeb8581b6c91eb3a243d9a7b55483cfc0c0684d32",
+      "license": "GPL-3.0-or-later (with name-use restriction)",
+      "source": "https://github.com/SagerNet/sing-box/tree/v1.14.2",
+      "files": [
+        { "match": "*/sing-box.exe", "target": "sing-box.exe" },
+        { "match": "*/*.dll", "target": ".", "optional": true },
+        { "match": "*/LICENSE", "target": "licenses/sing-box-LICENSE.txt" }
+      ]
+    },
+    {
+      "id": "xray",
+      "version": "26.3.27",
+      "url": "https://github.com/XTLS/Xray-core/releases/download/v26.3.27/Xray-windows-64.zip",
+      "sha256": "d004c39288ce9ada487c6f398c7c545f7d749e44bdfdd59dbc9f865afba4e1ad",
+      "license": "MPL-2.0",
+      "source": "https://github.com/XTLS/Xray-core/tree/v26.3.27",
+      "files": [
+        { "match": "xray.exe", "target": "xray.exe" },
+        { "match": "geoip.dat", "target": "geoip.dat" },
+        { "match": "geosite.dat", "target": "geosite.dat" },
+        { "match": "LICENSE", "target": "licenses/xray-LICENSE.txt" }
+      ]
+    },
+    {
+      "id": "wintun",
+      "version": "0.14.1",
+      "url": "https://www.wintun.net/builds/wintun-0.14.1.zip",
+      "sha256": "07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51",
+      "license": "Prebuilt Binaries License (redistribution of unmodified signed DLL permitted); source GPL-2.0",
+      "source": "https://git.zx2c4.com/wintun/",
+      "authenticodeSubject": "WireGuard LLC",
+      "files": [
+        { "match": "wintun/bin/amd64/wintun.dll", "target": "wintun.dll", "authenticode": true },
+        { "match": "wintun/LICENSE.txt", "target": "licenses/wintun-LICENSE.txt" }
+      ]
+    }
+  ]
+}

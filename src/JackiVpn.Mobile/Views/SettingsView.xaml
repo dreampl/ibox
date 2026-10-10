@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView x:Class="JackiVpn.Mobile.Views.SettingsView"
+             xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:JackiVpn.Mobile.Controls"
+             xmlns:loc="clr-namespace:JackiVpn.Mobile.Localization"
+             xmlns:vm="clr-namespace:JackiVpn.Mobile.ViewModels"
+             x:DataType="vm:SettingsViewModel">
+    <ScrollView>
+        <VerticalStackLayout Padding="20,8,20,130">
+            <Grid HeightRequest="52">
+                <Label Text="{loc:T Set_Title}" Style="{StaticResource Title}" VerticalOptions="Center" />
+            </Grid>
+            <Border IsVisible="{Binding ShowApplyHint}" BackgroundColor="{StaticResource PrimarySoft}" StrokeThickness="0" StrokeShape="RoundRectangle 14" Padding="14,10" Margin="0,4,0,0">
+                <Label Text="{loc:T Set_ApplyHint}" FontSize="12.5" />
+            </Border>
+
+            <controls:SettingGroup Header="{loc:T Set_General}">
+                <controls:SettingRow Icon="language" Tint="{StaticResource Primary2}" Title="{loc:T Set_Language}" Value="{Binding LanguageValue}" Command="{Binding ChooseLanguageCommand}" />
+                <controls:SettingRow Icon="shield" Tint="{StaticResource Teal}" Title="{loc:T Set_ConnectionType}" Value="{Binding ConnectionTypeValue}" Command="{Binding ChooseConnectionTypeCommand}" />
+                <controls:SettingRow Icon="apps" Tint="#F59E0B" Title="{loc:T Set_AppsUsingVpn}" Subtitle="{Binding SelectedAppsText}" Value="{Binding SplitModeValue}" Command="{Binding ChooseSplitModeCommand}" IsVisible="{Binding IsVpn}" />
+                <controls:SettingRow Icon="bolt" Tint="{StaticResource Warn}" Title="{loc:T Set_Smart}" Subtitle="{loc:T Set_SmartHint}">
+                    <controls:SettingRow.Trailing>
+                        <controls:ToggleSwitch IsToggled="{Binding SmartMode}" />
+                    </controls:SettingRow.Trailing>
+                </controls:SettingRow>
+            </controls:SettingGroup>
+
+            <!-- Proxy-only details -->
+            <controls:SettingGroup Header="{loc:T Set_Proxy}" IsVisible="{Binding IsProxyOnly}">
+                <controls:SettingRow Icon="key" Tint="{StaticResource Primary2}" Title="{Binding ProxyAddress}" Subtitle="{loc:T Set_ProxyHint}" />
+                <controls:SettingRow Icon="lock" Tint="{StaticResource Teal}" Title="{loc:T Set_RequirePassword}" Subtitle="{Binding ProxyPassword}">
+                    <controls:SettingRow.Trailing>
+                        <controls:ToggleSwitch IsToggled="{Binding ProxyRequiresPassword}" />
+                    </controls:SettingRow.Trailing>
+                </controls:SettingRow>
+                <controls:SettingRow Icon="copy" Tint="{StaticResource Text2}" Title="{loc:T Set_CopyProxy}" Command="{Binding CopyProxyCommand}" />
+            </controls:SettingGroup>
+
+            <controls:SettingGroup Header="{loc:T Set_Activity}">
+                <controls:SettingRow Icon="gamepad" Tint="{StaticResource Gaming}" Title="{loc:T Set_ActivityMode}" Subtitle="{loc:T Set_ActivityHint}" Value="{Binding ActivityValue}" Command="{Binding ChooseActivityCommand}" />
+                <controls:SettingRow Icon="chart" Tint="{StaticResource Teal}" Title="{loc:T Usage_Open}" Command="{Binding OpenUsageCommand}" />
+                <controls:SettingRow Icon="sparkle" Tint="{StaticResource Primary2}" Title="{loc:T Island_Title}" Command="{Binding OpenIslandCommand}" />
+            </controls:SettingGroup>
+
+            <controls:SettingGroup Header="{loc:T Set_Connection}">
+                <controls:SettingRow Icon="route" Tint="{StaticResource Teal}" Title="{loc:T Set_Routing}" Value="{Binding RoutingValue}" Command="{Binding ChooseRoutingCommand}" />
+                <controls:SettingRow Icon="search" Tint="{StaticResource Primary2}" Title="{loc:T Dns_Title}" Subtitle="{loc:T Dns_Hint}" Value="{Binding DnsValue}" Command="{Binding FindDnsCommand}" />
+                <controls:SettingRow Icon="globe" Tint="{StaticResource Primary2}" Title="{loc:T Dns_Auto}" Subtitle="{loc:T Dns_AutoHint}">
+                    <controls:SettingRow.Trailing>
+                        <controls:ToggleSwitch IsToggled="{Binding AutoDns}" />
+                    </controls:SettingRow.Trailing>
+                </controls:SettingRow>
+                <controls:SettingRow Icon="sparkle" Tint="{StaticResource Primary2}" Title="{loc:T Set_Tuning}" Subtitle="{loc:T Set_TuningHint}">
+                    <controls:SettingRow.Trailing>
+                        <controls:ToggleSwitch IsToggled="{Binding AutoTune}" />
+                    </controls:SettingRow.Trailing>
+                </controls:SettingRow>
+                <controls:SettingRow Icon="fingerprint" Tint="#A78BFA" Title="{loc:T Set_Fingerprint}" Value="{Binding FingerprintValue}" Command="{Binding ChooseFingerprintCommand}" />
+                <controls:SettingRow Icon="globe" Tint="{StaticResource Streaming}" Title="{loc:T Set_FastDns}" Subtitle="{loc:T Set_FastDnsHint}">
+                    <controls:SettingRow.Trailing>
+                        <controls:ToggleSwitch IsToggled="{Binding FastDns}" />
+                    </controls:SettingRow.Trailing>
+                </controls:SettingRow>
+                <controls:SettingRow Icon="wifi" Tint="{StaticResource Teal}" Title="{loc:T Set_Lan}" Subtitle="{loc:T Set_LanHint}">
+                    <controls:SettingRow.Trailing>
+                        <controls:ToggleSwitch IsToggled="{Binding BypassLan}" />
+                    </controls:SettingRow.Trailing>
+                </controls:SettingRow>
+                <VerticalStackLayout Padding="14,6,14,14" Spacing="8">
+                    <Label Text="{loc:T Set_Quic}" FontFamily="OpenSansSemibold" FontSize="14" />
+                    <controls:SegmentedControl Items="{Binding QuicOptions}" SelectedIndex="{Binding QuicIndex}" />
+                    <Label Text="{loc:T Set_Ipv6}" FontFamily="OpenSansSemibold" FontSize="14" Margin="0,8,0,0" />
+                    <controls:SegmentedControl Items="{Binding Ipv6Options}" SelectedIndex="{Binding Ipv6Index}" />
+                </VerticalStackLayout>
+            </controls:SettingGroup>
+
+            <controls:SettingGroup Header="{loc:T Set_Shortcuts}">
+                <controls:SettingRow Icon="power" Tint="{StaticResource Primary2}" Title="{loc:T Set_Tile}" Subtitle="{loc:T Set_TileHint}" Command="{Binding AddTileCommand}" />
+                <controls:SettingRow Icon="widget" Tint="{StaticResource Teal}" Title="{loc:T Set_Widget}" Subtitle="{loc:T Set_WidgetHint}" Command="{Binding AddWidgetCommand}" />
+                <controls:SettingRow Icon="sync" Tint="#F59E0B" Title="{loc:T Subs_Sync}" Subtitle="{loc:T Set_SyncHint}" Command="{Binding SyncDeviceCommand}" />
+            </controls:SettingGroup>
+
+            <controls:SettingGroup Header="{loc:T Set_Updates}">
+                <controls:SettingRow Icon="update" Tint="{StaticResource Teal}" Title="{Binding UpdateTitle}" Subtitle="{Binding Version}" Command="{Binding CheckUpdatesCommand}" />
+                <VerticalStackLayout Padding="14,0,14,12" Spacing="8" IsVisible="{Binding HasUpdate}">
+                    <Label Text="{Binding UpdateNotes}" Style="{StaticResource Hint}" />
+                    <ProgressBar Progress="{Binding UpdateProgress}" IsVisible="{Binding IsDownloadingUpdate}" />
+                    <Button Text="{loc:T Upd_Install}" Style="{StaticResource Primary}" Command="{Binding InstallUpdateCommand}" />
+                </VerticalStackLayout>
+                <Label Text="{Binding UpdateStatus}" Style="{StaticResource Hint}" Margin="14,0,14,10" />
+                <controls:SettingRow Icon="refresh" Tint="{StaticResource Text2}" Title="{loc:T Upd_Auto}" Subtitle="{loc:T Upd_AutoHint}">
+                    <controls:SettingRow.Trailing>
+                        <controls:ToggleSwitch IsToggled="{Binding AutoCheckUpdates}" />
+                    </controls:SettingRow.Trailing>
+                </controls:SettingRow>
+            </controls:SettingGroup>
+
+            <controls:SettingGroup Header="{loc:T Set_Protection}">
+                <controls:SettingRow Icon="lock" Tint="{StaticResource Danger}" Title="{loc:T Set_AlwaysOn}" Subtitle="{loc:T Set_AlwaysOnHint}" Command="{Binding OpenVpnSettingsCommand}" />
+            </controls:SettingGroup>
+
+            <controls:SettingGroup Header="{loc:T Set_About}">
+                <controls:SettingRow Icon="file" Tint="{StaticResource Text2}" Title="{loc:T Set_ShareLog}" Subtitle="{loc:T Set_ShareLogHint}" Command="{Binding ShareLogsCommand}" />
+                <controls:SettingRow Icon="info" Tint="{StaticResource Text2}" Title="{loc:T Set_Licenses}" Command="{Binding LicensesCommand}" />
+            </controls:SettingGroup>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentView>

@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "note": "Android binaries are packaged into the APK. sing-box runs as a separate process (lib*.so name so Android allows executing it); hev-socks5-tunnel is an in-process JNI library that reads the VpnService TUN descriptor.",
+  "items": [
+    {
+      "id": "sing-box",
+      "version": "1.14.2",
+      "license": "GPL-3.0-or-later",
+      "source": "https://github.com/SagerNet/sing-box",
+      "abis": {
+        "arm64-v8a": { "url": "https://github.com/SagerNet/sing-box/releases/download/v1.14.2/sing-box-1.14.2-android-arm64.tar.gz", "sha256": "57eeb81867a9a5e406bcbb5f7fde352acdc354e8c084173a28bdd9417c5e0cba" },
+        "armeabi-v7a": { "url": "https://github.com/SagerNet/sing-box/releases/download/v1.14.2/sing-box-1.14.2-android-arm.tar.gz", "sha256": "10352dab32c87e2eefe3fd61e21bd259900ef4096ced311ec49050769613e861" },
+        "x86_64": { "url": "https://github.com/SagerNet/sing-box/releases/download/v1.14.2/sing-box-1.14.2-android-amd64.tar.gz", "sha256": "5a16af1bcb373d5e8824b7cca415813d3556dd10e7d41e5dd4dfb3cb9e9240ff" }
+      }
+    },
+    {
+      "id": "hev-socks5-tunnel",
+      "version": "2.18.0",
+      "license": "MIT",
+      "source": "https://github.com/heiher/hev-socks5-tunnel",
+      "aar": { "url": "https://github.com/heiher/hev-socks5-tunnel/releases/download/2.18.0/hev-socks5-tunnel.aar", "sha256": "15ec8ed121663b562c99caa5bb602d1009f24e5b09e733438b81988f12feaaab" }
+    }
+  ]
+}

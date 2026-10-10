@@ -1,0 +1,1 @@
+Claude / Anthropic always go through the tunnel (no more sign-outs caused by a direct route or local DNS). New: Linux (Ubuntu) version.

@@ -1,0 +1,76 @@
+<UserControl x:Class="JackiVpn.Desktop.Views.LogsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:JackiVpn.Desktop.ViewModels">
+    <DockPanel Margin="32,26,32,16">
+        <StackPanel DockPanel.Dock="Top">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
+                    <Button Content="Copy" Command="{Binding CopyVisibleCommand}" Margin="0,0,8,0" />
+                    <Button Content="Open folder" Command="{Binding OpenFolderCommand}" Margin="0,0,8,0" />
+                    <Button Content="Clear view" Command="{Binding ClearCommand}" Margin="0,0,8,0" />
+                    <Button Style="{StaticResource Button.Primary}" Content="Export diagnostics…" Command="{Binding ExportDiagnosticsCommand}" />
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock Text="Logs" Style="{StaticResource Text.PageTitle}" />
+                    <TextBlock Text="Secrets (subscription tokens, UUIDs, passwords, keys) are redacted before anything is written or shown." Style="{StaticResource Text.PageSubtitle}" />
+                </StackPanel>
+            </DockPanel>
+            <DockPanel Margin="0,0,0,10">
+                <CheckBox DockPanel.Dock="Right" Style="{StaticResource Toggle}" IsChecked="{Binding AutoScroll}">
+                    <TextBlock Text="Auto-scroll" Style="{StaticResource Text.Label}" />
+                </CheckBox>
+                <StackPanel Orientation="Horizontal">
+                    <TextBox Width="280" Text="{Binding Search, UpdateSourceTrigger=PropertyChanged, Delay=200}" Tag="Search logs" AutomationProperties.Name="Search logs" />
+                    <ComboBox ItemsSource="{Binding Levels}" SelectedItem="{Binding MinimumLevel}" Margin="10,0,0,0" MinWidth="130" />
+                    <TextBlock Text="{Binding Message}" Style="{StaticResource Text.Hint}" VerticalAlignment="Center" Margin="12,0,0,0" />
+                </StackPanel>
+            </DockPanel>
+        </StackPanel>
+        <Border Background="{DynamicResource B.Card}" BorderBrush="{DynamicResource B.Border}" BorderThickness="1" CornerRadius="8" Padding="6">
+            <ListBox x:Name="List" ItemsSource="{Binding View}" Style="{StaticResource List.Plain}" FontFamily="{StaticResource MonoFont}" FontSize="12"
+                     VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="Padding" Value="4,1" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ListBoxItem">
+                                    <Border x:Name="Bd" Background="Transparent" Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter />
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource B.AccentSoft}" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </ListBox.ItemContainerStyle>
+                <ListBox.ItemTemplate>
+                    <DataTemplate DataType="{x:Type vm:LogLine}">
+                        <TextBlock TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding Message}">
+                            <Run Text="{Binding TimeText, Mode=OneWay}" Foreground="{DynamicResource B.TextMuted}" />
+                            <Run x:Name="Lvl" Text="{Binding LevelText, Mode=OneWay}" Foreground="{DynamicResource B.TextSecondary}" />
+                            <Run Text="{Binding Source, Mode=OneWay, StringFormat=[{0}]}" Foreground="{DynamicResource B.Accent}" />
+                            <Run Text="{Binding Message, Mode=OneWay}" Foreground="{DynamicResource B.Text}" />
+                        </TextBlock>
+                        <DataTemplate.Triggers>
+                            <DataTrigger Binding="{Binding Level}" Value="Warning">
+                                <Setter TargetName="Lvl" Property="Foreground" Value="{DynamicResource B.Warning}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Level}" Value="Error">
+                                <Setter TargetName="Lvl" Property="Foreground" Value="{DynamicResource B.Danger}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Level}" Value="Critical">
+                                <Setter TargetName="Lvl" Property="Foreground" Value="{DynamicResource B.Danger}" />
+                            </DataTrigger>
+                        </DataTemplate.Triggers>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Border>
+    </DockPanel>
+</UserControl>

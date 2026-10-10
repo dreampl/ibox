@@ -1,0 +1,1 @@
+First release: new design, Persian, in-app updates, Sync device, gRPC/XHTTP fixes, no more duplicate servers.

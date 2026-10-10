@@ -1,0 +1,433 @@
+<UserControl x:Class="JackiVpn.Desktop.Views.UsageView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="clr-namespace:JackiVpn.Desktop.Views"
+             xmlns:vm="clr-namespace:JackiVpn.Desktop.ViewModels"
+             x:Name="Page">
+    <UserControl.Resources>
+        <v:EnumEqualsConverter x:Key="EnumIs" />
+        <SolidColorBrush x:Key="UpBrush" Color="#FFEB6834" />
+    </UserControl.Resources>
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32,26,32,26" v:Motion.StaggerChildren="True">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" HorizontalAlignment="Right">
+                    <Border Style="{StaticResource SegmentHost}">
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton Style="{StaticResource Segment}" GroupName="TMode" Content="Normal" IsChecked="{Binding Mode, Converter={StaticResource EnumIs}, ConverterParameter=Normal}" />
+                            <RadioButton Style="{StaticResource Segment}" GroupName="TMode" Content="Eco" IsChecked="{Binding Mode, Converter={StaticResource EnumIs}, ConverterParameter=Eco}" ToolTip="No automatic updates, telemetry or cloud sync; your saver apps are cut." />
+                            <RadioButton Style="{StaticResource Segment}" GroupName="TMode" Content="Gaming" IsChecked="{Binding Mode, Converter={StaticResource EnumIs}, ConverterParameter=Gaming}" ToolTip="The game and its helpers first; background downloads slowed, updates paused." />
+                            <RadioButton Style="{StaticResource Segment}" GroupName="TMode" Content="Streaming" IsChecked="{Binding Mode, Converter={StaticResource EnumIs}, ConverterParameter=Streaming}" />
+                            <RadioButton Style="{StaticResource Segment}" GroupName="TMode" Content="Work" IsChecked="{Binding Mode, Converter={StaticResource EnumIs}, ConverterParameter=Work}" ToolTip="Company traffic stays local; updates and heavy personal traffic are held back." />
+                        </StackPanel>
+                    </Border>
+                    <TextBlock Text="{Binding ModeReason}" Style="{StaticResource Text.Caption}" HorizontalAlignment="Right" Margin="0,6,4,0" v:Motion.FadeOnChange="True" />
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock Text="Usage" Style="{StaticResource Text.PageTitle}" />
+                    <TextBlock Text="Where your data goes, what is using it right now, and how to keep it under control." Style="{StaticResource Text.PageSubtitle}" />
+                </StackPanel>
+            </DockPanel>
+
+            <!-- Overview -->
+            <UniformGrid Columns="4" Margin="0,0,0,0">
+                <Border Style="{StaticResource Card}" Margin="0,0,12,16">
+                    <StackPanel>
+                        <TextBlock Text="This period" Style="{StaticResource Text.Caption}" />
+                        <TextBlock Text="{Binding PeriodUsed}" FontSize="26" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding PeriodCap}" Style="{StaticResource Text.Hint}" />
+                        <ProgressBar Value="{Binding PeriodPercent}" Maximum="100" Height="6" Margin="0,8,0,0" />
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource Card}" Margin="0,0,12,16">
+                    <StackPanel>
+                        <TextBlock Text="Today" Style="{StaticResource Text.Caption}" />
+                        <TextBlock Text="{Binding Today}" FontSize="26" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding TodayDetail}" Style="{StaticResource Text.Hint}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource Card}" Margin="0,0,12,16">
+                    <StackPanel>
+                        <TextBlock Text="Right now" Style="{StaticResource Text.Caption}" />
+                        <TextBlock Text="{Binding NowDown}" FontSize="17" FontWeight="SemiBold" Margin="0,4,0,0" Foreground="{DynamicResource B.Accent}" />
+                        <TextBlock Text="{Binding NowUp}" FontSize="17" FontWeight="SemiBold" Foreground="{StaticResource UpBrush}" />
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource Card}" Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="Peak speed" Style="{StaticResource Text.Caption}" />
+                        <TextBlock Text="{Binding Peak}" FontSize="17" FontWeight="SemiBold" Margin="0,6,0,0" />
+                    </StackPanel>
+                </Border>
+            </UniformGrid>
+            <TextBlock Text="{Binding PeriodDetail}" Style="{StaticResource Text.Hint}" Margin="4,-6,0,14" />
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="16" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Text="Using the network now" Style="{StaticResource Text.Section}" />
+                        <ItemsControl ItemsSource="{Binding Live}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:UsageLiveRow}">
+                                    <Grid Margin="0,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="96" />
+                                            <ColumnDefinition Width="96" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding App}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding Site}" Style="{StaticResource Text.Caption}" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="1" Text="{Binding Down, StringFormat=↓ {0}}" Foreground="{DynamicResource B.Accent}" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="2" Text="{Binding Up, StringFormat=↑ {0}}" Foreground="{StaticResource UpBrush}" VerticalAlignment="Center" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <StackPanel Orientation="Horizontal" Visibility="{Binding Live.Count, Converter={StaticResource ZeroToVis}}">
+                            <v:OrbView State="Breathing" Width="22" Height="22" Margin="0,0,8,0" />
+                            <TextBlock Text="Connect to see which apps use the tunnel (TUN mode shows every app)." Style="{StaticResource Text.Hint}" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="360" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="2" Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Text="Last 30 days" Style="{StaticResource Text.Section}" />
+                        <v:UsageBars Height="90" Down="{Binding DailyDown}" Up="{Binding DailyUp}" DownBrush="{DynamicResource B.Accent}" UpBrush="{StaticResource UpBrush}" LabelBrush="{DynamicResource B.TextMuted}" />
+                        <TextBlock Text="Today by hour" Style="{StaticResource Text.Caption}" Margin="0,10,0,4" />
+                        <v:UsageBars Height="60" Down="{Binding HourlyDown}" Up="{Binding HourlyUp}" DownBrush="{DynamicResource B.Accent}" UpBrush="{StaticResource UpBrush}" LabelBrush="{DynamicResource B.TextMuted}" />
+                        <TextBlock Text="Blue = download · orange = upload" Style="{StaticResource Text.Caption}" Margin="0,4,0,0" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- Apps / Sites / Alerts -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <DockPanel Margin="0,0,0,10">
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                            <ComboBox ItemsSource="{Binding Ranges}" SelectedValuePath="Value" SelectedValue="{Binding Range}" MinWidth="120" Margin="0,0,8,0" />
+                            <TextBox Text="{Binding Search, UpdateSourceTrigger=PropertyChanged, Delay=200}" Width="180" Tag="Search" />
+                        </StackPanel>
+                        <Border Style="{StaticResource SegmentHost}" HorizontalAlignment="Left">
+                            <StackPanel Orientation="Horizontal">
+                                <RadioButton Style="{StaticResource Segment}" GroupName="UTab" Content="Apps" IsChecked="{Binding Tab, Converter={StaticResource EnumIs}, ConverterParameter=Apps}" />
+                                <RadioButton Style="{StaticResource Segment}" GroupName="UTab" Content="Sites" IsChecked="{Binding Tab, Converter={StaticResource EnumIs}, ConverterParameter=Sites}" />
+                                <RadioButton Style="{StaticResource Segment}" GroupName="UTab" IsChecked="{Binding Tab, Converter={StaticResource EnumIs}, ConverterParameter=Alerts}">
+                                    <TextBlock>
+                                        <Run Text="Alerts" />
+                                        <Run Text="{Binding Unseen, StringFormat=({0}), Mode=OneWay}" />
+                                    </TextBlock>
+                                </RadioButton>
+                            </StackPanel>
+                        </Border>
+                    </DockPanel>
+
+                    <ItemsControl ItemsSource="{Binding Apps}" Tag="{Binding}">
+                        <ItemsControl.Style>
+                            <Style TargetType="ItemsControl">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Tab}" Value="Apps"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                                </Style.Triggers>
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </Style>
+                        </ItemsControl.Style>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:UsageAppRow}">
+                                <Grid Margin="0,6" ToolTip="{Binding Path}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="130" />
+                                        <ColumnDefinition Width="90" />
+                                        <ColumnDefinition Width="90" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock FontWeight="SemiBold" TextTrimming="CharacterEllipsis">
+                                            <Run Text="{Binding App, Mode=OneWay}" />
+                                            <Run Text="{Binding Badges, Mode=OneWay}" Foreground="{DynamicResource B.Warning}" FontSize="10.5" />
+                                        </TextBlock>
+                                        <TextBlock Text="{Binding TunnelText}" Style="{StaticResource Text.Caption}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding TotalText}" FontWeight="SemiBold" />
+                                        <Border Height="4" CornerRadius="2" Background="{DynamicResource B.Accent}" Width="{Binding ShareWidth}" HorizontalAlignment="Left" Margin="0,3,0,0" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="2" Text="{Binding DownText, StringFormat=↓ {0}}" VerticalAlignment="Center" Foreground="{DynamicResource B.TextSecondary}" />
+                                    <TextBlock Grid.Column="3" Text="{Binding UpText, StringFormat=↑ {0}}" VerticalAlignment="Center" Foreground="{DynamicResource B.TextSecondary}" />
+                                    <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Button Style="{StaticResource Button.Ghost}" Content="Cut" ToolTip="Cut / allow this app's internet (through the tunnel)" Padding="10,4"
+                                                Command="{Binding Tag.CutCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
+                                        <Button Style="{StaticResource Button.Ghost}" Content="Limit…" Padding="10,4"
+                                                Command="{Binding Tag.LimitCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
+                                        <Button Style="{StaticResource Button.Ghost}" Content="Priority" ToolTip="Never slowed by Gaming/Streaming/Work" Padding="10,4"
+                                                Command="{Binding Tag.PriorityCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
+                                        <Button Style="{StaticResource Button.Ghost}" Content="Eco cut" ToolTip="Cut while Eco mode is on" Padding="10,4"
+                                                Command="{Binding Tag.SaverCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,4,0,4">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding Tab}" Value="Apps" />
+                                            <Condition Binding="{Binding Apps.Count}" Value="0" />
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        <v:OrbView State="Composing" Width="24" Height="24" Margin="0,0,10,0" />
+                        <TextBlock Text="Per-app usage appears here once you are connected (every app in TUN mode; in proxy mode, apps that use the proxy)." Style="{StaticResource Text.Hint}" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="700" />
+                    </StackPanel>
+
+                    <ItemsControl ItemsSource="{Binding Sites}">
+                        <ItemsControl.Style>
+                            <Style TargetType="ItemsControl">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Tab}" Value="Sites"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                                </Style.Triggers>
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </Style>
+                        </ItemsControl.Style>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:UsageSiteRow}">
+                                <Grid Margin="0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="130" />
+                                        <ColumnDefinition Width="90" />
+                                        <ColumnDefinition Width="90" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Site}" FontWeight="SemiBold" FontFamily="{StaticResource MonoFont}" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Apps}" Style="{StaticResource Text.Caption}" TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                    <Border Grid.Column="1" Height="4" CornerRadius="2" Background="{DynamicResource B.Accent}" Width="{Binding ShareWidth}" HorizontalAlignment="Left" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="2" Text="{Binding DownText, StringFormat=↓ {0}}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="3" Text="{Binding UpText, StringFormat=↑ {0}}" VerticalAlignment="Center" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <StackPanel>
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Tab}" Value="Alerts"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                                </Style.Triggers>
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </Style>
+                        </StackPanel.Style>
+                        <Button Content="Clear alerts" Command="{Binding ClearEventsCommand}" HorizontalAlignment="Right" Margin="0,0,0,6" />
+                        <ItemsControl ItemsSource="{Binding Events}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:UsageEventRow}">
+                                    <Grid Margin="0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="110" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding When}" Style="{StaticResource Text.Caption}" />
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding Message}" Style="{StaticResource Text.Hint}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Traffic control -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="Traffic control" Style="{StaticResource Text.Section}" />
+                    <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding SmartControl}" Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock Text="Smart control (instant modes and speed limits)" Style="{StaticResource Text.Label}" />
+                            <TextBlock Text="Connections pass a small in-app relay, so switching modes or limits never reconnects. Off: blocks only, and a mode change reconnects." Style="{StaticResource Text.Hint}" />
+                        </StackPanel>
+                    </CheckBox>
+                    <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding AutoGaming}" Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock Text="Switch to Gaming / Streaming automatically" Style="{StaticResource Text.Label}" />
+                            <TextBlock Text="The game, its launcher, anti-cheat and voice chat stay fast; everything else shares the speed below. Updates pause." Style="{StaticResource Text.Hint}" />
+                        </StackPanel>
+                    </CheckBox>
+                    <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding AutoWork}" Margin="0,0,0,12">
+                        <TextBlock Text="Work mode on workplace networks" Style="{StaticResource Text.Label}" />
+                    </CheckBox>
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="120" />
+                            <ColumnDefinition Width="24" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="120" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Others while gaming (kbit/s)" Style="{StaticResource Text.Label}" VerticalAlignment="Center" />
+                        <TextBox Grid.Column="1" Text="{Binding GamingKbps}" />
+                        <TextBlock Grid.Column="3" Text="Others while streaming (kbit/s)" Style="{StaticResource Text.Label}" VerticalAlignment="Center" />
+                        <TextBox Grid.Column="4" Text="{Binding StreamingKbps}" />
+                    </Grid>
+                    <TextBlock Text="Always hold back these automatic updates (inside the tunnel; Eco and Work hold back all of them)" Style="{StaticResource Text.Label}" Margin="0,4,0,6" />
+                    <ItemsControl ItemsSource="{Binding UpdateGroups}" Tag="{Binding}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><UniformGrid Columns="2" /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:UpdateGroupItem}">
+                                <CheckBox IsChecked="{Binding Blocked}" Margin="0,3" ToolTip="{Binding Hint}"
+                                          Command="{Binding Tag.ToggleUpdateCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}">
+                                    <TextBlock Text="{Binding Name}" />
+                                </CheckBox>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Grid Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="16" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="Blocked sites (one per line)" Style="{StaticResource Text.Label}" Margin="0,0,0,4" />
+                            <TextBox Text="{Binding BlockedDomains, UpdateSourceTrigger=LostFocus}" AcceptsReturn="True" Height="70" Style="{StaticResource TextBox.Mono}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Blocked IPs / ranges" Style="{StaticResource Text.Label}" Margin="0,0,0,4" />
+                            <TextBox Text="{Binding BlockedIps, UpdateSourceTrigger=LostFocus}" AcceptsReturn="True" Height="70" Style="{StaticResource TextBox.Mono}" />
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- Cap and alerts -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="Data cap and alerts" Style="{StaticResource Text.Section}" />
+                    <UniformGrid Columns="4" Margin="0,0,0,10">
+                        <StackPanel Margin="0,0,12,0">
+                            <TextBlock Text="Period cap (GB, 0 = none)" Style="{StaticResource Text.Caption}" />
+                            <TextBox Text="{Binding CapGb}" />
+                        </StackPanel>
+                        <StackPanel Margin="0,0,12,0">
+                            <TextBlock Text="Daily cap (GB)" Style="{StaticResource Text.Caption}" />
+                            <TextBox Text="{Binding DailyGb}" />
+                        </StackPanel>
+                        <StackPanel Margin="0,0,12,0">
+                            <TextBlock Text="Period" Style="{StaticResource Text.Caption}" />
+                            <ComboBox ItemsSource="{Binding Cycles}" SelectedItem="{Binding Cycle}" MinWidth="0" />
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock Text="Custom start (yyyy-mm-dd) / days" Style="{StaticResource Text.Caption}" />
+                            <StackPanel Orientation="Horizontal">
+                                <TextBox Text="{Binding CycleStart}" Width="110" />
+                                <TextBox Text="{Binding CycleLength}" Width="50" Margin="6,0,0,0" />
+                            </StackPanel>
+                        </StackPanel>
+                    </UniformGrid>
+                    <UniformGrid Columns="4" Margin="0,0,0,12">
+                        <StackPanel Margin="0,0,12,0">
+                            <TextBlock Text="Free hours from / to" Style="{StaticResource Text.Caption}" />
+                            <StackPanel Orientation="Horizontal">
+                                <TextBox Text="{Binding FreeFrom}" Width="50" />
+                                <TextBox Text="{Binding FreeTo}" Width="50" Margin="6,0,0,0" />
+                            </StackPanel>
+                        </StackPanel>
+                        <StackPanel Margin="0,0,12,0">
+                            <TextBlock Text="Alert at % of cap" Style="{StaticResource Text.Caption}" />
+                            <TextBox Text="{Binding AlertPercents, UpdateSourceTrigger=LostFocus}" />
+                        </StackPanel>
+                        <StackPanel Margin="0,0,12,0">
+                            <TextBlock Text="Spike: MB within minutes" Style="{StaticResource Text.Caption}" />
+                            <StackPanel Orientation="Horizontal">
+                                <TextBox Text="{Binding SpikeMb}" Width="60" />
+                                <TextBox Text="{Binding SpikeMinutes}" Width="44" Margin="6,0,0,0" />
+                            </StackPanel>
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock Text="When the cap is used up" Style="{StaticResource Text.Caption}" />
+                            <ComboBox ItemsSource="{Binding CapActions}" SelectedItem="{Binding OnCap}" MinWidth="0" />
+                        </StackPanel>
+                    </UniformGrid>
+                    <WrapPanel>
+                        <CheckBox Content="Alerts" IsChecked="{Binding Alerts}" Margin="0,0,18,6" />
+                        <CheckBox Content="New apps" IsChecked="{Binding AlertNewApp}" Margin="0,0,18,6" />
+                        <CheckBox Content="Heavy background uploads" IsChecked="{Binding AlertHeavyUpload}" Margin="0,0,18,6" />
+                        <CheckBox Content="Automatic updates downloading" IsChecked="{Binding AlertUpdates}" Margin="0,0,18,6" />
+                        <CheckBox Content="Local network does not count" IsChecked="{Binding ExcludeLan}" Margin="0,0,18,6" />
+                    </WrapPanel>
+                    <WrapPanel Margin="0,8,0,0">
+                        <Button Content="Export days" Command="{Binding ExportCommand}" CommandParameter="days" Margin="0,0,8,0" />
+                        <Button Content="Export apps" Command="{Binding ExportCommand}" CommandParameter="apps" Margin="0,0,8,0" />
+                        <Button Content="Export sites" Command="{Binding ExportCommand}" CommandParameter="sites" Margin="0,0,8,0" />
+                        <Button Content="Export alerts" Command="{Binding ExportCommand}" CommandParameter="events" Margin="0,0,24,0" />
+                        <Button Style="{StaticResource Button.Danger}" Content="Reset today" Command="{Binding ResetCommand}" CommandParameter="today" Margin="0,0,8,0" />
+                        <Button Style="{StaticResource Button.Danger}" Content="Reset all" Command="{Binding ResetCommand}" CommandParameter="all" />
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Workplace -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <DockPanel>
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                            <Button Content="This network is my workplace" Command="{Binding AddWorkplaceCommand}" Margin="0,0,8,0" />
+                            <Button Style="{StaticResource Button.Primary}" Content="Import company policy…" Command="{Binding ImportPolicyCommand}" />
+                        </StackPanel>
+                        <TextBlock Text="Workplace" Style="{StaticResource Text.Section}" />
+                    </DockPanel>
+                    <TextBlock Text="{Binding WorkplaceStatus}" Style="{StaticResource Text.Hint}" TextWrapping="Wrap" />
+                    <Border Style="{StaticResource Banner.Info}" Margin="0,10,0,0" Visibility="{Binding Suggestion, Converter={StaticResource Null2Vis}}">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                <Button Content="Set up" Command="{Binding AddWorkplaceCommand}" Margin="0,0,8,0" />
+                                <Button Style="{StaticResource Button.Ghost}" Content="Not a workplace" Command="{Binding DismissWorkplaceCommand}" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding Suggestion}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                        </DockPanel>
+                    </Border>
+                    <ItemsControl ItemsSource="{Binding Workplaces}" Tag="{Binding}" Margin="0,8,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <DockPanel Margin="0,6">
+                                    <Button DockPanel.Dock="Right" Style="{StaticResource Button.Ghost}" Content="Remove"
+                                            Command="{Binding Tag.RemoveWorkplaceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                        <TextBlock Style="{StaticResource Text.Caption}" TextTrimming="CharacterEllipsis">
+                                            <Run Text="internal:" />
+                                            <Run Text="{Binding InternalDomains[0], Mode=OneWay, FallbackValue='—'}" />
+                                            <Run Text="{Binding InternalCidrs[0], Mode=OneWay, FallbackValue=''}" />
+                                            <Run Text="{Binding PolicyKeySha256, Mode=OneWay, StringFormat='· signed policy {0}', FallbackValue=''}" />
+                                        </TextBlock>
+                                    </StackPanel>
+                                </DockPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -1,0 +1,23 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Black: true black (OLED friendly), violet accent. -->
+    <Color x:Key="C.Window">#FF000000</Color>
+    <Color x:Key="C.Sidebar">#FF060607</Color>
+    <Color x:Key="C.Card">#FF0E0E11</Color>
+    <Color x:Key="C.CardHover">#FF17171C</Color>
+    <Color x:Key="C.Input">#FF141418</Color>
+    <Color x:Key="C.Border">#FF222228</Color>
+    <Color x:Key="C.Text">#FFF2F2F4</Color>
+    <Color x:Key="C.TextSecondary">#FFA1A1AA</Color>
+    <Color x:Key="C.TextMuted">#FF63636B</Color>
+    <Color x:Key="C.Accent">#FF8B5CF6</Color>
+    <Color x:Key="C.AccentHover">#FFA07BF8</Color>
+    <Color x:Key="C.Accent2">#FFEC4899</Color>
+    <Color x:Key="C.OnAccent">#FFFFFFFF</Color>
+    <Color x:Key="C.Success">#FF22C55E</Color>
+    <Color x:Key="C.Success2">#FF10B981</Color>
+    <Color x:Key="C.Warning">#FFF59E0B</Color>
+    <Color x:Key="C.Danger">#FFF43F5E</Color>
+    <Color x:Key="C.Idle">#FF2A2A31</Color>
+    <Color x:Key="C.Idle2">#FF18181D</Color>
+</ResourceDictionary>

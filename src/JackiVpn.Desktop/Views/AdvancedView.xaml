@@ -1,0 +1,256 @@
+<UserControl x:Class="JackiVpn.Desktop.Views.AdvancedView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="clr-namespace:JackiVpn.Desktop.Views">
+    <UserControl.Resources>
+        <Style x:Key="NumBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+            <Setter Property="Width" Value="110" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+        </Style>
+    </UserControl.Resources>
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32,26,32,26" v:Motion.StaggerChildren="True">
+            <TextBlock Text="Advanced" Style="{StaticResource Text.PageTitle}" />
+            <TextBlock Text="Engines, multiplexing, smart selection and ownership verification. Defaults are tuned for stability." Style="{StaticResource Text.PageSubtitle}" />
+
+            <!-- Speed & handshake -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="Speed &amp; handshake" Style="{StaticResource Text.Section}" />
+                    <TextBlock Text="Base ping is set by the distance to the server. These settings remove the extra waiting on top of it: per-connection handshakes, DNS round trips and QUIC over TCP."
+                               Style="{StaticResource Text.Hint}" Margin="0,0,0,14" />
+                    <Grid Style="{StaticResource Row}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="Gaming &amp; streaming optimization" Style="{StaticResource Text.Label}" />
+                            <TextBlock Text="Auto detects games (foreground game or game library, exclusive full screen) and streams (OBS/Streamlabs, full-screen or sustained video). While they run, background server tests, tuning and automatic server moves pause, and failed health checks only count when no data is flowing — no lag spikes, no mid-game reconnects. The core always runs at high priority and is exempt from Windows power throttling."
+                                       Style="{StaticResource Text.Hint}" MaxWidth="520" HorizontalAlignment="Left" />
+                        </StackPanel>
+                        <ComboBox Grid.Column="1" ItemsSource="{Binding ActivityOptions}" SelectedItem="{Binding Activity}" VerticalAlignment="Top" />
+                    </Grid>
+                    <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding AutoTune}" Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock Text="Auto-tune each server" Style="{StaticResource Text.Label}" />
+                            <TextBlock Text="After connecting, measures TLS record vs TCP fragmentation, WebSocket 0-RTT (early data) and MUX on real handshakes, and keeps the fastest variant that works reliably. Falls back to the server's own settings as soon as it fails."
+                                       Style="{StaticResource Text.Hint}" MaxWidth="560" HorizontalAlignment="Left" />
+                        </StackPanel>
+                    </CheckBox>
+                    <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding FastDns}" Margin="0,0,0,14">
+                        <StackPanel>
+                            <TextBlock Text="Fast DNS (FakeIP, TUN)" Style="{StaticResource Text.Label}" />
+                            <TextBlock Text="Tunneled names are answered instantly and resolved by the server: saves a full round trip on every new website. Direct-routed names always get real answers."
+                                       Style="{StaticResource Text.Hint}" MaxWidth="560" HorizontalAlignment="Left" />
+                        </StackPanel>
+                    </CheckBox>
+                    <Grid Style="{StaticResource Row}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="QUIC / HTTP3" Style="{StaticResource Text.Label}" />
+                            <TextBlock Text="Auto blocks QUIC through TCP-based servers so browsers switch to TCP at once (HTTP/3 over a TCP tunnel is slower). Hysteria2/TUIC keep QUIC."
+                                       Style="{StaticResource Text.Hint}" MaxWidth="520" HorizontalAlignment="Left" />
+                        </StackPanel>
+                        <ComboBox Grid.Column="1" ItemsSource="{Binding QuicPolicies}" SelectedItem="{Binding Quic}" VerticalAlignment="Top" />
+                    </Grid>
+                    <Grid Style="{StaticResource Row}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="Default TLS fingerprint" Style="{StaticResource Text.Label}" />
+                            <TextBlock Text="Used only for servers whose config names no fingerprint (Go's own TLS hello is easy for DPI to recognise). Configs that set one keep it."
+                                       Style="{StaticResource Text.Hint}" MaxWidth="520" HorizontalAlignment="Left" />
+                        </StackPanel>
+                        <ComboBox Grid.Column="1" ItemsSource="{Binding Fingerprints}" SelectedItem="{Binding DefaultFingerprint}" VerticalAlignment="Top" />
+                    </Grid>
+                    <Grid Style="{StaticResource Row}" Margin="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="TUN network stack" Style="{StaticResource Text.Label}" />
+                            <TextBlock Text="Mixed (recommended) uses the Windows TCP stack — fastest for TCP — and gVisor for UDP."
+                                       Style="{StaticResource Text.Hint}" MaxWidth="520" HorizontalAlignment="Left" />
+                        </StackPanel>
+                        <ComboBox Grid.Column="1" ItemsSource="{Binding TunStacks}" SelectedItem="{Binding TunStack}" VerticalAlignment="Top" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- Engines -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <DockPanel Margin="0,0,0,10">
+                        <Button DockPanel.Dock="Right" Content="Check" Command="{Binding RefreshCoresCommand}" />
+                        <TextBlock Text="Engines" Style="{StaticResource Text.Section}" Margin="0" VerticalAlignment="Center" />
+                    </DockPanel>
+                    <ItemsControl ItemsSource="{Binding Cores}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="120" />
+                                        <ColumnDefinition Width="90" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Version}" FontFamily="{StaticResource MonoFont}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding Status}" Style="{StaticResource Text.Caption}" TextTrimming="CharacterEllipsis" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Grid Style="{StaticResource Row}" Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="Preferred engine" Style="{StaticResource Text.Label}" />
+                            <TextBlock Text="Auto uses sing-box, and Xray (chained behind sing-box) only for features sing-box lacks. Capabilities are checked before every connection." Style="{StaticResource Text.Hint}" MaxWidth="520" HorizontalAlignment="Left" />
+                        </StackPanel>
+                        <ComboBox Grid.Column="1" ItemsSource="{Binding CorePreferences}" SelectedItem="{Binding Core}" VerticalAlignment="Top" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- MUX -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="Multiplexing (MUX)" Style="{StaticResource Text.Section}" />
+                    <Grid Style="{StaticResource Row}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="MUX mode" Style="{StaticResource Text.Label}" />
+                            <TextBlock Text="Auto turns MUX on only after a benchmark shows it works and is faster on that server. Never used with XTLS Vision or UDP-based protocols." Style="{StaticResource Text.Hint}" MaxWidth="520" HorizontalAlignment="Left" />
+                        </StackPanel>
+                        <ComboBox Grid.Column="1" ItemsSource="{Binding MuxModes}" SelectedItem="{Binding Mux}" VerticalAlignment="Top" />
+                    </Grid>
+                    <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding MuxBenchmark}" Margin="0,0,0,10">
+                        <TextBlock Text="Benchmark automatically after connecting (Auto mode)" Style="{StaticResource Text.Label}" />
+                    </CheckBox>
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="Benchmark current server" Command="{Binding BenchmarkMuxCommand}" IsEnabled="{Binding IsBenchmarking, Converter={StaticResource InvBool}}" />
+                        <TextBlock Text="{Binding MuxMessage}" Style="{StaticResource Text.Hint}" VerticalAlignment="Center" Margin="12,0,0,0" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Smart -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="Smart selection &amp; failover" Style="{StaticResource Text.Section}" />
+                    <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding ProactiveSwitching}" Margin="0,0,0,14">
+                        <StackPanel>
+                            <TextBlock Text="Jacki Smart Connect: move to clearly better servers" Style="{StaticResource Text.Label}" />
+                            <TextBlock Text="Only between servers verified as Jacki infrastructure. Other servers are only switched when they fail." Style="{StaticResource Text.Hint}" />
+                        </StackPanel>
+                    </CheckBox>
+                    <UniformGrid Columns="2">
+                        <DockPanel Margin="0,0,24,12"><TextBox DockPanel.Dock="Right" Style="{StaticResource NumBox}" Text="{Binding HealthCheckSeconds}" /><TextBlock Text="Health check every (s)" Style="{StaticResource Text.Label}" /></DockPanel>
+                        <DockPanel Margin="0,0,0,12"><TextBox DockPanel.Dock="Right" Style="{StaticResource NumBox}" Text="{Binding FailuresToFailover}" /><TextBlock Text="Failures before switching" Style="{StaticResource Text.Label}" /></DockPanel>
+                        <DockPanel Margin="0,0,24,12"><TextBox DockPanel.Dock="Right" Style="{StaticResource NumBox}" Text="{Binding MinDwellMinutes}" /><TextBlock Text="Minimum time on a server (min)" Style="{StaticResource Text.Label}" /></DockPanel>
+                        <DockPanel Margin="0,0,0,12"><TextBox DockPanel.Dock="Right" Style="{StaticResource NumBox}" Text="{Binding CooldownMinutes}" /><TextBlock Text="Failed server cooldown (min)" Style="{StaticResource Text.Label}" /></DockPanel>
+                        <DockPanel Margin="0,0,24,12"><TextBox DockPanel.Dock="Right" Style="{StaticResource NumBox}" Text="{Binding MaxSwitchesPerHour}" /><TextBlock Text="Max switches per hour" Style="{StaticResource Text.Label}" /></DockPanel>
+                        <DockPanel Margin="0,0,0,12"><TextBox DockPanel.Dock="Right" Style="{StaticResource NumBox}" Text="{Binding SwitchMarginPercent}" /><TextBlock Text="Required improvement (%)" Style="{StaticResource Text.Label}" /></DockPanel>
+                    </UniformGrid>
+                    <Border Style="{StaticResource Separator.Line}" />
+                    <TextBlock Text="Score weights (0–1)" Style="{StaticResource Text.Label}" Margin="0,0,0,8" />
+                    <UniformGrid Columns="3">
+                        <DockPanel Margin="0,0,16,10"><TextBox DockPanel.Dock="Right" Width="70" Text="{Binding WeightLatency}" /><TextBlock Text="Latency" Style="{StaticResource Text.Label}" /></DockPanel>
+                        <DockPanel Margin="0,0,16,10"><TextBox DockPanel.Dock="Right" Width="70" Text="{Binding WeightJitter}" /><TextBlock Text="Jitter" Style="{StaticResource Text.Label}" /></DockPanel>
+                        <DockPanel Margin="0,0,0,10"><TextBox DockPanel.Dock="Right" Width="70" Text="{Binding WeightSuccess}" /><TextBlock Text="Success rate" Style="{StaticResource Text.Label}" /></DockPanel>
+                        <DockPanel Margin="0,0,16,10"><TextBox DockPanel.Dock="Right" Width="70" Text="{Binding WeightHandshake}" /><TextBlock Text="Handshake" Style="{StaticResource Text.Label}" /></DockPanel>
+                        <DockPanel Margin="0,0,16,10"><TextBox DockPanel.Dock="Right" Width="70" Text="{Binding WeightStability}" /><TextBlock Text="Stability" Style="{StaticResource Text.Label}" /></DockPanel>
+                        <DockPanel Margin="0,0,0,10"><TextBox DockPanel.Dock="Right" Width="70" Text="{Binding WeightThroughput}" /><TextBlock Text="Throughput" Style="{StaticResource Text.Label}" /></DockPanel>
+                    </UniformGrid>
+                </StackPanel>
+            </Border>
+
+            <!-- Probes -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="Server tests" Style="{StaticResource Text.Section}" />
+                    <UniformGrid Columns="2">
+                        <DockPanel Margin="0,0,24,12"><TextBox DockPanel.Dock="Right" Style="{StaticResource NumBox}" Text="{Binding ProbeTimeoutSeconds}" /><TextBlock Text="Timeout (s)" Style="{StaticResource Text.Label}" /></DockPanel>
+                        <DockPanel Margin="0,0,0,12"><TextBox DockPanel.Dock="Right" Style="{StaticResource NumBox}" Text="{Binding SamplesPerNode}" /><TextBlock Text="Samples per server" Style="{StaticResource Text.Label}" /></DockPanel>
+                        <DockPanel Margin="0,0,24,12"><TextBox DockPanel.Dock="Right" Style="{StaticResource NumBox}" Text="{Binding Concurrency}" /><TextBlock Text="Parallel tests (1–6)" Style="{StaticResource Text.Label}" /></DockPanel>
+                        <DockPanel Margin="0,0,0,12"><TextBox DockPanel.Dock="Right" Style="{StaticResource NumBox}" Text="{Binding CacheMinutes}" /><TextBlock Text="Reuse results for (min)" Style="{StaticResource Text.Label}" /></DockPanel>
+                    </UniformGrid>
+                    <TextBlock Text="Test URLs (one per line; at least two different providers recommended)" Style="{StaticResource Text.Label}" />
+                    <TextBox Text="{Binding ProbeUrls}" Style="{StaticResource TextBox.Mono}" AcceptsReturn="True" Height="64" Margin="0,6,0,12" VerticalContentAlignment="Top" />
+                    <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding ThroughputTest}" Margin="0,0,0,10">
+                        <TextBlock Text="Measure throughput (downloads ~1 MB per server)" Style="{StaticResource Text.Label}" />
+                    </CheckBox>
+                    <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding CheckPublicIp}">
+                        <TextBlock Text="Show public IP after connecting (asks api.ipify.org through the VPN)" Style="{StaticResource Text.Label}" />
+                    </CheckBox>
+                </StackPanel>
+            </Border>
+
+            <!-- Ownership -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="Jacki infrastructure verification" Style="{StaticResource Text.Section}" />
+                    <TextBlock Text="Jacki Smart Connect is enabled only for subscriptions or configs proven to belong to the owner: a domain allow-list, a provider header over HTTPS, or a signed manifest."
+                               Style="{StaticResource Text.Hint}" Margin="0,0,0,12" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="16" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="Subscription domains (one per line)" Style="{StaticResource Text.Label}" />
+                            <TextBox Text="{Binding AllowedDomains}" Style="{StaticResource TextBox.Mono}" AcceptsReturn="True" Height="70" Margin="0,6,0,0" VerticalContentAlignment="Top" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Single-config server / SNI hosts" Style="{StaticResource Text.Label}" />
+                            <TextBox Text="{Binding SingleConfigHosts}" Style="{StaticResource TextBox.Mono}" AcceptsReturn="True" Height="70" Margin="0,6,0,0" VerticalContentAlignment="Top" />
+                        </StackPanel>
+                    </Grid>
+                    <Grid Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="16" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="Header name" Style="{StaticResource Text.Label}" />
+                            <TextBox Text="{Binding MarkerHeader}" Margin="0,6,0,0" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Header value" Style="{StaticResource Text.Label}" />
+                            <TextBox Text="{Binding MarkerValue}" Margin="0,6,0,0" />
+                        </StackPanel>
+                    </Grid>
+                    <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding HeaderRequiresDomain}" Margin="0,12,0,12">
+                        <TextBlock Text="Header only counts on allow-listed domains" Style="{StaticResource Text.Label}" />
+                    </CheckBox>
+                    <TextBlock Text="Manifest public key (ECDSA P-256, PEM)" Style="{StaticResource Text.Label}" />
+                    <TextBox Text="{Binding ManifestPublicKey}" Style="{StaticResource TextBox.Mono}" AcceptsReturn="True" Height="80" Margin="0,6,0,0" VerticalContentAlignment="Top" />
+                </StackPanel>
+            </Border>
+
+            <!-- Subscriptions -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="Subscription requests" Style="{StaticResource Text.Section}" />
+                    <DockPanel Margin="0,0,0,12"><TextBox DockPanel.Dock="Right" Width="260" Text="{Binding UserAgent}" /><TextBlock Text="User-Agent" Style="{StaticResource Text.Label}" /></DockPanel>
+                    <DockPanel><TextBox DockPanel.Dock="Right" Style="{StaticResource NumBox}" Text="{Binding FetchTimeoutSeconds}" /><TextBlock Text="Timeout (s)" Style="{StaticResource Text.Label}" /></DockPanel>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

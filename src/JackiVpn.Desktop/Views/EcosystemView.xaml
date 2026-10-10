@@ -1,0 +1,131 @@
+<UserControl x:Class="JackiVpn.Desktop.Views.EcosystemView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:JackiVpn.Desktop.ViewModels">
+    <UserControl.Resources>
+        <!-- Radar: three rings expanding from the device mark while a scan runs. -->
+        <Storyboard x:Key="Radar" RepeatBehavior="Forever">
+            <DoubleAnimation Storyboard.TargetName="R1" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" From="0.3" To="1" Duration="0:0:1.8" />
+            <DoubleAnimation Storyboard.TargetName="R1" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" From="0.3" To="1" Duration="0:0:1.8" />
+            <DoubleAnimation Storyboard.TargetName="R1" Storyboard.TargetProperty="Opacity" From="0.8" To="0" Duration="0:0:1.8" />
+            <DoubleAnimation Storyboard.TargetName="R2" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" From="0.3" To="1" Duration="0:0:1.8" BeginTime="0:0:0.6" />
+            <DoubleAnimation Storyboard.TargetName="R2" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" From="0.3" To="1" Duration="0:0:1.8" BeginTime="0:0:0.6" />
+            <DoubleAnimation Storyboard.TargetName="R2" Storyboard.TargetProperty="Opacity" From="0.8" To="0" Duration="0:0:1.8" BeginTime="0:0:0.6" />
+            <DoubleAnimation Storyboard.TargetName="R3" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" From="0.3" To="1" Duration="0:0:1.8" BeginTime="0:0:1.2" />
+            <DoubleAnimation Storyboard.TargetName="R3" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" From="0.3" To="1" Duration="0:0:1.8" BeginTime="0:0:1.2" />
+            <DoubleAnimation Storyboard.TargetName="R3" Storyboard.TargetProperty="Opacity" From="0.8" To="0" Duration="0:0:1.8" BeginTime="0:0:1.2" />
+        </Storyboard>
+    </UserControl.Resources>
+
+    <StackPanel Margin="24,18,24,22">
+        <!-- Header with radar -->
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Grid Width="64" Height="64" VerticalAlignment="Center">
+                <Ellipse x:Name="R1" Stroke="{DynamicResource B.Accent}" StrokeThickness="2" Opacity="0" RenderTransformOrigin="0.5,0.5"><Ellipse.RenderTransform><ScaleTransform /></Ellipse.RenderTransform></Ellipse>
+                <Ellipse x:Name="R2" Stroke="{DynamicResource B.Accent}" StrokeThickness="2" Opacity="0" RenderTransformOrigin="0.5,0.5"><Ellipse.RenderTransform><ScaleTransform /></Ellipse.RenderTransform></Ellipse>
+                <Ellipse x:Name="R3" Stroke="{DynamicResource B.Accent}" StrokeThickness="2" Opacity="0" RenderTransformOrigin="0.5,0.5"><Ellipse.RenderTransform><ScaleTransform /></Ellipse.RenderTransform></Ellipse>
+                <Border Width="36" Height="36" CornerRadius="18" Background="{DynamicResource B.Accent}">
+                    <TextBlock Text="&#xE895;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+           </Grid>
+            <StackPanel Grid.Column="1" Margin="14,0,12,0" VerticalAlignment="Center">
+                <TextBlock Text="Sync device" FontSize="18" FontWeight="SemiBold" />
+                <TextBlock Text="{Binding ScanText}" Style="{StaticResource Text.Hint}" TextWrapping="Wrap" />
+            </StackPanel>
+            <Button Grid.Column="2" Content="Scan" Style="{StaticResource Button.Primary}" MinWidth="88" VerticalAlignment="Center" Command="{Binding ScanCommand}" />
+        </Grid>
+
+        <!-- Devices -->
+        <TextBlock Text="DEVICES ON THIS NETWORK" Style="{StaticResource Text.Caption}" FontWeight="SemiBold" Margin="2,18,0,8" />
+        <ItemsControl ItemsSource="{Binding Devices}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="{x:Type vm:SyncDevice}">
+                    <Button Command="{Binding DataContext.SelectDeviceCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
+                            Margin="0,0,0,8" Padding="0" HorizontalContentAlignment="Stretch" Cursor="Hand">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="Bd" CornerRadius="12" Padding="14,10" BorderThickness="1.5"
+                                        Background="{DynamicResource B.Card}" BorderBrush="{DynamicResource B.Border}" RenderTransformOrigin="0.5,0.5">
+                                    <Border.RenderTransform><ScaleTransform ScaleX="0.94" ScaleY="0.94" /></Border.RenderTransform>
+                                    <ContentPresenter />
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <EventTrigger RoutedEvent="Loaded">
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetName="Bd" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" To="1" Duration="0:0:0.35"><DoubleAnimation.EasingFunction><BackEase EasingMode="EaseOut" Amplitude="0.4" /></DoubleAnimation.EasingFunction></DoubleAnimation>
+                                                <DoubleAnimation Storyboard.TargetName="Bd" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" To="1" Duration="0:0:0.35"><DoubleAnimation.EasingFunction><BackEase EasingMode="EaseOut" Amplitude="0.4" /></DoubleAnimation.EasingFunction></DoubleAnimation>
+                                                <DoubleAnimation Storyboard.TargetName="Bd" Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:0.25" />
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </EventTrigger>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Bd" Property="Background" Value="{DynamicResource B.CardHover}" />
+                                    </Trigger>
+                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                        <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource B.Accent}" />
+                                    </DataTrigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{Binding Glyph}" FontFamily="Segoe MDL2 Assets" FontSize="22" VerticalAlignment="Center" Foreground="{DynamicResource B.Accent}" />
+                            <StackPanel Grid.Column="1" Margin="12,0,0,0">
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="{DynamicResource B.Text}" />
+                                <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Caption}" />
+                            </StackPanel>
+                            <TextBlock Grid.Column="2" Text="&#xE73E;" FontFamily="Segoe MDL2 Assets" VerticalAlignment="Center" Foreground="{DynamicResource B.Accent}"
+                                       Visibility="{Binding IsSelected, Converter={StaticResource Bool2Vis}}" />
+                        </Grid>
+                    </Button>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- Subscriptions -->
+        <TextBlock Text="SUBSCRIPTIONS TO SEND" Style="{StaticResource Text.Caption}" FontWeight="SemiBold" Margin="2,10,0,6" />
+        <TextBlock Text="Add a subscription first." Style="{StaticResource Text.Hint}" Visibility="{Binding HasSubscriptions, Converter={StaticResource InvBool2Vis}}" />
+        <ItemsControl ItemsSource="{Binding Subscriptions}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <CheckBox Content="{Binding Name}" IsChecked="{Binding IsSelected}" Margin="0,3" />
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <Grid Margin="0,16,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Button Content="Send to device" Style="{StaticResource Button.Primary}" Command="{Binding SendCommand}" MinWidth="140" />
+            <Border Grid.Column="1" Margin="14,0,0,0" CornerRadius="10" Padding="12,4" HorizontalAlignment="Left" Background="{DynamicResource B.Input}"
+                    Visibility="{Binding Code, Converter={StaticResource Null2Vis}}">
+                <TextBlock FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource B.Accent}">
+                    <Run Text="{Binding Code, Mode=OneWay}" />
+                </TextBlock>
+            </Border>
+        </Grid>
+        <TextBlock Text="{Binding Message}" Style="{StaticResource Text.Hint}" TextWrapping="Wrap" Margin="0,10,0,0" />
+
+        <Separator Margin="0,16,0,12" Opacity="0.4" />
+        <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding Enabled}">
+            <StackPanel>
+                <TextBlock Text="Let my other devices find this PC" Style="{StaticResource Text.Label}" />
+                <TextBlock Style="{StaticResource Text.Hint}" TextWrapping="Wrap" MaxWidth="420" HorizontalAlignment="Left">
+                    <Run Text="Visible as " /><Run Text="{Binding DeviceName, Mode=OneWay}" FontWeight="SemiBold" /><Run Text=" while IBOX runs. Nothing is added without your approval; the link travels encrypted." />
+                </TextBlock>
+            </StackPanel>
+        </CheckBox>
+    </StackPanel>
+</UserControl>

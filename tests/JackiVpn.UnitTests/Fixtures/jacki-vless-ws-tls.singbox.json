@@ -1,0 +1,27 @@
+{
+  "type": "vless",
+  "tag": "Jacki CDN ⚡ سرور اصلی",
+  "server": "104.16.123.45",
+  "server_port": 443,
+  "uuid": "11111111-2222-4333-8444-555555555555",
+  "transport": {
+    "type": "ws",
+    "path": "/jacki-ws",
+    "headers": {
+      "host": "edge.jacki-example.test"
+    }
+  },
+  "tls": {
+    "enabled": true,
+    "server_name": "edge.jacki-example.test",
+    "utls": {
+      "enabled": true,
+      "fingerprint": "firefox"
+    },
+    "alpn": [
+      "http/1.1"
+    ],
+    "fragment": true,
+    "fragment_fallback_delay": "20ms"
+  }
+}

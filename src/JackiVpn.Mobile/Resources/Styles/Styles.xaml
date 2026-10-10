@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ResourceDictionary xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+                    xmlns:controls="clr-namespace:JackiVpn.Mobile.Controls">
+
+    <Style TargetType="Page" ApplyToDerivedTypes="True">
+        <Setter Property="BackgroundColor" Value="{StaticResource Bg}" />
+        <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style TargetType="Shell" ApplyToDerivedTypes="True">
+        <Setter Property="Shell.BackgroundColor" Value="{StaticResource Bg}" />
+        <Setter Property="Shell.ForegroundColor" Value="{StaticResource Text}" />
+        <Setter Property="Shell.TitleColor" Value="{StaticResource Text}" />
+    </Style>
+
+    <Style TargetType="Label">
+        <Setter Property="TextColor" Value="{StaticResource Text}" />
+        <Setter Property="FontFamily" Value="OpenSansRegular" />
+        <Setter Property="FontSize" Value="14" />
+    </Style>
+    <Style x:Key="Title" TargetType="Label">
+        <Setter Property="FontFamily" Value="OpenSansSemibold" />
+        <Setter Property="FontSize" Value="24" />
+    </Style>
+    <Style x:Key="Section" TargetType="Label">
+        <Setter Property="FontFamily" Value="OpenSansSemibold" />
+        <Setter Property="FontSize" Value="16" />
+    </Style>
+    <Style x:Key="Overline" TargetType="Label">
+        <Setter Property="FontFamily" Value="OpenSansSemibold" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="CharacterSpacing" Value="1.2" />
+        <Setter Property="TextColor" Value="{StaticResource Text3}" />
+    </Style>
+    <Style x:Key="Caption" TargetType="Label">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="TextColor" Value="{StaticResource Text2}" />
+    </Style>
+    <Style x:Key="Hint" TargetType="Label">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="TextColor" Value="{StaticResource Text3}" />
+        <Setter Property="LineBreakMode" Value="WordWrap" />
+    </Style>
+    <Style x:Key="Value" TargetType="Label">
+        <Setter Property="FontFamily" Value="OpenSansSemibold" />
+        <Setter Property="FontSize" Value="15" />
+    </Style>
+
+    <!-- Surfaces -->
+    <Style x:Key="Card" TargetType="Border">
+        <Setter Property="BackgroundColor" Value="{StaticResource Surface}" />
+        <Setter Property="Stroke" Value="{StaticResource Stroke}" />
+        <Setter Property="StrokeThickness" Value="1" />
+        <Setter Property="StrokeShape" Value="RoundRectangle 22" />
+        <Setter Property="Padding" Value="16" />
+        <Setter Property="Margin" Value="0,0,0,12" />
+        <Setter Property="controls:Motion.Appear" Value="True" />
+    </Style>
+    <Style x:Key="Chip" TargetType="Border">
+        <Setter Property="BackgroundColor" Value="{StaticResource Surface2}" />
+        <Setter Property="Stroke" Value="{StaticResource Stroke}" />
+        <Setter Property="StrokeThickness" Value="1" />
+        <Setter Property="StrokeShape" Value="RoundRectangle 16" />
+        <Setter Property="Padding" Value="12,6" />
+    </Style>
+    <Style x:Key="GlassInput" TargetType="Border">
+        <Setter Property="BackgroundColor" Value="{StaticResource Surface2}" />
+        <Setter Property="Stroke" Value="{StaticResource Stroke}" />
+        <Setter Property="StrokeThickness" Value="1" />
+        <Setter Property="StrokeShape" Value="RoundRectangle 16" />
+        <Setter Property="Padding" Value="14,0" />
+    </Style>
+
+    <!-- Buttons -->
+    <Style TargetType="Button">
+        <Setter Property="TextColor" Value="{StaticResource Text}" />
+        <Setter Property="BackgroundColor" Value="{StaticResource Surface2}" />
+        <Setter Property="BorderColor" Value="{StaticResource Stroke}" />
+        <Setter Property="BorderWidth" Value="1" />
+        <Setter Property="CornerRadius" Value="16" />
+        <Setter Property="FontFamily" Value="OpenSansSemibold" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Padding" Value="18,10" />
+        <Setter Property="MinimumHeightRequest" Value="46" />
+        <Setter Property="controls:Motion.Press" Value="True" />
+        <Setter Property="VisualStateManager.VisualStateGroups">
+            <VisualStateGroupList>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="Disabled">
+                        <VisualState.Setters>
+                            <Setter Property="Opacity" Value="0.45" />
+                        </VisualState.Setters>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateGroupList>
+        </Setter>
+    </Style>
+    <Style x:Key="Primary" TargetType="Button">
+        <Setter Property="Background" Value="{StaticResource PrimaryGradient}" />
+        <Setter Property="BorderWidth" Value="0" />
+        <Setter Property="TextColor" Value="White" />
+        <Setter Property="Shadow">
+            <Shadow Brush="#5B6CFF" Offset="0,8" Radius="22" Opacity="0.45" />
+        </Setter>
+    </Style>
+    <Style x:Key="Ghost" TargetType="Button">
+        <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="BorderWidth" Value="0" />
+        <Setter Property="TextColor" Value="{StaticResource Primary2}" />
+    </Style>
+    <Style x:Key="Pill" TargetType="Button">
+        <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="BorderColor" Value="#33FFFFFF" />
+        <Setter Property="BorderWidth" Value="1" />
+        <Setter Property="CornerRadius" Value="16" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Padding" Value="14,4" />
+        <Setter Property="MinimumHeightRequest" Value="34" />
+        <Setter Property="HeightRequest" Value="34" />
+    </Style>
+
+    <Style TargetType="Entry">
+        <Setter Property="TextColor" Value="{StaticResource Text}" />
+        <Setter Property="PlaceholderColor" Value="{StaticResource Text3}" />
+        <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="FontSize" Value="14" />
+    </Style>
+    <Style TargetType="Editor">
+        <Setter Property="TextColor" Value="{StaticResource Text}" />
+        <Setter Property="PlaceholderColor" Value="{StaticResource Text3}" />
+        <Setter Property="BackgroundColor" Value="Transparent" />
+    </Style>
+    <Style TargetType="Picker">
+        <Setter Property="TextColor" Value="{StaticResource Text}" />
+        <Setter Property="TitleColor" Value="{StaticResource Text2}" />
+        <Setter Property="BackgroundColor" Value="Transparent" />
+        <Setter Property="FontSize" Value="14" />
+    </Style>
+    <Style TargetType="Switch">
+        <Setter Property="OnColor" Value="{StaticResource Primary}" />
+        <Setter Property="ThumbColor" Value="White" />
+    </Style>
+    <Style TargetType="CheckBox">
+        <Setter Property="Color" Value="{StaticResource Primary}" />
+    </Style>
+    <Style TargetType="ProgressBar">
+        <Setter Property="ProgressColor" Value="{StaticResource Primary}" />
+    </Style>
+    <Style TargetType="ActivityIndicator">
+        <Setter Property="Color" Value="{StaticResource Primary2}" />
+    </Style>
+    <Style TargetType="RefreshView">
+        <Setter Property="RefreshColor" Value="{StaticResource Primary}" />
+    </Style>
+</ResourceDictionary>

@@ -1,0 +1,41 @@
+Installing IBOX
+====================
+
+Windows 10 / 11 (64-bit)
+------------------------
+1. Run JackiVpn-<version>-win-x64.msi.
+2. If Windows shows "Windows protected your PC", click More info > Run anyway (the app is not yet signed with a
+   commercial code-signing certificate).
+3. Click Install and accept the administrator prompt. The app goes to Program Files and its privileged service
+   (TUN mode, kill switch) is registered and started automatically. No .NET installation is needed.
+4. Open the app, add your subscription link under Subscriptions (or import configs under Servers), and connect.
+Uninstall: Windows Settings > Apps > IBOX > Uninstall.
+
+Apps that read the system proxy only when they start (e.g. Claude Desktop): after switching to IBOX from
+another client, restart them once. TUN mode does not have this issue.
+
+Android 10 or later
+-------------------
+1. Install the APK that matches the phone:
+   - ...-android-arm64-v8a.apk    almost every phone from recent years (pick this one if unsure)
+   - ...-android-armeabi-v7a.apk  very old 32-bit phones
+   - ...-android-x86_64.apk       emulators
+2. Allow "install unknown apps" for the app you opened the file with if Android asks. If Play Protect warns,
+   choose More details > Install anyway.
+3. Open the app, paste your subscription link under Subscriptions and tap Add, then tap the connect button on
+   Home and accept Android's VPN request.
+4. Kill switch: Settings > Open Android VPN settings > gear next to IBOX > turn on "Always-on VPN" and
+   "Block connections without VPN".
+
+New in 1.0.0
+------------
+- New phone design and Persian language (Settings > Language).
+- Automatic, signed updates from connect.jackiairline.ir (Windows: banner at the top; phone: Settings > Updates).
+- Subscription updates no longer duplicate servers (earlier duplicates are cleaned up automatically).
+- Server list grouped by subscription.
+- XHTTP and custom-path gRPC configs now work on phones too, and keep working after the first connection.
+- The connect button turns magenta while gaming and light blue while streaming (also shown in the phone notification).
+- PasarGuard subscriptions: device limit and last-online time, every 10 minutes.
+- Sync device: Subscriptions > Sync device (app open on both devices, same Wi-Fi).
+- Internet stuck? Start menu > "IBOX - Emergency network restore".
+File integrity: SHA-256 hashes are listed in SHA256SUMS.txt.

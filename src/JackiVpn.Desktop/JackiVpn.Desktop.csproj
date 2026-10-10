@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <OutputType>WinExe</OutputType>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <RootNamespace>JackiVpn.Desktop</RootNamespace>
+    <AssemblyName>JackiVpn</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\jacki.ico</ApplicationIcon>
+    <!-- WinForms is only used for the tray icon; keep WPF's implicit usings unambiguous. -->
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- WFO0003: the DPI manifest entry is for WPF (Per-Monitor V2); WinForms is only used for the tray icon. -->
+    <NoWarn>$(NoWarn);WFO1000;WFO0003</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\JackiVpn.Application\JackiVpn.Application.csproj" />
+    <ProjectReference Include="..\JackiVpn.Infrastructure\JackiVpn.Infrastructure.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Assets\jacki.ico" />
+    <None Include="$(RepoRoot)cores\bin\**\*" Link="cores\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" Condition="Exists('$(RepoRoot)cores\bin\manifest.json')" />
+    <None Include="$(RepoRoot)assets\rulesets\*.srs" Link="rulesets-seed\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="$(RepoRoot)THIRD_PARTY_NOTICES.txt" Link="THIRD_PARTY_NOTICES.txt" CopyToOutputDirectory="PreserveNewest" Condition="Exists('$(RepoRoot)THIRD_PARTY_NOTICES.txt')" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+	<!-- extractNativeLibs: the sing-box core is an executable shipped as lib*.so; Android may only execute files from
+	     the extracted native library directory. allowBackup=false: the database never leaves the device (secrets are
+	     additionally sealed with an Android Keystore key that cannot be exported). -->
+	<application android:allowBackup="false" android:fullBackupContent="false" android:dataExtractionRules="@xml/data_extraction_rules"
+	             android:icon="@mipmap/appicon" android:roundIcon="@mipmap/appicon_round" android:label="IBOX"
+	             android:supportsRtl="true" android:extractNativeLibs="true">
+		<service android:name="com.jacki.vpn.JackiVpnService"
+		         android:permission="android.permission.BIND_VPN_SERVICE"
+		         android:exported="false"
+		         android:foregroundServiceType="specialUse">
+			<intent-filter>
+				<action android:name="android.net.VpnService" />
+			</intent-filter>
+			<property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="vpn" />
+			<meta-data android:name="android.net.VpnService.SUPPORTS_ALWAYS_ON" android:value="true" />
+		</service>
+	</application>
+	<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+	<uses-permission android:name="android.permission.INTERNET" />
+	<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+	<uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+	<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+	<!-- Haptic tick on the connect button (normal permission, granted at install). -->
+	<uses-permission android:name="android.permission.VIBRATE" />
+	<!-- QR codes of configs and subscriptions (asked only when the user opens the scanner). -->
+	<uses-permission android:name="android.permission.CAMERA" />
+	<uses-feature android:name="android.hardware.camera" android:required="false" />
+	<!-- Optional dynamic island over other apps (the user grants "Display over other apps" from the island settings). -->
+	<uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+	<!-- No PACKAGE_USAGE_STATS (Play Protect counts it against VPN apps): per-app totals are left to Android's own
+	     data-usage screen; the Usage page shows the sites that went through the VPN. -->
+	<!-- In-app updates: the verified APK is handed to Android's installer (the user confirms). -->
+	<!-- Optional game detection (usage access is granted by the user in Android settings). -->
+	<!-- Per-app VPN: list launchable apps only (no QUERY_ALL_PACKAGES). -->
+	<queries>
+		<intent>
+			<action android:name="android.intent.action.MAIN" />
+			<category android:name="android.intent.category.LAUNCHER" />
+		</intent>
+	</queries>
+</manifest>

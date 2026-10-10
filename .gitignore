@@ -1,0 +1,26 @@
+bin/
+obj/
+.vs/
+*.user
+*.suo
+.cache/
+artifacts/
+TestResults/
+BenchmarkDotNet.Artifacts/
+# core binaries are fetched and hash-verified by scripts/fetch-cores.ps1
+cores/bin/
+cores/linux-download/
+.claude/
+*.db
+*.jks
+*.keystore
+*.pfx
+*.pem
+*.key
+*.apk
+*.msi
+# never commit real subscription links or credentials
+*.secret.json
+tests/**/fixtures/private/
+cores/download/
+src/JackiVpn.Mobile/Platforms/Android/libs/**/*.so

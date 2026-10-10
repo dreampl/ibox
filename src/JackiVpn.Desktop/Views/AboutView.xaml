@@ -1,0 +1,90 @@
+<UserControl x:Class="JackiVpn.Desktop.Views.AboutView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="clr-namespace:JackiVpn.Desktop.Views">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32,26,32,26" v:Motion.StaggerChildren="True">
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
+                <Image Source="pack://application:,,,/JackiVpn;component/Assets/jacki.ico" Width="64" Height="64" />
+                <StackPanel Margin="16,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding ProductName, Mode=OneTime}" FontSize="26" FontWeight="SemiBold" />
+                    <TextBlock Style="{StaticResource Text.Caption}" FontSize="13"><Run Text="Version " /><Run Text="{Binding Version, Mode=OneTime}" /></TextBlock>
+                </StackPanel>
+            </StackPanel>
+
+            <Border Style="{StaticResource Card}" DataContext="{Binding DataContext.Update, RelativeSource={RelativeSource AncestorType=Window}}">
+                <StackPanel>
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Content="Check for updates" Command="{Binding CheckCommand}" VerticalAlignment="Top" />
+                        <StackPanel>
+                            <TextBlock Text="Updates" Style="{StaticResource Text.Section}" />
+                            <TextBlock Style="{StaticResource Text.Label}"><Run Text="Installed: " /><Run Text="{Binding CurrentVersion, Mode=OneWay}" FontWeight="SemiBold" /></TextBlock>
+                            <TextBlock Text="{Binding LastCheckText}" Style="{StaticResource Text.Hint}" />
+                        </StackPanel>
+                    </DockPanel>
+                    <Border Margin="0,12,0,0" Padding="12" CornerRadius="10" Background="{DynamicResource B.Input}" Visibility="{Binding HasUpdate, Converter={StaticResource Bool2Vis}}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding Notes}" Style="{StaticResource Text.Hint}" TextWrapping="Wrap" Margin="0,4,0,8" />
+                            <ProgressBar Value="{Binding Progress, Mode=OneWay}" Maximum="1" Height="4" Margin="0,0,0,8" Visibility="{Binding IsDownloading, Converter={StaticResource Bool2Vis}}" />
+                            <Button Content="Download and install" Style="{StaticResource Button.Primary}" Command="{Binding InstallCommand}" HorizontalAlignment="Left" />
+                        </StackPanel>
+                    </Border>
+                    <TextBlock Text="{Binding Status}" Style="{StaticResource Text.Hint}" Margin="0,8,0,0" Visibility="{Binding Status, Converter={StaticResource Null2Vis}}" />
+                    <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding AutoCheck}" Margin="0,12,0,0">
+                        <StackPanel>
+                            <TextBlock Text="Check for updates automatically" Style="{StaticResource Text.Label}" />
+                            <TextBlock Text="Every few hours from connect.jackiairline.ir. Updates are signed; nothing is installed without your OK." Style="{StaticResource Text.Hint}" />
+                        </StackPanel>
+                    </CheckBox>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="Privacy" Style="{StaticResource Text.Section}" />
+                    <TextBlock Text="{Binding Privacy, Mode=OneTime}" Style="{StaticResource Text.Label}" />
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="Components" Style="{StaticResource Text.Section}" />
+                    <ItemsControl ItemsSource="{Binding Components}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="260" />
+                                        <ColumnDefinition Width="110" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Version}" FontFamily="{StaticResource MonoFont}" />
+                                    <TextBlock Grid.Column="2" Style="{StaticResource Text.Caption}" TextTrimming="CharacterEllipsis">
+                                        <Run Text="{Binding License, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding Source, Mode=OneWay}" />
+                                    </TextBlock>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="Third-party notices" Style="{StaticResource Text.Section}" />
+                    <TextBox Text="{Binding Notices, Mode=OneTime}" Style="{StaticResource TextBox.Mono}" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="320"
+                             VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top" />
+                </StackPanel>
+            </Border>
+
+            <TextBlock Style="{StaticResource Text.Hint}">
+                <Run Text="Install folder: " /><Run Text="{Binding InstallFolder, Mode=OneTime}" FontFamily="{StaticResource MonoFont}" />
+            </TextBlock>
+            <TextBlock Style="{StaticResource Text.Hint}">
+                <Run Text="Data folder: " /><Run Text="{Binding DataFolder, Mode=OneTime}" FontFamily="{StaticResource MonoFont}" />
+            </TextBlock>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net10.0-windows;net10.0</TargetFrameworks>
+    <RootNamespace>JackiVpn.Subscriptions</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\JackiVpn.Domain\JackiVpn.Domain.csproj" />
+    <ProjectReference Include="..\JackiVpn.Security\JackiVpn.Security.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="YamlDotNet" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+</Project>

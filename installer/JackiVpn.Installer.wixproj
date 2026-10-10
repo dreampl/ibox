@@ -1,0 +1,26 @@
+<Project Sdk="WixToolset.Sdk/5.0.2">
+  <!--
+    Per-machine MSI for Jacki VPN. Built by scripts\package.ps1, which publishes the self-contained app + service
+    into $(PayloadDir) first:
+      dotnet build installer\JackiVpn.Installer.wixproj -c Release -p:PayloadDir=<publish dir> -p:ProductVersion=<x.y.z>
+  -->
+  <PropertyGroup>
+    <OutputName>JackiVpn-$(ProductVersion)-win-x64</OutputName>
+    <InstallerPlatform>x64</InstallerPlatform>
+    <DefineConstants>PayloadDir=$(PayloadDir);ProductVersion=$(ProductVersion);IconFile=$(MSBuildThisFileDirectory)..\src\JackiVpn.Desktop\Assets\jacki.ico</DefineConstants>
+    <SuppressValidation>false</SuppressValidation>
+    <!-- Per-machine package: ProgramMenuFolder/DesktopFolder resolve to the all-users folders, so the HKLM keypaths
+         of the shortcut components are correct; ICE38/43/57 assume a per-user install and are false positives. -->
+    <SuppressIces>ICE38;ICE43;ICE57</SuppressIces>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="WixToolset.UI.wixext" Version="5.0.2" />
+    <PackageReference Include="WixToolset.Util.wixext" Version="5.0.2" />
+    <PackageReference Include="WixToolset.Firewall.wixext" Version="5.0.2" />
+  </ItemGroup>
+  <Target Name="CheckInputs" BeforeTargets="Build">
+    <Error Condition="'$(PayloadDir)' == '' or !Exists('$(PayloadDir)\JackiVpn.exe') or !Exists('$(PayloadDir)\JackiVpn.Service.exe')"
+           Text="PayloadDir must point to the published app (JackiVpn.exe + JackiVpn.Service.exe). Use scripts\package.ps1." />
+    <Error Condition="'$(ProductVersion)' == ''" Text="ProductVersion is required." />
+  </Target>
+</Project>

@@ -1,0 +1,344 @@
+<UserControl x:Class="JackiVpn.Desktop.Views.DashboardView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="clr-namespace:JackiVpn.Desktop.Views">
+    <UserControl.Resources>
+        <Style x:Key="Chip" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource B.HoverOverlay}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource B.Border}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="13" />
+            <Setter Property="Padding" Value="10,4" />
+            <Setter Property="Margin" Value="0,0,8,8" />
+        </Style>
+        <Style x:Key="ChipText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource B.Text}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="ChipIcon" TargetType="TextBlock" BasedOn="{StaticResource Icon}">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="Foreground" Value="{DynamicResource B.TextSecondary}" />
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32,26,32,26" v:Motion.StaggerChildren="True">
+            <!-- Header -->
+            <DockPanel Margin="0,0,0,18">
+                <Button DockPanel.Dock="Right" Command="{Binding OpenServersCommand}" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource Icon}" Text="&#xE968;" FontSize="13" Margin="0,0,8,0" />
+                        <TextBlock Text="Choose server" />
+                    </StackPanel>
+                </Button>
+                <StackPanel>
+                    <TextBlock Text="Dashboard" Style="{StaticResource Text.PageTitle}" />
+                    <TextBlock Text="{Binding SelectionText}" Style="{StaticResource Text.Caption}" FontSize="13" />
+                </StackPanel>
+            </DockPanel>
+
+            <!-- Banners -->
+            <Border Style="{StaticResource Banner.Warning}" Visibility="{Binding ServiceBanner, Converter={StaticResource Null2Vis}}">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Style="{StaticResource Button.Icon}" Content="&#xE711;" Command="{Binding DismissBannerCommand}" ToolTip="Dismiss" />
+                    <TextBlock Text="{Binding ServiceBanner}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                </DockPanel>
+            </Border>
+            <Border Style="{StaticResource Banner.Warning}" Visibility="{Binding ProxyBanner, Converter={StaticResource Null2Vis}}">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Content="Turn off stale proxy" Command="{Binding FixProxyCommand}" VerticalAlignment="Center" Margin="12,0,0,0"
+                            Visibility="{Binding CanFixProxy, Converter={StaticResource Bool2Vis}}" />
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource Icon}" Text="&#xE7BA;" Foreground="{DynamicResource B.Warning}" Margin="0,0,10,0" VerticalAlignment="Top" />
+                        <TextBlock Text="{Binding ProxyBanner}" TextWrapping="Wrap" MaxWidth="700" />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+            <Border Style="{StaticResource Banner.Danger}" Visibility="{Binding KillSwitchEngaged, Converter={StaticResource Bool2Vis}}">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Style="{StaticResource Icon}" Text="&#xEA18;" Foreground="{DynamicResource B.Danger}" Margin="0,0,10,0" />
+                    <TextBlock Text="Kill switch is active: internet traffic outside the VPN is blocked." TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+
+            <!-- Hero -->
+            <Border Background="{DynamicResource B.Card}" BorderBrush="{DynamicResource B.Border}" BorderThickness="1" CornerRadius="16" Margin="0,0,0,16"
+                    ClipToBounds="True">
+                <Grid>
+                    <!-- State-tinted glow: four layers, only opacity animates -->
+                    <Rectangle x:Name="GlowIdle" Fill="{DynamicResource B.HeroGlowIdle}" RadiusX="16" RadiusY="16" Opacity="1" />
+                    <Rectangle x:Name="GlowBusy" Fill="{DynamicResource B.HeroGlowBusy}" RadiusX="16" RadiusY="16" Opacity="0" />
+                    <Rectangle x:Name="GlowOn" Fill="{DynamicResource B.HeroGlowOn}" RadiusX="16" RadiusY="16" Opacity="0" />
+                    <Rectangle x:Name="GlowFail" Fill="{DynamicResource B.HeroGlowFail}" RadiusX="16" RadiusY="16" Opacity="0" />
+
+                    <Grid Margin="22,22,28,22">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <v:ConnectButton State="{Binding State}" Mode="{Binding Mode}" ReduceMotion="{Binding ReduceMotion}" Command="{Binding ToggleCommand}" VerticalAlignment="Center" />
+
+                        <StackPanel Grid.Column="1" Margin="22,4,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding StatusTitle}" FontSize="30" FontWeight="SemiBold" v:Motion.FadeOnChange="True" />
+                            <TextBlock Text="{Binding StatusDetail}" Style="{StaticResource Text.Hint}" FontSize="13" Margin="0,2,0,14" v:Motion.FadeOnChange="True" />
+
+                            <!-- Live chips -->
+                            <WrapPanel Visibility="{Binding IsConnected, Converter={StaticResource Bool2Vis}}">
+                                <Border Style="{StaticResource Chip}" ToolTip="{Binding LatencyTip}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Ellipse x:Name="LatencyDot" Width="8" Height="8" Margin="0,0,7,0" Fill="{DynamicResource B.TextMuted}" />
+                                        <TextBlock Text="{Binding LatencyText}" Style="{StaticResource ChipText}" FontFamily="{StaticResource MonoFont}" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource Chip}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Style="{StaticResource ChipIcon}" Text="&#xE916;" />
+                                        <TextBlock Text="{Binding Duration}" Style="{StaticResource ChipText}" FontFamily="{StaticResource MonoFont}" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource Chip}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Style="{StaticResource ChipIcon}" Text="&#xEA18;" />
+                                        <TextBlock Style="{StaticResource ChipText}"><Run Text="{Binding ModeText, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding Protocol, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding CoreText, Mode=OneWay}" /></TextBlock>
+                                    </StackPanel>
+                                </Border>
+                                <!-- Gaming (magenta) / streaming (light blue) tag: pops in when the mode starts. -->
+                                <Border RenderTransformOrigin="0.5,0.5"
+                                        Visibility="{Binding ActivityText, Converter={StaticResource Null2Vis}}"
+                                        ToolTip="While a game or stream runs, background server tests, tuning and automatic server moves are paused so nothing interrupts it.">
+                                    <Border.RenderTransform><ScaleTransform ScaleX="1" ScaleY="1" /></Border.RenderTransform>
+                                    <Border.Style>
+                                        <Style TargetType="Border" BasedOn="{StaticResource Chip}">
+                                            <Setter Property="Background" Value="#2638BDF8" />
+                                            <Setter Property="BorderBrush" Value="#FF38BDF8" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsGaming}" Value="True">
+                                                    <Setter Property="Background" Value="#26E879F9" />
+                                                    <Setter Property="BorderBrush" Value="#FFE879F9" />
+                                                </DataTrigger>
+                                                <Trigger Property="Visibility" Value="Visible">
+                                                    <Trigger.EnterActions>
+                                                        <BeginStoryboard>
+                                                            <Storyboard>
+                                                                <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" From="0.6" To="1" Duration="0:0:0.45">
+                                                                    <DoubleAnimation.EasingFunction><BackEase EasingMode="EaseOut" Amplitude="0.6" /></DoubleAnimation.EasingFunction>
+                                                                </DoubleAnimation>
+                                                                <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" From="0.6" To="1" Duration="0:0:0.45">
+                                                                    <DoubleAnimation.EasingFunction><BackEase EasingMode="EaseOut" Amplitude="0.6" /></DoubleAnimation.EasingFunction>
+                                                                </DoubleAnimation>
+                                                                <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:0.25" />
+                                                            </Storyboard>
+                                                        </BeginStoryboard>
+                                                    </Trigger.EnterActions>
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <TextBlock Text="{Binding ActivityText}" FontWeight="SemiBold">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource ChipText}">
+                                                <Setter Property="Foreground" Value="#FF7DD3FC" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsGaming}" Value="True">
+                                                        <Setter Property="Foreground" Value="#FFF0ABFC" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Border>
+                                <Border Style="{StaticResource Chip}" Background="{DynamicResource B.AccentSoft}" BorderBrush="{DynamicResource B.Accent}"
+                                        Visibility="{Binding JackiSmartActive, Converter={StaticResource Bool2Vis}}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Style="{StaticResource ChipIcon}" Text="&#xE945;" Foreground="{DynamicResource B.Accent}" />
+                                        <TextBlock Text="Jacki Smart Connect" Style="{StaticResource ChipText}" Foreground="{DynamicResource B.Accent}" FontWeight="SemiBold" />
+                                    </StackPanel>
+                                </Border>
+                            </WrapPanel>
+
+                            <!-- Exit location -->
+                            <Grid Margin="0,6,0,0" Visibility="{Binding HasLocation, Converter={StaticResource Bool2Vis}}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border Width="54" Height="54" CornerRadius="14" Background="{DynamicResource B.AccentGradient}" VerticalAlignment="Center">
+                                    <Border.Effect><DropShadowEffect BlurRadius="16" ShadowDepth="0" Opacity="0.4" /></Border.Effect>
+                                    <Grid>
+                                        <TextBlock Text="{Binding CountryCode, TargetNullValue=?}" FontSize="19" FontWeight="Bold" Foreground="White"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" v:Motion.FadeOnChange="True" />
+                                    </Grid>
+                                </Border>
+                                <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding CountryName}" FontSize="17" FontWeight="SemiBold" v:Motion.FadeOnChange="True" />
+                                    <TextBlock Text="{Binding LocationDetail}" Style="{StaticResource Text.Caption}" FontSize="12"
+                                               Visibility="{Binding LocationDetail, Converter={StaticResource Null2Vis}}" />
+                                    <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                        <TextBlock Text="{Binding PublicIp, TargetNullValue=—}" FontFamily="{StaticResource MonoFont}" FontSize="12.5"
+                                                   Foreground="{DynamicResource B.TextSecondary}" VerticalAlignment="Center" />
+                                        <Button Style="{StaticResource Button.Icon}" Content="&#xE8C8;" Width="26" Height="26" FontSize="12" Margin="6,0,0,0"
+                                                Command="{Binding CopyIpCommand}" ToolTip="Copy IP address" />
+                                        <Button Style="{StaticResource Button.Icon}" Content="&#xE72C;" Width="26" Height="26" FontSize="12"
+                                                Command="{Binding RefreshLocationCommand}" ToolTip="Check location again" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Grid>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0" Visibility="{Binding SelectionReason, Converter={StaticResource Null2Vis}}">
+                                <TextBlock Style="{StaticResource Icon}" Text="&#xE9CE;" FontSize="12" Foreground="{DynamicResource B.Accent}" Margin="0,0,6,0" />
+                                <TextBlock Text="{Binding SelectionReason}" Style="{StaticResource Text.Caption}" FontSize="12" TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+
+                            <TextBlock Text="{Binding LastError}" Style="{StaticResource Text.Hint}" Foreground="{DynamicResource B.Danger}" Margin="0,8,0,0"
+                                       Visibility="{Binding LastError, Converter={StaticResource Null2Vis}}" />
+
+                            <!-- Controls -->
+                            <StackPanel Orientation="Horizontal" Margin="0,18,0,0">
+                                <Border Style="{StaticResource SegmentHost}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <RadioButton Style="{StaticResource Segment}" GroupName="Mode" IsChecked="{Binding IsTunMode, Mode=TwoWay}"
+                                                     ToolTip="All apps, DNS leak protection, kill switch (needs the service)">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Style="{StaticResource Icon}" Text="&#xEA18;" FontSize="13" Margin="0,0,6,0" />
+                                                <TextBlock Text="TUN · all apps" />
+                                            </StackPanel>
+                                        </RadioButton>
+                                        <RadioButton Style="{StaticResource Segment}" GroupName="Mode" IsChecked="{Binding IsProxyMode, Mode=TwoWay}"
+                                                     ToolTip="Only apps that use the Windows proxy settings">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Style="{StaticResource Icon}" Text="&#xE774;" FontSize="13" Margin="0,0,6,0" />
+                                                <TextBlock Text="System proxy" />
+                                            </StackPanel>
+                                        </RadioButton>
+                                    </StackPanel>
+                                </Border>
+                                <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding SmartMode}" Margin="20,0,0,0" VerticalAlignment="Center"
+                                          ToolTip="Test servers and pick the fastest working one; switch automatically when it fails">
+                                    <TextBlock Text="Smart connect" Style="{StaticResource Text.Label}" />
+                                </CheckBox>
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <!-- Live row -->
+            <Grid Margin="0,0,0,2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="1.35*" />
+                    <ColumnDefinition Width="16" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Traffic -->
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <DockPanel Margin="0,0,0,10">
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Rectangle Width="10" Height="3" RadiusX="1.5" RadiusY="1.5" Fill="{DynamicResource B.Success}" Margin="0,0,5,0" />
+                                <TextBlock Text="Download" Style="{StaticResource Text.Caption}" Margin="0,0,12,0" />
+                                <Rectangle Width="10" Height="3" RadiusX="1.5" RadiusY="1.5" Fill="{DynamicResource B.Accent}" Margin="0,0,5,0" />
+                                <TextBlock Text="Upload" Style="{StaticResource Text.Caption}" />
+                            </StackPanel>
+                            <TextBlock Text="Live traffic" Style="{StaticResource Text.Section}" Margin="0" />
+                        </DockPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource Icon}" Text="&#xE896;" FontSize="12" Foreground="{DynamicResource B.Success}" Margin="0,0,6,0" />
+                                    <TextBlock Text="{Binding DownloadSpeed}" FontSize="22" FontWeight="SemiBold" />
+                                </StackPanel>
+                                <TextBlock Text="{Binding DownloadTotal, StringFormat=Total {0}}" Style="{StaticResource Text.Hint}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource Icon}" Text="&#xE898;" FontSize="12" Foreground="{DynamicResource B.Accent}" Margin="0,0,6,0" />
+                                    <TextBlock Text="{Binding UploadSpeed}" FontSize="22" FontWeight="SemiBold" />
+                                </StackPanel>
+                                <TextBlock Text="{Binding UploadTotal, StringFormat=Total {0}}" Style="{StaticResource Text.Hint}" />
+                            </StackPanel>
+                        </Grid>
+                        <v:TrafficChart Height="110" Margin="0,12,0,0" Down="{Binding DownSeries}" Up="{Binding UpSeries}"
+                                        DownStroke="{DynamicResource B.Success}" DownFill="{DynamicResource B.SparkDown}" UpStroke="{DynamicResource B.Accent}"
+                                        GridBrush="{DynamicResource B.Border}" LabelBrush="{DynamicResource B.TextMuted}" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Speed test -->
+                <Border Grid.Column="2" Style="{StaticResource Card}">
+                    <StackPanel>
+                        <DockPanel Margin="0,0,0,4">
+                            <Button x:Name="SpeedButton" DockPanel.Dock="Right" Style="{StaticResource Button.Primary}" Command="{Binding RunSpeedTestCommand}" Padding="14,6">
+                                <TextBlock x:Name="SpeedButtonText" Text="Run test" />
+                            </Button>
+                            <v:OrbView DockPanel.Dock="Right" State="Listening" Width="26" Height="26" Margin="0,0,10,0" IsRunning="{Binding IsSpeedTesting}" Visibility="{Binding IsSpeedTesting, Converter={StaticResource Bool2Vis}}" />
+                            <TextBlock Text="Speed test" Style="{StaticResource Text.Section}" Margin="0" VerticalAlignment="Center" />
+                        </DockPanel>
+                        <Grid Height="150" Margin="0,4,0,0">
+                            <v:SpeedGauge Value="{Binding GaugeValue}" TrackBrush="{DynamicResource B.Input}" ValueBrush="{DynamicResource B.AccentGradientH}"
+                                          LabelBrush="{DynamicResource B.TextMuted}" />
+                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,14,0,0">
+                                <TextBlock Text="{Binding GaugeValue, StringFormat={}{0:0.0}}" FontSize="30" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                                <TextBlock Text="Mbps" Style="{StaticResource Text.Caption}" HorizontalAlignment="Center" />
+                                <TextBlock Text="{Binding SpeedPhase}" Style="{StaticResource Text.Caption}" HorizontalAlignment="Center" Foreground="{DynamicResource B.Accent}"
+                                           Margin="0,2,0,0" v:Motion.FadeOnChange="True" />
+                            </StackPanel>
+                        </Grid>
+                        <UniformGrid Columns="4" Margin="0,6,0,0">
+                            <StackPanel>
+                                <TextBlock Text="Download" Style="{StaticResource Text.Caption}" />
+                                <TextBlock Text="{Binding SpeedDown}" FontWeight="SemiBold" FontSize="12.5" />
+                            </StackPanel>
+                            <StackPanel>
+                                <TextBlock Text="Upload" Style="{StaticResource Text.Caption}" />
+                                <TextBlock Text="{Binding SpeedUp}" FontWeight="SemiBold" FontSize="12.5" />
+                            </StackPanel>
+                            <StackPanel>
+                                <TextBlock Text="Ping" Style="{StaticResource Text.Caption}" />
+                                <TextBlock Text="{Binding SpeedPing}" FontWeight="SemiBold" FontSize="12.5" />
+                            </StackPanel>
+                            <StackPanel>
+                                <TextBlock Text="Loaded" Style="{StaticResource Text.Caption}" ToolTip="Latency while downloading (bufferbloat)" />
+                                <TextBlock Text="{Binding SpeedLoadedPing}" FontWeight="SemiBold" FontSize="12.5" />
+                            </StackPanel>
+                        </UniformGrid>
+                        <TextBlock Text="{Binding SpeedNote}" Style="{StaticResource Text.Hint}" Margin="0,8,0,0" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- Plan -->
+            <Border Style="{StaticResource Card}" Visibility="{Binding PlanName, Converter={StaticResource Null2Vis}}">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Right" Text="{Binding PlanExpiry}" Style="{StaticResource Text.Caption}" VerticalAlignment="Top" />
+                    <StackPanel>
+                        <TextBlock Text="{Binding PlanName}" Style="{StaticResource Text.Section}" />
+                        <TextBlock Text="{Binding PlanUsage}" Style="{StaticResource Text.Label}" />
+                        <ProgressBar Value="{Binding PlanPercent, TargetNullValue=0, Mode=OneWay}" Maximum="100" Margin="0,8,0,0" Foreground="{DynamicResource B.AccentGradientH}" />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <!-- Warnings -->
+            <ItemsControl ItemsSource="{Binding Warnings}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource Banner.Info}" Margin="0,0,0,8">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource Icon}" Text="&#xE946;" FontSize="13" Foreground="{DynamicResource B.Accent}" Margin="0,0,10,0" />
+                                <TextBlock Text="{Binding}" TextWrapping="Wrap" MaxWidth="860" />
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -1,0 +1,114 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentView x:Class="JackiVpn.Mobile.Views.SubscriptionsView"
+             xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:JackiVpn.Mobile.Controls"
+             xmlns:loc="clr-namespace:JackiVpn.Mobile.Localization"
+             xmlns:vm="clr-namespace:JackiVpn.Mobile.ViewModels"
+             x:DataType="vm:SubscriptionsViewModel">
+    <RefreshView IsRefreshing="{Binding IsRefreshing}" Command="{Binding RefreshAllCommand}">
+        <ScrollView>
+            <VerticalStackLayout Padding="20,8,20,130" Spacing="12">
+                <!-- Header -->
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" HeightRequest="52">
+                    <VerticalStackLayout VerticalOptions="Center">
+                        <Label Text="{loc:T Subs_Title}" Style="{StaticResource Title}" />
+                        <Label Text="{loc:T Subs_Subtitle}" Style="{StaticResource Caption}" />
+                    </VerticalStackLayout>
+                    <Border x:Name="SyncButton" Grid.Column="1" HeightRequest="42" Padding="14,0" StrokeShape="RoundRectangle 15" StrokeThickness="0" Background="{StaticResource PrimaryGradient}" VerticalOptions="Center">
+                        <HorizontalStackLayout Spacing="8">
+                            <controls:Icon Name="sync" Size="18" />
+                            <Label Text="{loc:T Subs_Sync}" FontFamily="OpenSansSemibold" FontSize="13" TextColor="White" VerticalOptions="Center" />
+                        </HorizontalStackLayout>
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnSyncTapped" />
+                        </Border.GestureRecognizers>
+                    </Border>
+                </Grid>
+
+                <!-- Add -->
+                <Border Style="{StaticResource GlassInput}" Padding="6,6,6,6">
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="6">
+                        <controls:Icon Name="layers" Size="18" Color="{StaticResource Text3}" Margin="8,0,0,0" />
+                        <Entry Grid.Column="1" Placeholder="{loc:T Subs_Placeholder}" Text="{Binding NewUrl}" Keyboard="Url" ReturnCommand="{Binding AddCommand}" VerticalOptions="Center" />
+                        <Border Grid.Column="2" WidthRequest="40" HeightRequest="40" StrokeShape="RoundRectangle 13" StrokeThickness="0" BackgroundColor="{StaticResource Surface3}">
+                            <controls:Icon Name="copy" Size="17" />
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding PasteCommand}" />
+                            </Border.GestureRecognizers>
+                        </Border>
+                        <Border x:Name="AddButton" Grid.Column="3" WidthRequest="40" HeightRequest="40" StrokeShape="RoundRectangle 13" StrokeThickness="0" Background="{StaticResource PrimaryGradient}">
+                            <Grid>
+                                <controls:Icon Name="plus" Size="18" IsVisible="{Binding IsBusy, Converter={StaticResource Not}}" />
+                                <controls:OrbView State="Working" IsVisible="{Binding IsBusy}" Tint="White" WidthRequest="22" HeightRequest="22" />
+                            </Grid>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnAddTapped" />
+                            </Border.GestureRecognizers>
+                        </Border>
+                    </Grid>
+                </Border>
+                <Label Text="{Binding Message}" Style="{StaticResource Hint}" Margin="4,0" />
+
+                <VerticalStackLayout x:Name="Cards" BindableLayout.ItemsSource="{Binding Items}" Spacing="12">
+                    <BindableLayout.EmptyView>
+                        <VerticalStackLayout Padding="12,40" Spacing="8">
+                            <controls:Icon Name="layers" Size="40" Color="{StaticResource Text3}" />
+                            <Label Text="{loc:T Subs_Empty}" Style="{StaticResource Section}" HorizontalOptions="Center" />
+                            <Label Text="{loc:T Subs_EmptyHint}" Style="{StaticResource Hint}" HorizontalTextAlignment="Center" />
+                        </VerticalStackLayout>
+                    </BindableLayout.EmptyView>
+                    <BindableLayout.ItemTemplate>
+                        <DataTemplate x:DataType="vm:SubscriptionItem">
+                            <Border Style="{StaticResource Card}" Margin="0" Padding="16,14">
+                                <VerticalStackLayout Spacing="10">
+                                    <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
+                                        <Ellipse WidthRequest="9" HeightRequest="9" Fill="{Binding StatusColor}" VerticalOptions="Center" />
+                                        <VerticalStackLayout Grid.Column="1" VerticalOptions="Center">
+                                            <HorizontalStackLayout Spacing="6">
+                                                <Label Text="{Binding Name}" Style="{StaticResource Value}" LineBreakMode="TailTruncation" />
+                                                <Border StrokeShape="RoundRectangle 7" StrokeThickness="0" Padding="7,1" Background="{StaticResource PrimaryGradient}" IsVisible="{Binding IsOfficial}" VerticalOptions="Center">
+                                                    <Label Text="{loc:T Badge_Official}" FontSize="10" TextColor="White" FontFamily="OpenSansSemibold" />
+                                                </Border>
+                                            </HorizontalStackLayout>
+                                            <Label Text="{Binding Provider}" Style="{StaticResource Caption}" FontSize="11" />
+                                        </VerticalStackLayout>
+                                        <controls:OrbView Grid.Column="2" State="Weaving" IsVisible="{Binding IsRefreshing}" Tint="{StaticResource Primary2}" WidthRequest="22" HeightRequest="22" />
+                                        <Border Grid.Column="3" WidthRequest="36" HeightRequest="36" StrokeShape="RoundRectangle 12" StrokeThickness="0" BackgroundColor="{StaticResource Surface2}">
+                                            <controls:Icon Name="more" Size="18" StrokeThickness="3" Color="{StaticResource Text2}" />
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type vm:SubscriptionsViewModel}}, Path=MoreCommand}" CommandParameter="{Binding .}" />
+                                            </Border.GestureRecognizers>
+                                        </Border>
+                                    </Grid>
+
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <Label Text="{Binding Usage}" FontSize="13" FontFamily="OpenSansSemibold" />
+                                        <Label Grid.Column="1" Text="{Binding Expiry}" Style="{StaticResource Caption}" />
+                                    </Grid>
+                                    <controls:UsageBar Fraction="{Binding UsedFraction}" BarColor="{Binding QuotaColor}" IsVisible="{Binding HasQuota}" />
+
+                                    <!-- Devices: limit from the panel, this device, account online status (checked every 10 min). -->
+                                    <Border BackgroundColor="{StaticResource Surface2}" StrokeShape="RoundRectangle 14" StrokeThickness="0" Padding="12,10" IsVisible="{Binding HasAccountInfo}">
+                                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                                            <controls:Icon Name="devices" Size="20" Color="{StaticResource Primary2}" />
+                                            <VerticalStackLayout Grid.Column="1" Spacing="1">
+                                                <Label Text="{Binding DeviceLimitText}" FontSize="13" FontFamily="OpenSansSemibold" />
+                                                <Label Text="{Binding OnlineText}" Style="{StaticResource Caption}" FontSize="11" />
+                                            </VerticalStackLayout>
+                                            <controls:LiveDot Grid.Column="2" Color="{StaticResource Teal}" IsVisible="{Binding IsOnlineNow}" VerticalOptions="Center" />
+                                        </Grid>
+                                    </Border>
+                                    <Label Text="{Binding DeviceText}" TextColor="{Binding DeviceColor}" FontSize="12" IsVisible="{Binding HasDeviceText}" LineBreakMode="WordWrap" />
+                                    <Label Text="{Binding Announcement}" Style="{StaticResource Hint}" IsVisible="{Binding HasAnnouncement}" />
+                                    <Label Text="{Binding LastError}" TextColor="{StaticResource Danger}" FontSize="12" IsVisible="{Binding HasError}" LineBreakMode="WordWrap" />
+                                    <Label Text="{Binding Footer}" Style="{StaticResource Hint}" FontSize="11" />
+                                </VerticalStackLayout>
+                            </Border>
+                        </DataTemplate>
+                    </BindableLayout.ItemTemplate>
+                </VerticalStackLayout>
+            </VerticalStackLayout>
+        </ScrollView>
+    </RefreshView>
+</ContentView>

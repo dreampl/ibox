@@ -1,0 +1,95 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-android</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>JackiVpn.Mobile</RootNamespace>
+    <UseMaui>true</UseMaui>
+    <SingleProject>true</SingleProject>
+    <MauiXamlInflator>SourceGen</MauiXamlInflator>
+
+    <ApplicationTitle>IBOX</ApplicationTitle>
+    <ApplicationId>com.jacki.vpn</ApplicationId>
+    <!-- Same version as Windows (Directory.Build.props); versionCode = major*10000 + minor*100 + patch. -->
+    <ApplicationDisplayVersion>$(Version)</ApplicationDisplayVersion>
+    <_JackiVerMajor>$(Version.Split('.')[0])</_JackiVerMajor>
+    <_JackiVerMinor>$(Version.Split('.')[1])</_JackiVerMinor>
+    <_JackiVerPatch>$(Version.Split('.')[2])</_JackiVerPatch>
+    <ApplicationVersion>$([MSBuild]::Add($([MSBuild]::Add($([MSBuild]::Multiply($(_JackiVerMajor), 10000)), $([MSBuild]::Multiply($(_JackiVerMinor), 100)))), $(_JackiVerPatch)))</ApplicationVersion>
+
+    <!-- hev-socks5-tunnel (VpnService TUN → SOCKS) requires Android 10. -->
+    <SupportedOSPlatformVersion>29.0</SupportedOSPlatformVersion>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <!-- JackiAbiRid builds a single-CPU APK (scripts\package.ps1). A project-level switch, because a global
+         RuntimeIdentifiers would also flow into the referenced class libraries. -->
+    <RuntimeIdentifiers Condition="'$(JackiAbiRid)' == ''">android-arm64;android-arm;android-x64</RuntimeIdentifiers>
+    <RuntimeIdentifiers Condition="'$(JackiAbiRid)' != ''">$(JackiAbiRid)</RuntimeIdentifiers>
+
+    <!-- Sideloadable APK, not an app-store bundle. scripts\package.ps1 builds one per CPU type
+         (-p:JackiAbiRid=<rid>) so each download carries only its own sing-box. -->
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+
+    <!-- Release trimming: the shared core uses reflection-based System.Text.Json (settings, profiles, insights)
+         and YamlDotNet (Clash configs). Only assemblies that opt in are trimmed, and reflection JSON stays on. -->
+    <TrimMode>partial</TrimMode>
+    <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
+
+    <!-- Toolchain installed per-user (scripts\setup-android.ps1); overridable from the command line. -->
+    <AndroidSdkDirectory Condition="'$(AndroidSdkDirectory)' == '' and Exists('$(LOCALAPPDATA)\Android\Sdk')">$(LOCALAPPDATA)\Android\Sdk</AndroidSdkDirectory>
+    <JavaSdkDirectory Condition="'$(JavaSdkDirectory)' == '' and Exists('$(USERPROFILE)\.jdk\jdk21')">$(USERPROFILE)\.jdk\jdk21</JavaSdkDirectory>
+
+    <!-- XAML/compiled-binding advisories and native-lib alignment notes are informational for this app. -->
+    <NoWarn>$(NoWarn);XC0022;XC0023;XC0025;XC0045;XA0141;CA1416;CA1001;CA2000;CA1031;CA1515</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#000000" />
+    <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#000000" BaseSize="206,51" />
+    <MauiImage Include="Resources\Images\*" />
+    <MauiFont Include="Resources\Fonts\*" />
+    <MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
+    <!-- Routing rule-sets shipped with the app: the first connection never waits for a download. -->
+    <MauiAsset Include="..\..\assets\rulesets\*.srs" LogicalName="rulesets/%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Controls" VersionOverride="$(MauiVersion)" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="ZXing.Net" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\JackiVpn.Application\JackiVpn.Application.csproj" />
+    <ProjectReference Include="..\JackiVpn.Infrastructure\JackiVpn.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <!-- Cores: sing-box is an executable packaged as lib*.so (Android only executes from the native lib dir);
+       hev-socks5-tunnel is an in-process JNI library. Fetched and SHA-256 verified by scripts\fetch-android-cores.ps1. -->
+  <ItemGroup>
+    <AndroidNativeLibrary Include="Platforms\Android\libs\arm64-v8a\libsingbox.so" Abi="arm64-v8a" />
+    <AndroidNativeLibrary Include="Platforms\Android\libs\armeabi-v7a\libsingbox.so" Abi="armeabi-v7a" />
+    <AndroidNativeLibrary Include="Platforms\Android\libs\x86_64\libsingbox.so" Abi="x86_64" />
+    <!-- Xray 26.3.27 (official XTLS builds, SHA-256 verified against the release .dgst): XHTTP and other
+         Xray-only transports, chained behind sing-box exactly like on Windows. -->
+    <AndroidNativeLibrary Include="Platforms\Android\libs\arm64-v8a\libxray.so" Abi="arm64-v8a" />
+    <AndroidNativeLibrary Include="Platforms\Android\libs\armeabi-v7a\libxray.so" Abi="armeabi-v7a" />
+    <AndroidNativeLibrary Include="Platforms\Android\libs\x86_64\libxray.so" Abi="x86_64" />
+    <AndroidLibrary Include="Platforms\Android\Jars\hev-socks5-tunnel.aar" Bind="false" />
+    <ProguardConfiguration Include="Platforms\Android\proguard.cfg" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <TrimmerRootAssembly Include="YamlDotNet" />
+  </ItemGroup>
+
+  <!-- Release signing (scripts\package.ps1 passes the key; the passwords are read from a file, never the command line). -->
+  <PropertyGroup Condition="'$(JackiSigningKeyStore)' != ''">
+    <AndroidKeyStore>true</AndroidKeyStore>
+    <AndroidSigningKeyStore>$(JackiSigningKeyStore)</AndroidSigningKeyStore>
+    <AndroidSigningKeyAlias>jackivpn</AndroidSigningKeyAlias>
+    <AndroidSigningStorePass>file:$(JackiSigningPasswordFile)</AndroidSigningStorePass>
+    <AndroidSigningKeyPass>file:$(JackiSigningPasswordFile)</AndroidSigningKeyPass>
+  </PropertyGroup>
+
+</Project>

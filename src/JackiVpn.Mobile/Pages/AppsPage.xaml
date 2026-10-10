@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<controls:AnimatedPage x:Class="JackiVpn.Mobile.Pages.AppsPage"
+                       xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                       xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+                       xmlns:controls="clr-namespace:JackiVpn.Mobile.Controls"
+                       xmlns:vm="clr-namespace:JackiVpn.Mobile.ViewModels"
+                       x:DataType="vm:AppsViewModel"
+                       Shell.NavBarIsVisible="True"
+                       Title="Apps">
+    <Grid RowDefinitions="Auto,Auto,*" Padding="20,12,20,0">
+        <Label Text="{Binding Header}" Style="{StaticResource Hint}" />
+        <Border Grid.Row="1" BackgroundColor="{StaticResource Input}" Stroke="{StaticResource Border}" StrokeShape="RoundRectangle 12" Padding="12,0" Margin="0,10,0,10">
+            <Entry Placeholder="Search apps" Text="{Binding Filter}" ClearButtonVisibility="WhileEditing" />
+        </Border>
+        <Grid Grid.Row="2">
+            <controls:OrbView State="Searching" IsVisible="{Binding IsLoading}" VerticalOptions="Start" HorizontalOptions="Center" WidthRequest="56" HeightRequest="56" Margin="0,40,0,0" />
+            <CollectionView ItemsSource="{Binding Items}" SelectionMode="None">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="vm:AppItem">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12" Padding="0,8">
+                            <Image Source="{Binding Icon}" WidthRequest="36" HeightRequest="36" />
+                            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center">
+                                <Label Text="{Binding Label}" Style="{StaticResource Value}" FontSize="14" LineBreakMode="TailTruncation" />
+                                <Label Text="{Binding Package}" Style="{StaticResource Hint}" LineBreakMode="TailTruncation" />
+                            </VerticalStackLayout>
+                            <CheckBox Grid.Column="2" IsChecked="{Binding IsSelected}" Color="{StaticResource Accent}" VerticalOptions="Center" />
+                        </Grid>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </Grid>
+    </Grid>
+</controls:AnimatedPage>

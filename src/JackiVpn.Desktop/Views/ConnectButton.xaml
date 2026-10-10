@@ -1,0 +1,73 @@
+<UserControl x:Class="JackiVpn.Desktop.Views.ConnectButton"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="clr-namespace:JackiVpn.Desktop.Views"
+             Width="250" Height="250">
+    <Button x:Name="Root" Cursor="Hand" FocusVisualStyle="{x:Null}" AutomationProperties.Name="Connect or disconnect">
+        <Button.Template>
+            <ControlTemplate TargetType="Button">
+                <ContentPresenter />
+            </ControlTemplate>
+        </Button.Template>
+        <Grid Width="250" Height="250" RenderTransformOrigin="0.5,0.5">
+            <Grid.RenderTransform>
+                <ScaleTransform x:Name="Scale" ScaleX="1" ScaleY="1" />
+            </Grid.RenderTransform>
+
+            <!-- Soft halo behind everything; breathes in the mode colour while connected. -->
+            <Ellipse x:Name="Halo" Width="230" Height="230" Opacity="0" Fill="#FF2DD4BF">
+                <Ellipse.Effect>
+                    <BlurEffect Radius="48" KernelType="Gaussian" />
+                </Ellipse.Effect>
+            </Ellipse>
+
+            <!-- Ripples radiate outward while connecting. -->
+            <Ellipse x:Name="Ripple1" Width="186" Height="186" Stroke="#FF3D9BFF" StrokeThickness="2" Opacity="0" RenderTransformOrigin="0.5,0.5">
+                <Ellipse.RenderTransform><ScaleTransform /></Ellipse.RenderTransform>
+            </Ellipse>
+            <Ellipse x:Name="Ripple2" Width="186" Height="186" Stroke="#FF3D9BFF" StrokeThickness="2" Opacity="0" RenderTransformOrigin="0.5,0.5">
+                <Ellipse.RenderTransform><ScaleTransform /></Ellipse.RenderTransform>
+            </Ellipse>
+            <Ellipse x:Name="Ripple3" Width="186" Height="186" Stroke="#FF3D9BFF" StrokeThickness="2" Opacity="0" RenderTransformOrigin="0.5,0.5">
+                <Ellipse.RenderTransform><ScaleTransform /></Ellipse.RenderTransform>
+            </Ellipse>
+
+            <!-- Track ring + spinner -->
+            <Ellipse Width="212" Height="212" Stroke="{DynamicResource B.Border}" StrokeThickness="3" />
+            <Path x:Name="Spinner" Width="212" Height="212" StrokeThickness="4" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                  Opacity="0" RenderTransformOrigin="0.5,0.5" Stroke="{DynamicResource B.AccentGradientH}"
+                  Data="M 106,2 A 104,104 0 0 1 210,106">
+                <Path.RenderTransform>
+                    <RotateTransform x:Name="Spin" Angle="0" />
+                </Path.RenderTransform>
+            </Path>
+            <Ellipse x:Name="StaticRing" Width="212" Height="212" Stroke="{DynamicResource B.Accent}" StrokeThickness="3" StrokeDashArray="2 3" Opacity="0" />
+            <Ellipse x:Name="OnRing" Width="212" Height="212" StrokeThickness="3" Opacity="0" />
+
+            <!-- One disc per state; only opacity is animated (cheap, smooth cross-fade). The connected disc takes the
+                 mode colour (teal, gaming magenta-red, streaming blue, eco light green, work medium blue); a second
+                 disc cross-fades a mode change. -->
+            <Ellipse x:Name="IdleDisc" Width="182" Height="182" Fill="{DynamicResource B.IdleGradient}" Opacity="1" />
+            <Ellipse x:Name="BusyDisc" Width="182" Height="182" Fill="{DynamicResource B.AccentGradient}" Opacity="0" />
+            <Ellipse x:Name="OnDisc" Width="182" Height="182" Opacity="0" />
+            <Ellipse x:Name="OnDiscNext" Width="182" Height="182" Opacity="0" />
+            <Ellipse x:Name="FailDisc" Width="182" Height="182" Fill="{DynamicResource B.DangerGradient}" Opacity="0" />
+            <!-- Glassy highlight -->
+            <Ellipse Width="182" Height="182" StrokeThickness="1" Stroke="#30FFFFFF">
+                <Ellipse.Fill>
+                    <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
+                        <GradientStop Color="#26FFFFFF" Offset="0" />
+                        <GradientStop Color="#00FFFFFF" Offset="0.55" />
+                    </LinearGradientBrush>
+                </Ellipse.Fill>
+            </Ellipse>
+
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                <!-- The IBOX "O": asleep (grey) → seeking (thinking orb inside) → awake (lit, blue pupil looking around). -->
+                <v:EyeMarkView x:Name="Eye" Width="64" Height="65" HorizontalAlignment="Center" />
+                <TextBlock x:Name="Caption" Text="CONNECT" Foreground="#E6FFFFFF" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Center"
+                           Margin="0,12,0,0" />
+            </StackPanel>
+        </Grid>
+    </Button>
+</UserControl>

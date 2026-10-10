@@ -1,0 +1,208 @@
+<UserControl x:Class="JackiVpn.Desktop.Views.SubscriptionsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="clr-namespace:JackiVpn.Desktop.Views"
+             xmlns:vm="clr-namespace:JackiVpn.Desktop.ViewModels">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32,26,32,26" v:Motion.StaggerChildren="True">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Content="Update all" Command="{Binding RefreshAllCommand}" VerticalAlignment="Top" />
+                <Button DockPanel.Dock="Right" Style="{StaticResource Button.Primary}" Click="OnSyncDeviceClick" VerticalAlignment="Top" Margin="0,0,8,0"
+                        ToolTip="Send subscriptions to your phone or other PC on this network">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE895;" FontFamily="Segoe MDL2 Assets" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBlock Text="Sync device" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+                <StackPanel>
+                    <TextBlock Text="Subscriptions" Style="{StaticResource Text.PageTitle}" />
+                    <TextBlock Text="PasarGuard panels are detected automatically. Subscription links are stored encrypted and never shown or logged in full."
+                               Style="{StaticResource Text.PageSubtitle}" />
+                </StackPanel>
+            </DockPanel>
+
+            <!-- Add -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <DockPanel>
+                        <v:OrbView DockPanel.Dock="Right" State="Weaving" Width="24" Height="24" IsRunning="{Binding IsBusy}" Visibility="{Binding IsBusy, Converter={StaticResource Bool2Vis}}" />
+                        <TextBlock Text="Add subscription" Style="{StaticResource Text.Section}" />
+                    </DockPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="200" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox Text="{Binding NewUrl, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Subscription URL" Tag="https://panel.example.com/sub/…" />
+                        <TextBox Grid.Column="1" Text="{Binding NewName, UpdateSourceTrigger=PropertyChanged}" Margin="10,0,0,0" AutomationProperties.Name="Name (optional)"
+                                 Tag="Name (optional)" />
+                        <Button Grid.Column="2" Style="{StaticResource Button.Primary}" Content="Add" Margin="10,0,0,0" Command="{Binding AddCommand}"
+                                IsEnabled="{Binding IsBusy, Converter={StaticResource InvBool}}" MinWidth="80" />
+                    </Grid>
+                    <TextBlock Text="Paste the subscription link from your panel (https). Name is optional." Style="{StaticResource Text.Hint}" />
+                    <TextBlock Text="{Binding Message}" Style="{StaticResource Text.Hint}" Foreground="{DynamicResource B.TextSecondary}" Margin="0,8,0,0"
+                               Visibility="{Binding Message, Converter={StaticResource Null2Vis}}" />
+                </StackPanel>
+            </Border>
+
+            <ItemsControl ItemsSource="{Binding Items}" Tag="{Binding}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type vm:SubscriptionItem}">
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <DockPanel>
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
+                                        <Button Content="Update" Margin="0,0,6,0"
+                                                Command="{Binding Tag.RefreshCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
+                                        <Button Style="{StaticResource Button.Icon}" Content="&#xE70F;" ToolTip="Rename"
+                                                Command="{Binding Tag.RenameCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
+                                        <Button Style="{StaticResource Button.Icon}" Content="&#xE74D;" ToolTip="Delete"
+                                                Command="{Binding Tag.DeleteCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
+                                    </StackPanel>
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" />
+                                            <Border Background="{DynamicResource B.AccentGradient}" CornerRadius="8" Padding="8,1" Margin="10,0,0,0" VerticalAlignment="Center"
+                                                    Visibility="{Binding IsOfficial, Converter={StaticResource Bool2Vis}}" ToolTip="Official Jacki subscription (verified over HTTPS)">
+                                                <TextBlock Text="✓ Official" FontSize="11" FontWeight="SemiBold" Foreground="White" />
+                                            </Border>
+                                            <Border Background="{DynamicResource B.AccentSoft}" CornerRadius="8" Padding="8,1" Margin="6,0,0,0" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Provider}" FontSize="11" Foreground="{DynamicResource B.Accent}" />
+                                            </Border>
+                                            <Border x:Name="StatusPill" Background="{DynamicResource B.SuccessSoft}" CornerRadius="8" Padding="8,1" Margin="6,0,0,0" VerticalAlignment="Center">
+                                                <TextBlock x:Name="StatusText" Text="{Binding Status}" FontSize="11" Foreground="{DynamicResource B.Success}" />
+                                            </Border>
+                                            <TextBlock Text="  updating…" Style="{StaticResource Text.Caption}" VerticalAlignment="Center"
+                                                       Visibility="{Binding IsRefreshing, Converter={StaticResource Bool2Vis}}" />
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding MaskedUrl}" Style="{StaticResource Text.Caption}" FontFamily="{StaticResource MonoFont}" Margin="0,4,0,0" />
+                                    </StackPanel>
+                                </DockPanel>
+
+                                <!-- Usage -->
+                                <Grid Margin="0,14,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock>
+                                        <Run Text="{Binding Used, Mode=OneWay}" FontWeight="SemiBold" /><Run Text=" used of " Foreground="{DynamicResource B.TextSecondary}" /><Run Text="{Binding Total, Mode=OneWay}" FontWeight="SemiBold" />
+                                    </TextBlock>
+                                    <TextBlock Grid.Column="1" Text="{Binding UsedPercentText}" Style="{StaticResource Text.Caption}" />
+                                </Grid>
+                                <ProgressBar Value="{Binding UsedPercent, Mode=OneWay}" Maximum="100" Visibility="{Binding HasQuota, Converter={StaticResource Bool2Vis}}" />
+
+                                <UniformGrid Columns="4" Margin="0,14,0,0">
+                                    <StackPanel Margin="0,0,0,10">
+                                        <TextBlock Text="Remaining" Style="{StaticResource Text.Caption}" />
+                                        <TextBlock Text="{Binding Remaining}" Style="{StaticResource Text.Value}" />
+                                    </StackPanel>
+                                    <StackPanel Margin="0,0,0,10">
+                                        <TextBlock Text="Upload / Download" Style="{StaticResource Text.Caption}" />
+                                        <TextBlock Style="{StaticResource Text.Value}"><Run Text="{Binding Upload, Mode=OneWay}" /><Run Text=" / " /><Run Text="{Binding Download, Mode=OneWay}" /></TextBlock>
+                                    </StackPanel>
+                                    <StackPanel Margin="0,0,0,10">
+                                        <TextBlock Text="Expires" Style="{StaticResource Text.Caption}" />
+                                        <TextBlock Text="{Binding Expire}" Style="{StaticResource Text.Value}" />
+                                    </StackPanel>
+                                    <StackPanel Margin="0,0,0,10">
+                                        <TextBlock Text="Time left" Style="{StaticResource Text.Caption}" />
+                                        <TextBlock Text="{Binding TimeLeft}" Style="{StaticResource Text.Value}" />
+                                    </StackPanel>
+                                    <StackPanel Margin="0,0,0,10">
+                                        <TextBlock Text="Servers" Style="{StaticResource Text.Caption}" />
+                                        <TextBlock Text="{Binding ProfileCount}" Style="{StaticResource Text.Value}" />
+                                    </StackPanel>
+                                    <StackPanel Margin="0,0,0,10">
+                                        <TextBlock Text="Last update" Style="{StaticResource Text.Caption}" />
+                                        <TextBlock Text="{Binding LastUpdate}" Style="{StaticResource Text.Value}" />
+                                    </StackPanel>
+                                    <StackPanel Margin="0,0,0,10">
+                                        <TextBlock Text="User" Style="{StaticResource Text.Caption}" />
+                                        <TextBlock Text="{Binding Username}" Style="{StaticResource Text.Value}" />
+                                    </StackPanel>
+                                    <StackPanel Margin="0,0,0,10">
+                                        <TextBlock Text="Source" Style="{StaticResource Text.Caption}" />
+                                        <TextBlock Style="{StaticResource Text.Value}"><Run Text="{Binding Endpoint, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding FormatText, Mode=OneWay}" /></TextBlock>
+                                    </StackPanel>
+                                </UniformGrid>
+
+                                <!-- Account (PasarGuard /info, every 10 minutes): device limit and when the account was last online. -->
+                                <Border Background="{DynamicResource B.Input}" CornerRadius="10" Padding="12,8" Margin="0,0,0,8" Visibility="{Binding HasAccountInfo, Converter={StaticResource Bool2Vis}}">
+                                    <DockPanel>
+                                        <Ellipse DockPanel.Dock="Right" Width="9" Height="9" Fill="{DynamicResource B.Success}" VerticalAlignment="Center" Visibility="{Binding IsOnlineNow, Converter={StaticResource Bool2Vis}}" />
+                                        <TextBlock Text="&#xE772;" FontFamily="Segoe MDL2 Assets" Foreground="{DynamicResource B.Accent}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                        <TextBlock Text="{Binding AccountText}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                    </DockPanel>
+                                </Border>
+
+                                <!-- Device limit (HWID): only what the provider reported. -->
+                                <DockPanel Margin="0,0,0,8">
+                                    <CheckBox DockPanel.Dock="Right" Content="Send device ID" IsChecked="{Binding SendDeviceId}" VerticalAlignment="Center"
+                                              Visibility="{Binding CanChooseDeviceId, Converter={StaticResource Bool2Vis}}"
+                                              ToolTip="Lets the provider count this device toward the subscription's device limit. Off by default for third-party providers." />
+                                    <TextBlock x:Name="DeviceLine" Text="{Binding DeviceText}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                </DockPanel>
+
+                                <Border Style="{StaticResource Banner.Info}" Margin="0,4,0,8" Visibility="{Binding Announcement, Converter={StaticResource Null2Vis}}">
+                                    <TextBlock Text="{Binding Announcement}" TextWrapping="Wrap" />
+                                </Border>
+                                <Border Style="{StaticResource Banner.Warning}" Margin="0,4,0,8" Visibility="{Binding LastError, Converter={StaticResource Null2Vis}}">
+                                    <TextBlock TextWrapping="Wrap"><Run Text="Last update failed (servers kept): " /><Run Text="{Binding LastError, Mode=OneWay}" /></TextBlock>
+                                </Border>
+
+                                <DockPanel Margin="0,4,0,0">
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                        <Button Style="{StaticResource Button.Ghost}" Content="Support" Margin="0,0,4,0"
+                                                Visibility="{Binding SupportUrl, Converter={StaticResource Null2Vis}}"
+                                                Command="{Binding Tag.OpenLinkCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding SupportUrl}" />
+                                        <Button Style="{StaticResource Button.Ghost}" Content="Web page"
+                                                Visibility="{Binding WebPageUrl, Converter={StaticResource Null2Vis}}"
+                                                Command="{Binding Tag.OpenLinkCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding WebPageUrl}" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Auto-update" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                        <ComboBox ItemsSource="{Binding Tag.Intervals, RelativeSource={RelativeSource AncestorType=ItemsControl}}" SelectedItem="{Binding AutoUpdate}" MinWidth="150" />
+                                        <TextBlock Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="10,0,0,0">
+                                            <Run Text="every " /><Run Text="{Binding UpdateInterval, Mode=OneWay}" />
+                                        </TextBlock>
+                                        <TextBlock Text="{Binding Ownership}" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="16,0,0,0" />
+                                    </StackPanel>
+                                </DockPanel>
+                            </StackPanel>
+                        </Border>
+                        <DataTemplate.Triggers>
+                            <DataTrigger Binding="{Binding DeviceProblem}" Value="True">
+                                <Setter TargetName="DeviceLine" Property="Foreground" Value="{DynamicResource B.Danger}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Status}" Value="Unknown">
+                                <Setter TargetName="StatusPill" Property="Background" Value="{DynamicResource B.Input}" />
+                                <Setter TargetName="StatusText" Property="Foreground" Value="{DynamicResource B.TextSecondary}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Status}" Value="Expired">
+                                <Setter TargetName="StatusPill" Property="Background" Value="{DynamicResource B.DangerSoft}" />
+                                <Setter TargetName="StatusText" Property="Foreground" Value="{DynamicResource B.Danger}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Status}" Value="Limited">
+                                <Setter TargetName="StatusPill" Property="Background" Value="{DynamicResource B.DangerSoft}" />
+                                <Setter TargetName="StatusText" Property="Foreground" Value="{DynamicResource B.Danger}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Status}" Value="Disabled">
+                                <Setter TargetName="StatusPill" Property="Background" Value="{DynamicResource B.DangerSoft}" />
+                                <Setter TargetName="StatusText" Property="Foreground" Value="{DynamicResource B.Danger}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Status}" Value="OnHold">
+                                <Setter TargetName="StatusPill" Property="Background" Value="{DynamicResource B.WarningSoft}" />
+                                <Setter TargetName="StatusText" Property="Foreground" Value="{DynamicResource B.Warning}" />
+                            </DataTrigger>
+                        </DataTemplate.Triggers>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock Text="No subscriptions yet." Style="{StaticResource Text.Hint}" HorizontalAlignment="Center" Margin="0,20,0,0"
+                       Visibility="{Binding Items.Count, Converter={StaticResource ZeroToVis}}" />
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

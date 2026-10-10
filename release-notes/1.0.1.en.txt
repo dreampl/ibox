@@ -1,0 +1,1 @@
+Fixed: on the home screen the connection timer, server info and flag no longer restart their animation every second.

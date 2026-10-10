@@ -1,0 +1,66 @@
+IBOX — third-party components
+=============================
+
+IBOX ships the following unmodified third-party programs and libraries. Their full license texts are
+included next to them (Windows: cores\licenses\; Android: Settings > Licenses) or are available at the
+addresses below.
+
+PROXY CORES (separate programs, run as child processes)
+-------------------------------------------------------
+sing-box 1.14.2 (Windows x64, Android arm64 / arm / x86_64)
+  License: GPL-3.0-or-later, with the upstream additional term that derivative works may not use the
+           sing-box name or imply association with it. IBOX is not affiliated with sing-box.
+  Corresponding source: https://github.com/SagerNet/sing-box/tree/v1.14.2
+  The official release binaries are redistributed without modification.
+
+Xray-core 26.3.27 (Windows x64; with geoip.dat / geosite.dat from the same release)
+  License: MPL-2.0
+  Source: https://github.com/XTLS/Xray-core/tree/v26.3.27
+
+Wintun 0.14.1 (Windows x64, signed by WireGuard LLC)
+  License: Prebuilt Binaries License (redistribution of the unmodified signed DLL is permitted);
+           source code under GPL-2.0
+  Source: https://git.zx2c4.com/wintun/
+
+hev-socks5-tunnel 2.18.0 (Android only, tun2socks)
+  License: MIT
+  Source: https://github.com/heiher/hev-socks5-tunnel/tree/2.18.0
+
+LIBRARIES
+---------
+.NET runtime, WPF, Windows Forms, .NET MAUI, Microsoft.Extensions.*, Microsoft.Data.Sqlite,
+System.Security.Cryptography.ProtectedData — MIT (Microsoft / .NET Foundation)
+  https://github.com/dotnet
+SQLitePCLRaw — Apache-2.0 (https://github.com/ericsink/SQLitePCL.raw)
+SQLite — public domain (https://sqlite.org)
+CommunityToolkit.Mvvm 8.4.2 — MIT (https://github.com/CommunityToolkit/dotnet)
+YamlDotNet 18.1.0 — MIT (https://github.com/aaubry/YamlDotNet)
+Open Sans font (Android app) — SIL Open Font License 1.1 (https://fonts.google.com/specimen/Open+Sans)
+Avalonia UI — MIT (https://github.com/AvaloniaUI/Avalonia) — Linux app
+ZXing.Net 0.16.11 — Apache-2.0 (https://github.com/micjahn/ZXing.Net) — QR code scanning in the Android app
+
+THINKING ORBS (loading animations)
+----------------------------------
+The dotted orb animations are a C# port of thinking-orbs (https://github.com/Jakubantalik/thinking-orbs):
+
+MIT License
+
+Copyright (c) 2026 Jakub Antalik
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

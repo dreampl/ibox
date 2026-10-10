@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Live dot: a green core with a halo that keeps expanding and fading (runs as a ProgressBar's indeterminate
+     drawable, which is how an animation can play inside a home-screen widget). -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+            <group android:name="halo" android:pivotX="12" android:pivotY="12">
+                <path android:name="haloPath" android:fillColor="#FF22C55E" android:fillAlpha="0.55"
+                    android:pathData="M7,12 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0" />
+            </group>
+            <path android:fillColor="#FF22C55E" android:pathData="M8.5,12 a3.5,3.5 0 1,0 7,0 a3.5,3.5 0 1,0 -7,0" />
+        </vector>
+    </aapt:attr>
+    <target android:name="halo">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator android:propertyName="scaleX" android:valueFrom="0.7" android:valueTo="2.3" android:duration="1500"
+                    android:repeatCount="infinite" android:interpolator="@android:interpolator/decelerate_cubic" />
+                <objectAnimator android:propertyName="scaleY" android:valueFrom="0.7" android:valueTo="2.3" android:duration="1500"
+                    android:repeatCount="infinite" android:interpolator="@android:interpolator/decelerate_cubic" />
+            </set>
+        </aapt:attr>
+    </target>
+    <target android:name="haloPath">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:propertyName="fillAlpha" android:valueFrom="0.6" android:valueTo="0" android:duration="1500"
+                android:repeatCount="infinite" android:interpolator="@android:interpolator/decelerate_cubic" />
+        </aapt:attr>
+    </target>
+</animated-vector>

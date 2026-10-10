@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The IBOX "O" with its blue square, centred in the adaptive-icon safe zone (geometry: assets/brand/ibox-mark.svg). -->
+<svg width="456" height="456" viewBox="0 0 456 456" xmlns="http://www.w3.org/2000/svg">
+  <g transform="translate(133.5 132.75) scale(1.5)">
+    <path fill="#FFFFFF" d="M30 0H126V127H8Q0 127 0 119V30H27V100H99V27H30Z"/>
+    <rect x="67" y="53" width="22" height="22" fill="#3D9BFF"/>
+  </g>
+</svg>

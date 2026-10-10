@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<controls:AnimatedPage x:Class="JackiVpn.Mobile.Pages.EcosystemPage"
+                       xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                       xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+                       xmlns:controls="clr-namespace:JackiVpn.Mobile.Controls"
+                       xmlns:vm="clr-namespace:JackiVpn.Mobile.ViewModels"
+                       x:DataType="vm:EcosystemViewModel"
+                       Shell.NavBarIsVisible="True"
+                       Title="Sync device">
+    <ScrollView>
+        <VerticalStackLayout Padding="20,8,20,28" Spacing="0">
+            <!-- Radar -->
+            <Grid HeightRequest="220" Margin="0,4,0,0">
+                <Ellipse x:Name="Ring1" Stroke="{StaticResource Accent}" StrokeThickness="2" WidthRequest="200" HeightRequest="200" Opacity="0" HorizontalOptions="Center" VerticalOptions="Center" />
+                <Ellipse x:Name="Ring2" Stroke="{StaticResource Accent2}" StrokeThickness="2" WidthRequest="200" HeightRequest="200" Opacity="0" HorizontalOptions="Center" VerticalOptions="Center" />
+                <Ellipse x:Name="Ring3" Stroke="{StaticResource Accent}" StrokeThickness="2" WidthRequest="200" HeightRequest="200" Opacity="0" HorizontalOptions="Center" VerticalOptions="Center" />
+                <Ellipse Stroke="#22FFFFFF" StrokeThickness="1" WidthRequest="200" HeightRequest="200" HorizontalOptions="Center" VerticalOptions="Center" />
+                <Ellipse Stroke="#16FFFFFF" StrokeThickness="1" WidthRequest="140" HeightRequest="140" HorizontalOptions="Center" VerticalOptions="Center" />
+                <Path x:Name="Sweep" WidthRequest="200" HeightRequest="200" Aspect="None" HorizontalOptions="Center" VerticalOptions="Center" Opacity="0"
+                      Data="M 100,100 L 100,0 A 100,100 0 0 1 170.7,29.3 Z">
+                    <Path.Fill>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                            <GradientStop Color="#663B82F6" Offset="0" />
+                            <GradientStop Color="#003B82F6" Offset="1" />
+                        </LinearGradientBrush>
+                    </Path.Fill>
+                </Path>
+                <Border x:Name="Core" WidthRequest="84" HeightRequest="84" StrokeShape="RoundRectangle 42" StrokeThickness="1" Stroke="{StaticResource GlassRim}"
+                        Background="{StaticResource AccentGradient}" HorizontalOptions="Center" VerticalOptions="Center">
+                    <Border.Shadow>
+                        <Shadow Brush="#3B82F6" Radius="26" Opacity="0.55" Offset="0,0" />
+                    </Border.Shadow>
+                    <Label Text="⇄" FontSize="34" TextColor="White" HorizontalOptions="Center" VerticalOptions="Center" />
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnScanTapped" />
+                    </Border.GestureRecognizers>
+                </Border>
+            </Grid>
+            <Label x:Name="ScanLabel" Text="{Binding ScanText}" Style="{StaticResource Section}" HorizontalOptions="Center" />
+            <Label Text="{Binding DeviceName, StringFormat='This phone: {0} · tap the circle to scan again'}" Style="{StaticResource Hint}" HorizontalOptions="Center" HorizontalTextAlignment="Center" Margin="0,2,0,14" />
+
+            <!-- Devices -->
+            <VerticalStackLayout BindableLayout.ItemsSource="{Binding Devices}">
+                <BindableLayout.ItemTemplate>
+                    <DataTemplate x:DataType="vm:SyncDevice">
+                        <Border Style="{StaticResource Card}" Padding="14,12" Margin="0,0,0,10">
+                            <Border.Triggers>
+                                <DataTrigger TargetType="Border" Binding="{Binding IsSelected}" Value="True">
+                                    <Setter Property="Stroke" Value="{StaticResource GlassRimAccent}" />
+                                    <Setter Property="StrokeThickness" Value="2" />
+                                    <Setter Property="Background" Value="{StaticResource GlassFillStrong}" />
+                                </DataTrigger>
+                            </Border.Triggers>
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                                <Border WidthRequest="44" HeightRequest="44" StrokeShape="RoundRectangle 14" StrokeThickness="0" Background="{StaticResource GlassFillStrong}">
+                                    <Label Text="{Binding Glyph}" FontSize="22" HorizontalOptions="Center" VerticalOptions="Center" />
+                                </Border>
+                                <VerticalStackLayout Grid.Column="1" VerticalOptions="Center">
+                                    <Label Text="{Binding Name}" Style="{StaticResource Value}" LineBreakMode="TailTruncation" />
+                                    <Label Text="{Binding Detail}" Style="{StaticResource Caption}" />
+                                </VerticalStackLayout>
+                                <Label Grid.Column="2" Text="✓" FontSize="20" TextColor="{StaticResource Accent}" VerticalOptions="Center" IsVisible="{Binding IsSelected}" />
+                            </Grid>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type vm:EcosystemViewModel}}, Path=SelectDeviceCommand}" CommandParameter="{Binding .}" />
+                            </Border.GestureRecognizers>
+                        </Border>
+                    </DataTemplate>
+                </BindableLayout.ItemTemplate>
+            </VerticalStackLayout>
+
+            <Border Style="{StaticResource Card}" IsVisible="{Binding NoDevices}">
+                <VerticalStackLayout Spacing="6">
+                    <Label Text="Nothing found yet" Style="{StaticResource Value}" />
+                    <Label Text="1. Open IBOX on your PC or other phone.&#10;2. Connect both to the same Wi-Fi (guest networks often hide devices from each other).&#10;3. Tap the circle to scan again." Style="{StaticResource Hint}" />
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- What to send -->
+            <Label Text="SUBSCRIPTIONS TO SEND" Style="{StaticResource Caption}" FontFamily="OpenSansSemibold" Margin="4,6,0,8" />
+            <Border Style="{StaticResource Card}">
+                <VerticalStackLayout>
+                    <Label Text="Add a subscription first." Style="{StaticResource Hint}" IsVisible="{Binding HasSubscriptions, Converter={StaticResource Not}}" />
+                    <VerticalStackLayout BindableLayout.ItemsSource="{Binding Subscriptions}">
+                        <BindableLayout.ItemTemplate>
+                            <DataTemplate x:DataType="vm:SharableSubscription">
+                                <Grid ColumnDefinitions="Auto,*">
+                                    <CheckBox IsChecked="{Binding IsSelected}" Color="{StaticResource Accent}" />
+                                    <Label Grid.Column="1" Text="{Binding Name}" VerticalOptions="Center" />
+                                </Grid>
+                            </DataTemplate>
+                        </BindableLayout.ItemTemplate>
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+
+            <Button Text="Send to selected device" Command="{Binding SendCommand}" Style="{StaticResource Primary}" Margin="0,4,0,0" />
+
+            <Border x:Name="CodeCard" Style="{StaticResource Card}" IsVisible="{Binding IsSending}" Margin="0,14,0,0">
+                <VerticalStackLayout Spacing="2">
+                    <Label Text="Code — must match the other device" Style="{StaticResource Caption}" HorizontalOptions="Center" />
+                    <Label Text="{Binding Code}" FontSize="34" FontFamily="OpenSansSemibold" HorizontalOptions="Center" TextColor="{StaticResource Text}" CharacterSpacing="4" />
+                </VerticalStackLayout>
+            </Border>
+            <Label Text="{Binding Message}" Style="{StaticResource Hint}" Margin="4,10,4,0" />
+
+            <Border Style="{StaticResource Card}" Margin="0,18,0,0">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                    <VerticalStackLayout>
+                        <Label Text="Let my other devices find this phone" Style="{StaticResource Value}" />
+                        <Label Text="Only while IBOX is open. Nothing is added without your approval." Style="{StaticResource Hint}" />
+                    </VerticalStackLayout>
+                    <Switch Grid.Column="1" IsToggled="{Binding Enabled}" VerticalOptions="Center" />
+                </Grid>
+            </Border>
+        </VerticalStackLayout>
+    </ScrollView>
+</controls:AnimatedPage>

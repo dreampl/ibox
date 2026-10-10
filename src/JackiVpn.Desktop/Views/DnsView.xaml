@@ -1,0 +1,146 @@
+<UserControl x:Class="JackiVpn.Desktop.Views.DnsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="clr-namespace:JackiVpn.Desktop.Views">
+    <UserControl.Resources>
+        <!-- Resolver editor reused for remote / direct / bootstrap. -->
+        <DataTemplate x:Key="EndpointEditor">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="120" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="80" />
+                    <ColumnDefinition Width="140" />
+                    <ColumnDefinition Width="170" />
+                </Grid.ColumnDefinitions>
+                <ComboBox ItemsSource="{Binding DataContext.Transports, RelativeSource={RelativeSource AncestorType=UserControl}}" SelectedItem="{Binding Transport}" MinWidth="0" />
+                <TextBox Grid.Column="1" Text="{Binding Server}" Margin="8,0,0,0" ToolTip="Server (IP preferred, e.g. 1.1.1.1)" />
+                <TextBox Grid.Column="2" Text="{Binding Port}" Margin="8,0,0,0" ToolTip="Port (optional)" />
+                <TextBox Grid.Column="3" Text="{Binding Path}" Margin="8,0,0,0" ToolTip="DoH path (default /dns-query)" />
+                <TextBox Grid.Column="4" Text="{Binding TlsServerName}" Margin="8,0,0,0" ToolTip="TLS server name (DoT/DoH)" />
+            </Grid>
+        </DataTemplate>
+    </UserControl.Resources>
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32,26,32,26" v:Motion.StaggerChildren="True">
+            <TextBlock Text="DNS" Style="{StaticResource Text.PageTitle}" />
+            <TextBlock Text="How domain names are resolved while connected. The default keeps every lookup encrypted and inside the tunnel."
+                       Style="{StaticResource Text.PageSubtitle}" />
+
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <Grid Style="{StaticResource Row}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="DNS mode" Style="{StaticResource Text.Label}" />
+                            <TextBlock Text="{Binding ModeHint}" Style="{StaticResource Text.Hint}" MaxWidth="560" HorizontalAlignment="Left" />
+                        </StackPanel>
+                        <ComboBox Grid.Column="1" ItemsSource="{Binding Modes}" SelectedItem="{Binding Mode}" MinWidth="180" VerticalAlignment="Top" />
+                    </Grid>
+                    <Border Style="{StaticResource Banner.Warning}" Visibility="{Binding IsLeakRisk, Converter={StaticResource Bool2Vis}}">
+                        <TextBlock Text="This mode can reveal the sites you visit to your ISP or network (DNS leak)." TextWrapping="Wrap" />
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <DockPanel Margin="0,0,0,8">
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
+                            <v:OrbView Width="30" Height="30" State="Searching" Margin="0,0,10,0" Visibility="{Binding IsSearching, Converter={StaticResource Bool2Vis}}" />
+                            <Button Style="{StaticResource Button.Primary}" Content="Find the best DNS" Command="{Binding SearchCommand}" />
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock Text="DNS search" Style="{StaticResource Text.Section}" />
+                            <TextBlock Text="Tests international and Iranian resolvers (plain and encrypted) from this network: speed, and whether they answer honestly or with the filter's block page. The fastest clean one is suggested." Style="{StaticResource Text.Hint}" TextWrapping="Wrap" MaxWidth="560" HorizontalAlignment="Left" />
+                        </StackPanel>
+                    </DockPanel>
+                    <TextBlock Text="{Binding BestText}" Style="{StaticResource Text.Label}" Margin="0,0,0,4" />
+                    <TextBlock Text="{Binding SearchStatus}" Style="{StaticResource Text.Hint}" TextWrapping="Wrap" Margin="0,0,0,8"
+                               Visibility="{Binding SearchStatus, Converter={StaticResource Null2Vis}}" />
+                    <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding AutoPickDns}" Margin="0,0,0,10">
+                        <StackPanel>
+                            <TextBlock Text="Choose automatically on every network" Style="{StaticResource Text.Label}" />
+                            <TextBlock Text="Server addresses are looked up with the best clean resolver found on the network you are on (unless a bootstrap resolver is set by hand below). Searched in the background when the network changes." Style="{StaticResource Text.Hint}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </CheckBox>
+                    <ItemsControl ItemsSource="{Binding Results}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="90" />
+                                        <ColumnDefinition Width="120" />
+                                        <ColumnDefinition Width="70" />
+                                        <ColumnDefinition Width="90" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Name}" Style="{StaticResource Text.Label}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Kind}" Style="{StaticResource Text.Hint}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="2" Text="{Binding Address}" Style="{StaticResource Text.Hint}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="3" Text="{Binding Speed}" Style="{StaticResource Text.Label}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="4" Text="{Binding Verdict}" VerticalAlignment="Center" FontWeight="SemiBold">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="{DynamicResource B.Danger}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Good}" Value="True">
+                                                        <Setter Property="Foreground" Value="{DynamicResource B.Success}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <Button Grid.Column="5" Content="Use for servers" Padding="10,3" Margin="6,0,0,0"
+                                            Command="{Binding DataContext.UseForServersCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                                            Visibility="{Binding Good, Converter={StaticResource Bool2Vis}}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="Resolvers" Style="{StaticResource Text.Section}" />
+                    <TextBlock Text="Remote (through the VPN)" Style="{StaticResource Text.Label}" Margin="0,0,0,6" />
+                    <ContentControl Content="{Binding Remote}" ContentTemplate="{StaticResource EndpointEditor}" Focusable="False" />
+                    <TextBlock Text="Direct (for traffic routed outside the VPN)" Style="{StaticResource Text.Label}" Margin="0,14,0,6" />
+                    <ContentControl Content="{Binding Direct}" ContentTemplate="{StaticResource EndpointEditor}" Focusable="False" />
+                    <TextBlock Text="Bootstrap (only resolves VPN server names)" Style="{StaticResource Text.Label}" Margin="0,14,0,6" />
+                    <ContentControl Content="{Binding Bootstrap}" ContentTemplate="{StaticResource EndpointEditor}" Focusable="False" />
+                    <TextBlock Text="Transport Local = the resolvers configured in Windows. Columns: transport, server, port, DoH path, TLS name." Style="{StaticResource Text.Hint}" Margin="0,10,0,0" />
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="Options" Style="{StaticResource Text.Section}" />
+                    <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding Cache}" Margin="0,0,0,12">
+                        <TextBlock Text="Cache DNS answers in the core" Style="{StaticResource Text.Label}" />
+                    </CheckBox>
+                    <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding FakeIp}">
+                        <StackPanel>
+                            <TextBlock Text="Fake IP (TUN)" Style="{StaticResource Text.Label}" />
+                            <TextBlock Text="Answers tunneled names instantly with placeholder addresses; the server resolves the real address. Faster first connections; a few apps dislike it." Style="{StaticResource Text.Hint}" />
+                        </StackPanel>
+                    </CheckBox>
+                    <Grid Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="12" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox Text="{Binding FakeIpV4}" ToolTip="Fake IP IPv4 range" />
+                        <TextBox Grid.Column="2" Text="{Binding FakeIpV6}" ToolTip="Fake IP IPv6 range" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

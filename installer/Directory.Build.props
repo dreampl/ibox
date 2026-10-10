@@ -1,0 +1,6 @@
+<Project>
+  <!-- The installer is not a C# project: do not inherit the repository's analyzers or central package versions. -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+</Project>
