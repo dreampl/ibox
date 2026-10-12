@@ -15,6 +15,10 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- The node-based routing editor (served on loopback by RoutingEditorServer). -->
+    <EmbeddedResource Include="Routing\RoutingEditor.html" LogicalName="JackiVpn.Application.Routing.RoutingEditor.html" />
+  </ItemGroup>
   <!-- Portable build (Android): Windows backends (system proxy, service IPC, WFP tunnel session) excluded. -->
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
     <Compile Remove="Connection\ConnectionBackends.cs;Sessions\TunnelSessionManager.cs" />

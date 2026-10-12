@@ -197,6 +197,22 @@ public sealed partial class RoutingViewModel : SettingsPageViewModel
         Message = $"{preset} preset applied.";
     }
 
+    /// <summary>Conditions → rules → destinations as nodes, in the default browser (served on loopback only).</summary>
+    [RelayCommand]
+    private void OpenNodeEditor()
+    {
+        var url = _s.RoutingEditor.Open(Services.ThemeManager.IsLight ? AppTheme.Light : AppTheme.Dark);
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true })?.Dispose();
+            Message = "The node editor opened in your browser. Saving there applies here.";
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            Message = "No browser could be opened. Open this address yourself: " + url;
+        }
+    }
+
     [RelayCommand]
     private void AddRule()
     {

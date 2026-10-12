@@ -391,9 +391,15 @@ public sealed record StartupSettings
     public bool UseSmartConnect { get; init; } = true;
 }
 
+/// <summary>A node's place on the routing editor's canvas.</summary>
+public sealed record NodePoint(double X, double Y);
+
 public sealed record UiSettings
 {
     public AppTheme Theme { get; init; } = AppTheme.System;
+
+    /// <summary>Where the node editor placed each node (rules "r:{id}", conditions "c:{id}:{n}", actions "a:{type}").</summary>
+    public IReadOnlyDictionary<string, NodePoint> RoutingLayout { get; init; } = new Dictionary<string, NodePoint>(StringComparer.Ordinal);
     public bool CloseToTray { get; init; } = true;
 
     /// <summary>Force reduced motion regardless of the Windows setting.</summary>

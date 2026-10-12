@@ -88,8 +88,22 @@ public sealed class RoutingPage : OptionsPage
         {
             Orientation = Orientation.Horizontal,
             Spacing = 8,
-            Children = { Ghost("Add rule-set…", () => _ = AddRuleSetAsync()), Primary("Add rule", () => _ = EditRuleAsync(null)) },
+            Children = { Ghost("Node editor…", OpenNodeEditor), Ghost("Add rule-set…", () => _ = AddRuleSetAsync()), Primary("Add rule", () => _ = EditRuleAsync(null)) },
         };
+
+        // The node editor (in the browser) saves into the same settings: show its rules here as they land.
+        var seen = Application.Routing.RoutingWatcher.Key(Cur);
+        EventHandler<Domain.Settings.AppSettings> changed = (_, x) =>
+        {
+            var key = Application.Routing.RoutingWatcher.Key(x);
+            if (key != seen)
+            {
+                seen = key;
+                Dispatcher.UIThread.Post(Render);
+            }
+        };
+        S.Settings.Changed += changed;
+        Track(() => S.Settings.Changed -= changed);
         return Stack(
             Header("Routing", "Rules are checked top to bottom; the first match wins.", actions),
             Section("Preset", "Rule = everything through VPN except BitTorrent; Global = everything through VPN; Direct = nothing through VPN; Iran friendly = Iranian sites and IPs direct, the rest through VPN (every preset rule is editable).",
@@ -102,6 +116,21 @@ public sealed class RoutingPage : OptionsPage
     }
 
     public override void OnShown() => Render();
+
+    /// <summary>Conditions → rules → destinations as nodes, in the default browser (served on loopback only).</summary>
+    private void OpenNodeEditor()
+    {
+        var url = S.RoutingEditor.Open(Look.P.IsLight ? Domain.Settings.AppTheme.Light : Domain.Settings.AppTheme.Dark);
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("xdg-open", url) { UseShellExecute = false })?.Dispose();
+            Shell.Toast("Node editor", "Opened in your browser. Saving there applies here.");
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            Shell.Toast("Node editor", "No browser could be opened. Open this address yourself: " + url, warning: true);
+        }
+    }
 
     private void Render()
     {

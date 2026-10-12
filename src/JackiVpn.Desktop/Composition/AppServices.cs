@@ -171,6 +171,7 @@ public sealed class AppServices : IAsyncDisposable
         };
         Traffic = new Application.Traffic.TrafficController(Orchestrator, settings, Workplace, Usage, LoggerFactory.CreateLogger("JackiVpn.Traffic"));
         RoutingWatcher = new Application.Routing.RoutingWatcher(Settings, Orchestrator, LoggerFactory.CreateLogger("JackiVpn.Routing"));
+        RoutingEditor = new Application.Routing.RoutingEditorServer(Settings, LoggerFactory.CreateLogger("JackiVpn.RoutingEditor"));
         Agent = new Application.Agent.AgentPipeServer(
             new Application.Agent.AgentController(new Application.Agent.AgentDependencies
             {
@@ -237,6 +238,9 @@ public sealed class AppServices : IAsyncDisposable
 
     /// <summary>Applies routing changes to the running connection.</summary>
     public Application.Routing.RoutingWatcher RoutingWatcher { get; }
+
+    /// <summary>The node-based routing editor in the browser (loopback, on demand).</summary>
+    public Application.Routing.RoutingEditorServer RoutingEditor { get; }
 
     /// <summary>Control by the command line and AI agents (MCP), when the user turns it on.</summary>
     public Application.Agent.AgentPipeServer Agent { get; }
@@ -365,6 +369,7 @@ public sealed class AppServices : IAsyncDisposable
         {
             await Accounts.SaveActiveAsync(CancellationToken.None).ConfigureAwait(false);
             await Agent.DisposeAsync().ConfigureAwait(false);
+            await RoutingEditor.DisposeAsync().ConfigureAwait(false);
             await Orchestrator.DisposeAsync().ConfigureAwait(false);
         }
         finally
