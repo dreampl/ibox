@@ -1,0 +1,16 @@
+IBOX 1.5.0
+
+New
+- Profiles: several people (or roles) on one computer, each with a name, colour or picture and their own settings (routing, DNS, modes, theme…), stored encrypted; a PIN can lock a profile. Servers and subscriptions stay shared.
+- Dual VPN in Work mode: away from the office, the company's names and subnets go through a work VPN (a saved server, or the company's own VPN app) while everything else keeps IBOX's connection. Usage → Workplace → Dual VPN.
+- Node-based routing editor: edit rules as connected nodes (conditions → rules → through the VPN / direct / block) in your browser, reorder them, and test where a site or app would go. Routing → Node editor.
+- DNS your way: next to smart DNS, pick the network's own resolver or enter your own (plain or DNS-over-HTTPS), and set the DNS of each network adapter.
+- AI agents: let Claude and other agents check and control IBOX through MCP or the ibox-ctl command line. Off by default; read-only unless you allow changes.
+- Now playing in the notch (Windows and Linux), and the notch on Linux.
+- Linux: the new look, with light, dark and system themes.
+
+Fixed
+- Routing rules that seemed to do nothing: IP and country (GeoIP) rules now match sites opened by name, app rules match regardless of letter case, and rule changes apply to a running connection within seconds.
+
+Better
+- Smoother clay cards and lower idle CPU on Linux.
