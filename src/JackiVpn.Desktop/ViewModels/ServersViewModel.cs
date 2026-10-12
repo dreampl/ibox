@@ -39,7 +39,14 @@ public sealed partial class ServerItem : ObservableObject
 
     /// <summary>Exit country last observed through this server (null until it has been used once).</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FlagCode))]
+    [NotifyPropertyChangedFor(nameof(FlagTip))]
     private string? _countryCode;
+
+    /// <summary>The flag shown: the observed exit, else the country the server's name points at.</summary>
+    public string? FlagCode => CountryCode ?? Domain.Visuals.CountryGuess.FromName(Profile.DisplayName);
+
+    public string FlagTip => CountryCode is { } cc ? "Exit seen through this server: " + cc : FlagCode is { } guess ? "From the server's name: " + guess + " (not connected yet)" : "Country not known yet";
 
     public ServerItem(ProxyProfile profile, NodeHealthSnapshot health, string? subscriptionName, bool isOfficial = false)
     {

@@ -35,8 +35,12 @@ public sealed class SubscriptionsPage(Shell shell) : Page(shell)
             Spacing = 10,
             Children = { T("Add subscription", 15, FontWeight.SemiBold), addRow, Hint("Paste the subscription link from your panel (https). Name is optional.") },
         });
-        S.SubscriptionService.Updated += (_, _) => Dispatcher.UIThread.Post(() => _ = LoadAsync());
-        S.SubscriptionService.AccountChecked += (_, _) => Dispatcher.UIThread.Post(() => _ = LoadAsync());
+        EventHandler<Application.Subscriptions.SubscriptionUpdateReport> updated = (_, _) => Dispatcher.UIThread.Post(() => _ = LoadAsync());
+        S.SubscriptionService.Updated += updated;
+        Track(() => S.SubscriptionService.Updated -= updated);
+        EventHandler<string> checkedHandler = (_, _) => Dispatcher.UIThread.Post(() => _ = LoadAsync());
+        S.SubscriptionService.AccountChecked += checkedHandler;
+        Track(() => S.SubscriptionService.AccountChecked -= checkedHandler);
         return new StackPanel
         {
             Spacing = 16,

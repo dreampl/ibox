@@ -619,7 +619,7 @@ public sealed partial class DashboardViewModel : ObservableObject
         var p = c.SelectedProfileId is { } id ? await _s.Profiles.GetAsync(id, _s.Lifetime) : null;
         SelectionText = p is null ? "No server selected — choose one on the Servers page" : "Selected: " + p.DisplayName;
         _selectedName = p?.DisplayName;
-        _selectedCountry = p is null ? null : _s.Insights.Get(p.Fingerprint)?.Exit?.CountryCode;
+        _selectedCountry = p is null ? null : _s.Insights.Get(p.Fingerprint)?.Exit?.CountryCode ?? Domain.Visuals.CountryGuess.FromName(p.DisplayName);
         _selectedProtocol = p is null ? null : Names.Protocol(p.Protocol.ToString());
         RefreshServerCard();
     }

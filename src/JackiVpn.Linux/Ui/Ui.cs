@@ -7,28 +7,32 @@ using Avalonia.Media;
 
 namespace JackiVpn.Linux.Ui;
 
-/// <summary>The Windows app's dark theme (graphite surfaces, blue→violet accent) and the building blocks of every page.</summary>
+/// <summary>The Windows app's token set (see <see cref="Look"/>) and the building blocks of every page.</summary>
 public static class Ui
 {
-    public static readonly Color Window = Color.Parse("#15171C");
-    public static readonly Color Sidebar = Color.Parse("#101216");
-    public static readonly Color CardBg = Color.Parse("#1C1F26");
-    public static readonly Color CardHover = Color.Parse("#242833");
-    public static readonly Color InputBg = Color.Parse("#22262F");
-    public static readonly Color Border = Color.Parse("#2C313C");
-    public static readonly Color Text = Color.Parse("#E8EAF0");
-    public static readonly Color Text2 = Color.Parse("#A6ADBB");
-    public static readonly Color Muted = Color.Parse("#6B7280");
-    public static readonly Color Accent = Color.Parse("#3B82F6");
-    public static readonly Color Accent2 = Color.Parse("#8B5CF6");
-    public static readonly Color Success = Color.Parse("#22C55E");
-    public static readonly Color Success2 = Color.Parse("#14B8A6");
-    public static readonly Color Warning = Color.Parse("#F59E0B");
-    public static readonly Color Danger = Color.Parse("#EF4444");
-    public static readonly Color Idle = Color.Parse("#3A404D");
-    public static readonly Color Idle2 = Color.Parse("#2A2F3A");
+    public static Color Window => Look.P.Window;
+    public static Color Sidebar => Look.P.Sidebar;
+    public static Color CardBg => Look.P.Card;
+    public static Color CardHover => Look.P.CardHover;
+    public static Color InputBg => Look.P.Input;
+    public static Color TileBg => Look.P.Tile;
+    public static Color Border => Look.P.Border;
+    public static Color Text => Look.P.Text;
+    public static Color Text2 => Look.P.TextSecondary;
+    public static Color Muted => Look.P.TextMuted;
+    public static Color Accent => Look.P.Accent;
+    public static Color Accent2 => Look.P.Accent2;
+    public static Color Success => Look.P.Success;
+    public static Color Success2 => Look.P.Success2;
+    public static Color Warning => Look.P.Warning;
+    public static Color Danger => Look.P.Danger;
+    public static Color Idle => Look.P.Idle;
+    public static Color Idle2 => Look.P.Idle2;
+    public static Color Chart1 => Look.P.Chart1;
+    public static Color Chart2 => Look.P.Chart2;
     public static readonly Color Gaming = Color.Parse("#E040FB");
     public static readonly Color Streaming = Color.Parse("#38BDF8");
+    public static readonly Color Violet = Color.Parse("#8B5CF6");
 
     public static IBrush B(Color c) => new SolidColorBrush(c);
 
@@ -41,7 +45,139 @@ public static class Ui
         GradientStops = { new GradientStop(a, 0), new GradientStop(b, 1) },
     };
 
-    public static LinearGradientBrush AccentGradient => Gradient(Accent, Accent2);
+    public static LinearGradientBrush AccentGradient => new()
+    {
+        StartPoint = new RelativePoint(0, 0.5, RelativeUnit.Relative),
+        EndPoint = new RelativePoint(1, 0.5, RelativeUnit.Relative),
+        GradientStops = { new GradientStop(Accent, 0), new GradientStop(Look.P.IsLight ? Accent : Accent2, 1) },
+    };
+
+    /// <summary>Card fill: the surface with a hair of depth (lighter at the top).</summary>
+    public static LinearGradientBrush CardFill => new()
+    {
+        StartPoint = new RelativePoint(0.5, 0, RelativeUnit.Relative),
+        EndPoint = new RelativePoint(0.5, 1, RelativeUnit.Relative),
+        GradientStops = { new GradientStop(Look.P.Card, 0), new GradientStop(Look.P.Card2, 1) },
+    };
+
+    /// <summary>
+    /// Clay shadows: a soft dark shadow below, a faint highlight above (light theme: a white glow up-left, as in the
+    /// mockup), and a one-pixel inner top highlight. Never neon.
+    /// </summary>
+    public static BoxShadows ClayShadow(bool raised = false)
+    {
+        var p = Look.P;
+        var dark = new BoxShadow { OffsetY = raised ? 14 : 10, Blur = raised ? 36 : 28, Spread = -4, Color = WithAlpha(p.Shadow, p.ShadowOpacity * (raised ? 0.9 : 0.7)) };
+        var light = p.IsLight
+            ? new BoxShadow { OffsetX = -6, OffsetY = -6, Blur = 18, Color = WithAlpha(p.ShadowLight, p.ShadowLightOpacity) }
+            : new BoxShadow { OffsetY = -1, Blur = 2, Color = WithAlpha(p.ShadowLight, p.ShadowLightOpacity) };
+        var rim = new BoxShadow { IsInset = true, OffsetY = 1, Blur = 0, Color = p.Highlight };
+        return new BoxShadows(dark, [light, rim]);
+    }
+
+    public static Color WithAlpha(Color c, double alpha) => Color.FromArgb((byte)Math.Clamp(alpha * 255, 0, 255), c.R, c.G, c.B);
+
+    /// <summary>A clay card (matte surface, soft shadows, rounded 24).</summary>
+    public static Border Clay(Control child, Thickness? padding = null, double radius = 24, bool raised = false) => new()
+    {
+        Background = CardFill,
+        BorderBrush = B(Border, Look.P.IsLight ? 0.9 : 0.55),
+        BorderThickness = new Thickness(1),
+        CornerRadius = new CornerRadius(radius),
+        Padding = padding ?? new Thickness(22, 20),
+        BoxShadow = ClayShadow(raised),
+        Child = child,
+    };
+
+    /// <summary>The square rounded icon tile of the card titles and mode tiles.</summary>
+    public static Border IconTile(string glyph, Color? color = null, double size = 42, double icon = 19) => new()
+    {
+        Width = size,
+        Height = size,
+        CornerRadius = new CornerRadius(size * 0.34),
+        Background = B(TileBg),
+        BorderBrush = B(Border, 0.7),
+        BorderThickness = new Thickness(1),
+        BoxShadow = new BoxShadows(new BoxShadow { IsInset = true, OffsetY = 1, Color = Look.P.Highlight }),
+        VerticalAlignment = VerticalAlignment.Center,
+        Child = Icon(glyph, icon, color ?? Accent, 2),
+    };
+
+    /// <summary>Card title: icon tile + title, optional element on the right.</summary>
+    public static DockPanel CardTitle(string glyph, string title, Control? right = null, Color? color = null)
+    {
+        var d = new DockPanel { Margin = new Thickness(0, 0, 0, 16) };
+        if (right is not null)
+        {
+            DockPanel.SetDock(right, Dock.Right);
+            right.VerticalAlignment = VerticalAlignment.Center;
+            d.Children.Add(right);
+        }
+
+        var tile = IconTile(glyph, color);
+        DockPanel.SetDock(tile, Dock.Left);
+        d.Children.Add(tile);
+        d.Children.Add(new TextBlock { Text = title, FontSize = 17, FontWeight = FontWeight.SemiBold, Foreground = B(Text), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(14, 0, 0, 0) });
+        return d;
+    }
+
+    /// <summary>A pill (status, quota): rounded, raised a little.</summary>
+    public static Border Pill(Control child) => new()
+    {
+        Background = CardFill,
+        BorderBrush = B(Border, 0.7),
+        BorderThickness = new Thickness(1),
+        CornerRadius = new CornerRadius(22),
+        Padding = new Thickness(16, 9),
+        BoxShadow = ClayShadow(),
+        Child = child,
+    };
+
+    /// <summary>Round clay icon button (top bar).</summary>
+    public static Button RoundButton(string glyph, Action onClick, string tip)
+    {
+        var b = new Button
+        {
+            Width = 44,
+            Height = 44,
+            CornerRadius = new CornerRadius(22),
+            Background = CardFill,
+            BorderBrush = B(Border, 0.7),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(0),
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center,
+            Content = Icon(glyph, 19, Text2, 1.8),
+        };
+        ToolTip.SetTip(b, tip);
+        b.Click += (_, _) => onClick();
+        return b;
+    }
+
+    /// <summary>Outline button (secondary full-width actions such as Switch Server).</summary>
+    public static Button Outline(string text, Action onClick, string? glyph = null)
+    {
+        var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, HorizontalAlignment = HorizontalAlignment.Center };
+        if (glyph is not null)
+        {
+            content.Children.Add(Icon(glyph, 15, Text, 1.8));
+        }
+
+        content.Children.Add(new TextBlock { Text = text, FontSize = 13.5, Foreground = B(Text), VerticalAlignment = VerticalAlignment.Center });
+        var b = new Button
+        {
+            Content = content,
+            Background = B(TileBg),
+            BorderBrush = B(Border),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(24),
+            Padding = new Thickness(16, 11),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+        };
+        b.Click += (_, _) => onClick();
+        return b;
+    }
 
     public static TextBlock T(string text, double size = 13, FontWeight weight = FontWeight.Normal, Color? color = null) => new()
     {
@@ -66,31 +202,18 @@ public static class Ui
             top.Children.Add(actions);
         }
 
-        top.Children.Add(T(title, 26, FontWeight.SemiBold));
-        var panel = new StackPanel { Spacing = 4, Margin = new Thickness(0, 0, 0, 18), Children = { top } };
-        if (description is not null)
-        {
-            panel.Children.Add(Caption(description));
-        }
-
-        return panel;
+        // The window's top bar shows the page title: the page itself starts with its description and actions.
+        top.Children.Add(description is null ? new Control() : T(description, 13.5, color: Text2));
+        return new StackPanel { Spacing = 4, Margin = new Thickness(0, 0, 0, 18), Children = { top } };
     }
 
-    public static Border Card(Control child, Thickness? padding = null) => new()
-    {
-        Background = B(CardBg),
-        BorderBrush = B(Border),
-        BorderThickness = new Thickness(1),
-        CornerRadius = new CornerRadius(12),
-        Padding = padding ?? new Thickness(18, 16),
-        Child = child,
-    };
+    public static Border Card(Control child, Thickness? padding = null) => Clay(child, padding ?? new Thickness(22, 18), 22);
 
     /// <summary>A titled card holding settings rows.</summary>
     public static Border Section(string title, string? hint, params Control[] rows)
     {
         var panel = new StackPanel { Spacing = 14 };
-        var head = new StackPanel { Spacing = 2, Children = { T(title, 15, FontWeight.SemiBold) } };
+        var head = new StackPanel { Spacing = 2, Children = { T(title, 16, FontWeight.SemiBold) } };
         if (hint is not null)
         {
             head.Children.Add(Hint(hint));
@@ -129,8 +252,8 @@ public static class Ui
             Content = text,
             Background = AccentGradient,
             Foreground = Brushes.White,
-            Padding = new Thickness(16, 7),
-            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(18, 8),
+            CornerRadius = new CornerRadius(20),
             FontWeight = FontWeight.SemiBold,
         };
         b.Click += (_, _) => onClick();
@@ -142,12 +265,12 @@ public static class Ui
         var b = new Button
         {
             Content = text,
-            Background = B(InputBg),
+            Background = B(TileBg),
             BorderBrush = B(Border),
             BorderThickness = new Thickness(1),
             Foreground = B(Text),
             Padding = new Thickness(14, 7),
-            CornerRadius = new CornerRadius(8),
+            CornerRadius = new CornerRadius(18),
         };
         b.Click += (_, _) => onClick();
         return b;
@@ -201,7 +324,7 @@ public static class Ui
 
     public static TextBox Input(string? text, Action<string> changed, string? placeholder = null, double width = 260)
     {
-        var t = new TextBox { Text = text ?? string.Empty, Width = width, PlaceholderText = placeholder };
+        var t = new TextBox { Text = text ?? string.Empty, Width = width, PlaceholderText = placeholder, CornerRadius = new CornerRadius(12) };
         t.LostFocus += (_, _) => changed(t.Text ?? string.Empty);
         return t;
     }
@@ -209,8 +332,8 @@ public static class Ui
     public static Border Badge(string text, Color color) => new()
     {
         Background = B(color, 0.16),
-        CornerRadius = new CornerRadius(6),
-        Padding = new Thickness(7, 1),
+        CornerRadius = new CornerRadius(10),
+        Padding = new Thickness(9, 2),
         VerticalAlignment = VerticalAlignment.Center,
         Child = new TextBlock { Text = text, FontSize = 11, FontWeight = FontWeight.SemiBold, Foreground = B(color) },
     };
@@ -258,6 +381,25 @@ public static class Ui
         public const string Up = "M12 20V6 M6 12l6-6 6 6";
         public const string Clock = "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M12 7v5l3 2";
         public const string Chevron = "M6 9l6 6 6-6";
+        public const string ChevronRight = "M9 6l6 6-6 6";
+        public const string Bell = "M6 16V11a6 6 0 0 1 12 0v5l2 2H4z M10 20a2 2 0 0 0 4 0";
+        public const string Globe = Dns;
+        public const string Shield = "M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z";
+        public const string ShieldCheck = "M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z M8.5 12l2.5 2.5 4.5-5";
+        public const string Bolt = "M13 2 4 14h7l-1 8 9-12h-7z";
+        public const string Pulse = "M3 12h4l2-5 4 10 2-5h6";
+        public const string Gauge = "M12 3a9 9 0 0 0-9 9 9 9 0 0 0 2.6 6.4 M12 3a9 9 0 0 1 9 9 9 9 0 0 1-2.6 6.4 M12 12l4-4 M7 12h.01 M17 12h.01 M12 7h.01";
+        public const string Apps = "M4 4h6v6H4z M14 4h6v6h-6z M4 14h6v6H4z M14 14h6v6h-6z";
+        public const string Swap = "M4 8h14l-3-3 M20 16H6l3 3";
+        public const string Infinity = "M7 9a3 3 0 1 0 0 6c3 0 7-6 10-6a3 3 0 1 1 0 6c-3 0-7-6-10-6z";
+        public const string Sun = "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z M12 2v2 M12 20v2 M4.9 4.9l1.4 1.4 M17.7 17.7l1.4 1.4 M2 12h2 M20 12h2 M4.9 19.1l1.4-1.4 M17.7 6.3l1.4-1.4";
+        public const string Moon = "M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z";
+        public const string User = "M12 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8z M4 21a8 8 0 0 1 16 0";
+        public const string Play = "M7 5v14l11-7z";
+        public const string Stats = "M5 20V10 M10 20V4 M15 20v-7 M20 20v-12";
+        public const string Usage = "M4 20h16 M7 16v-4 M12 16V8 M17 16v-7";
+        public const string Copy = "M9 9h11v11H9z M5 15H4V4h11v1";
+        public const string Refresh = "M20 11a8 8 0 0 0-14.9-3 M4 4v4h4 M4 13a8 8 0 0 0 14.9 3 M20 20v-4h-4";
     }
 
     /// <summary>"IranFriendly" → "Iran friendly".</summary>

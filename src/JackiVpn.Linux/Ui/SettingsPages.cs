@@ -55,10 +55,6 @@ public sealed class RoutingPage : OptionsPage
     public RoutingPage(Shell shell)
         : base(shell)
     {
-        S.RoutingWatcher.Applied += (_, ok) => Dispatcher.UIThread.Post(() => Shell.Toast(
-            "Routing",
-            ok ? "Applied to the running connection." : "Saved. The running connection could not take the change; it applies on the next connection.",
-            warning: !ok));
     }
 
     protected override bool AppliesLive => true;
@@ -69,6 +65,12 @@ public sealed class RoutingPage : OptionsPage
 
     protected override Control Build()
     {
+        EventHandler<bool> applied = (_, ok) => Dispatcher.UIThread.Post(() => Shell.Toast(
+            "Routing",
+            ok ? "Applied to the running connection." : "Saved. The running connection could not take the change; it applies on the next connection.",
+            warning: !ok));
+        S.RoutingWatcher.Applied += applied;
+        Track(() => S.RoutingWatcher.Applied -= applied);
         var preset = EnumCombo(Cur.Routing.Preset, p =>
         {
             if (p == RoutingPreset.Custom)
@@ -728,7 +730,12 @@ public sealed class SettingsPage(Shell shell) : OptionsPage(shell)
     public override string Glyph => Icons.Settings;
 
     protected override Control Build() => Stack(
-        Header("Settings", "Startup, notifications and logging."),
+        Header("Settings", "Appearance, startup, notifications and logging."),
+        Section("Appearance", null,
+            Row("Theme", "System follows the desktop's light or dark setting. Changes apply at once.", Combo(
+                [(AppTheme.System, "System"), (AppTheme.Light, "Light"), (AppTheme.Dark, "Dark")],
+                Cur.Ui.Theme,
+                v => S.Settings.Update(x => x with { Ui = x.Ui with { Theme = v } })))),
         Section("Startup", null,
             Row("Connect automatically on start", "Uses smart selection or your default server, as configured.", Toggle(Cur.Startup.AutoConnect, v => Set(x => x with { Startup = x.Startup with { AutoConnect = v } })))),
         Section("Notifications", null,

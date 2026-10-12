@@ -145,12 +145,11 @@
                             <Button x:Name="Star" Style="{StaticResource Button.Icon}" Content="&#xE734;" ToolTip="Favorite"
                                     Command="{Binding Tag.ToggleFavoriteCommand, RelativeSource={RelativeSource AncestorType=ListBox}}" CommandParameter="{Binding}" />
 
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="4,0,8,0">
+                            <DockPanel Grid.Column="1" VerticalAlignment="Center" Margin="4,0,8,0">
+                            <!-- Round flag: the exit seen through this server, else the country its name points at. -->
+                            <v:FlagView DockPanel.Dock="Left" Width="36" Height="36" Margin="0,0,14,0" CountryCode="{Binding FlagCode}" ToolTip="{Binding FlagTip}" />
+                            <StackPanel VerticalAlignment="Center">
                                 <StackPanel Orientation="Horizontal">
-                                    <Border Background="{DynamicResource B.AccentSoft}" CornerRadius="5" Padding="5,0" Margin="0,0,8,0" VerticalAlignment="Center"
-                                            Visibility="{Binding CountryCode, Converter={StaticResource Null2Vis}}" ToolTip="Exit country seen through this server">
-                                        <TextBlock Text="{Binding CountryCode}" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource B.Accent}" />
-                                    </Border>
                                     <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxWidth="420" />
                                     <Border Background="{DynamicResource B.AccentGradient}" CornerRadius="8" Padding="7,1" Margin="8,0,0,0" VerticalAlignment="Center"
                                             Visibility="{Binding IsOfficial, Converter={StaticResource Bool2Vis}}" ToolTip="Official Jacki server (verified official subscription)">
@@ -177,6 +176,7 @@
                                     <Run Text="{Binding SubscriptionName, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding Details, Mode=OneWay}" />
                                 </TextBlock>
                             </StackPanel>
+                            </DockPanel>
 
                             <Border x:Name="LatencyPill" Grid.Column="2" HorizontalAlignment="Left" VerticalAlignment="Center" CornerRadius="11" Padding="9,3"
                                     Background="{DynamicResource B.HoverOverlay}">
@@ -188,7 +188,7 @@
                             <TextBlock Grid.Column="3" Text="{Binding ScoreText}" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" />
                             <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
                                 <v:OrbView x:Name="Testing" State="Searching" Width="18" Height="18" VerticalAlignment="Center" Margin="0,0,8,0" Visibility="Collapsed" ToolTip="Testing…" />
-                                <Button Content="Connect" Command="{Binding Tag.ConnectCommand, RelativeSource={RelativeSource AncestorType=ListBox}}" CommandParameter="{Binding}" Padding="12,5" />
+                                <Button Style="{StaticResource Button.Primary}" Content="Connect" Command="{Binding Tag.ConnectCommand, RelativeSource={RelativeSource AncestorType=ListBox}}" CommandParameter="{Binding}" Padding="14,6" />
                             </StackPanel>
                         </Grid>
                         <DataTemplate.Triggers>

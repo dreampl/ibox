@@ -56,7 +56,7 @@ public sealed class LinuxServices : IAsyncDisposable
         var workDir = Path.Combine(DataDir, "run");
         var notifications = new NotificationService(sink, () => Settings.Current.Notifications, _loggerFactory.CreateLogger("JackiVpn.Notifications"));
         var disconnects = new DisconnectTracker();
-        var insights = new InsightStore(Path.Combine(DataDir, "state", "insights.json"));
+        var insights = Insights = new InsightStore(Path.Combine(DataDir, "state", "insights.json"));
         GnomeProxy.MarkerPath = Path.Combine(DataDir, "state", "desktop-proxy.mode");
         Workplace = new Application.Workplace.WorkplaceService(new LinuxNetworkFacts(), settings, _loggerFactory.CreateLogger("JackiVpn.Workplace"));
         Func<string> networkKey = () => Workplace.Facts.Key is { Length: > 0 } key ? key : "default";
@@ -153,6 +153,9 @@ public sealed class LinuxServices : IAsyncDisposable
     public LogBuffer LogBuffer { get; }
 
     public SpeedTestService SpeedTest { get; } = new();
+
+    /// <summary>What IBOX learned per server (last exit country, working fixes).</summary>
+    public InsightStore Insights { get; }
 
     public SqliteProfileRepository Profiles { get; }
 
