@@ -173,6 +173,10 @@ public sealed class Shell : Window, INotificationSink
             }
         });
         Opened += async (_, _) => await StartAsync();
+        if (Environment.GetEnvironmentVariable("IBOX_RENDER_DEBUG") == "1")
+        {
+            RendererDiagnostics.DebugOverlays = Avalonia.Rendering.RendererDebugOverlays.Fps | Avalonia.Rendering.RendererDebugOverlays.DirtyRects;
+        }
         Closing += OnClosing;
         Navigate(_pages[0]);
     }

@@ -83,7 +83,11 @@
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type v:ClaySurface}">
                     <Grid>
-
+                        <!-- Light theme only: a soft white glow up-left (E.ClayLight is null on the dark theme, so no cost there). -->
+                        <Border x:Name="LightShadow" CornerRadius="{TemplateBinding CornerRadius}" Background="{DynamicResource B.Card}"
+                                Effect="{DynamicResource E.ClayLight}" Visibility="{DynamicResource V.LightOnly}" IsHitTestVisible="False">
+                            <Border.CacheMode><BitmapCache SnapsToDevicePixels="True" /></Border.CacheMode>
+                        </Border>
                         <Border x:Name="DarkShadow" CornerRadius="{TemplateBinding CornerRadius}" Background="{DynamicResource B.Card}"
                                 Effect="{DynamicResource E.ClayShadow}" IsHitTestVisible="False">
                             <Border.CacheMode><BitmapCache SnapsToDevicePixels="True" /></Border.CacheMode>
@@ -93,11 +97,17 @@
                                 Padding="{TemplateBinding Padding}" SnapsToDevicePixels="True">
                             <ContentPresenter />
                         </Border>
+                        <!-- The faint top-edge highlight of a slightly raised surface (a brush, no effect: free to draw). -->
+                        <Border CornerRadius="{TemplateBinding CornerRadius}" BorderBrush="{DynamicResource B.CardEdge}" BorderThickness="1,1,1,0"
+                                IsHitTestVisible="False" Opacity="0.9" />
                     </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="Elevation" Value="Flat">
-
                             <Setter TargetName="DarkShadow" Property="Visibility" Value="Collapsed" />
+                            <Setter TargetName="LightShadow" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                        <Trigger Property="Elevation" Value="Raised">
+                            <Setter TargetName="DarkShadow" Property="Effect" Value="{DynamicResource E.ClayShadowRaised}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

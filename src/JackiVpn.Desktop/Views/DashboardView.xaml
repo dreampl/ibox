@@ -124,7 +124,7 @@
             </Border>
 
             <!-- ============================================================ hero -->
-            <v:ClaySurface CornerRadius="30" Padding="0" Margin="0,0,0,20">
+            <v:ClaySurface CornerRadius="30" Padding="0" Margin="0,0,0,20" Elevation="Raised">
                 <Grid>
                     <!-- State-tinted glow: four layers, only opacity animates -->
                     <Rectangle x:Name="GlowIdle" Fill="{DynamicResource B.HeroGlowIdle}" RadiusX="30" RadiusY="30" Opacity="1" />
