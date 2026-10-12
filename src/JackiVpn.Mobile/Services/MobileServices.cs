@@ -74,7 +74,10 @@ public sealed class MobileServices : IAsyncDisposable
         Workplace = new Application.Workplace.WorkplaceService(new AndroidNetworkFacts(context), settings, LoggerFactory.CreateLogger("JackiVpn.Workplace"));
         // The app's own sockets are excluded from the VPN on Android, so direct probing works while connected too.
         Rescue = new Application.Connectivity.EndpointRescue(Tuner, Insights, settings, networkKey, LoggerFactory.CreateLogger("JackiVpn.Rescue"));
-        DnsFinder = new Application.Connectivity.DnsFinder(Path.Combine(DataDir, "state", "dns-choice.json"), networkKey, LoggerFactory.CreateLogger("JackiVpn.Dns"));
+        DnsFinder = new Application.Connectivity.DnsFinder(Path.Combine(DataDir, "state", "dns-choice.json"), networkKey, LoggerFactory.CreateLogger("JackiVpn.Dns"))
+        {
+            Extra = () => Settings.Current.Dns.Custom.Select(Application.Connectivity.DnsCandidate.From),
+        };
         LiveProbe = new HttpLiveProbe();
         SpeedTest = new SpeedTestService();
 
@@ -148,6 +151,7 @@ public sealed class MobileServices : IAsyncDisposable
         Usage = usage;
         // No per-app process names on Android (one VPN process carries every app): domain and class rules only.
         Traffic = new Application.Traffic.TrafficController(Orchestrator, settings, Workplace, Usage, LoggerFactory.CreateLogger("JackiVpn.Traffic")) { ProcessAware = false };
+        RoutingWatcher = new Application.Routing.RoutingWatcher(Settings, Orchestrator, LoggerFactory.CreateLogger("JackiVpn.Routing"));
         var updateLog = LoggerFactory.CreateLogger("JackiVpn.Updates");
         Updates = new Infrastructure.Updates.UpdateMonitor(new Infrastructure.Updates.AppUpdateService(updateLog), () => Settings.Current.Updates,
             Version.TryParse(AppInfo.Current.VersionString, out var v) ? v : new Version(0, 0, 0), "android", CurrentAbi, updateLog)
@@ -198,6 +202,9 @@ public sealed class MobileServices : IAsyncDisposable
     public Application.Usage.UsageBook UsageBook { get; }
     public Application.Usage.UsageMonitor Usage { get; }
     public Application.Traffic.TrafficController Traffic { get; }
+
+    /// <summary>Applies routing changes to the running connection.</summary>
+    public Application.Routing.RoutingWatcher RoutingWatcher { get; }
 
     /// <summary>"Samsung SM-S911B" — shown to the user's own panel and devices, never the device's user name.</summary>
     public static string PhoneModel => global::Android.OS.Build.Manufacturer + " " + global::Android.OS.Build.Model;

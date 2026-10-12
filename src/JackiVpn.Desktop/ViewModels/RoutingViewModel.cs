@@ -96,6 +96,9 @@ public sealed partial class RoutingViewModel : SettingsPageViewModel
         _s = services;
         _dialogs = dialogs;
         services.Settings.Changed += (_, _) => Ui.Post(Rebuild);
+        services.RoutingWatcher.Applied += (_, ok) => Ui.Post(() => Message = ok
+            ? "Applied to the running connection."
+            : "Saved. The running connection could not take the change; it applies on the next connection.");
         Rebuild();
     }
 

@@ -266,13 +266,31 @@ public static class SingBoxConfigBuilder
         }
 
         var ruleSetsUsed = new HashSet<string>(StringComparer.Ordinal);
+        var resolved = false;
         foreach (var rule in plan.Routing.Rules.Where(r => r.Enabled))
         {
             var translated = TranslateRule(rule, plan.RuleSetPaths, ruleSetsUsed, notes);
-            if (translated is not null)
+            if (translated is null)
             {
-                routeRules.Add(translated);
+                continue;
             }
+
+            if (!resolved && MatchesAddresses(translated))
+            {
+                // IP rules (ip, geoip, private, IP rule-sets) only see addresses, but browsers behind the system
+                // proxy, sniffed TUN connections and fake-IP answers all arrive as names: without a lookup here
+                // "Iranian IPs direct" never matched them. Looked up with the session's own resolver (through the
+                // tunnel unless DNS is set to System/Local), so nothing leaks; rules above keep their names.
+                routeRules.Add(new JsonObject
+                {
+                    ["action"] = "resolve",
+                    ["server"] = plan.Dns.Mode is DnsMode.System or DnsMode.Local ? DnsDirect : DnsRemote,
+                    ["strategy"] = ipv6 ? "prefer_ipv4" : "ipv4_only",
+                });
+                resolved = true;
+            }
+
+            routeRules.Add(translated);
         }
 
         if (plan.BlockQuic && plan.Routing.Final != RuleActionType.Direct)
@@ -644,10 +662,10 @@ public static class SingBoxConfigBuilder
                     Append(o, "port_range", values);
                     break;
                 case RuleConditionType.ProcessName:
-                    Append(o, "process_name", values);
-                    break;
                 case RuleConditionType.ProcessPath:
-                    Append(o, "process_path", values);
+                    // The core compares process_name/process_path case-sensitively, but Windows names are not
+                    // ("telegram.exe" must match …\Telegram.exe): one case-insensitive pattern per app instead.
+                    Append(o, "process_path_regex", values.Select(AppPattern).OfType<string>());
                     break;
                 case RuleConditionType.Network:
                     Append(o, "network", values.Select(v => v.ToLowerInvariant()));
@@ -719,6 +737,11 @@ public static class SingBoxConfigBuilder
 
         return o;
     }
+
+    /// <summary>True when a translated rule has a condition matched against destination addresses.</summary>
+    private static bool MatchesAddresses(JsonObject rule) =>
+        rule.ContainsKey("ip_cidr") || rule.ContainsKey("ip_is_private")
+        || (rule["rule_set"] is JsonArray sets && sets.Any(t => t?.GetValue<string>() is { } tag && !tag.StartsWith(RoutingPresets.GeoSitePrefix, StringComparison.Ordinal)));
 
     /// <summary>Domain-only projection of a rule for DNS routing (IP conditions are not valid in DNS rules).</summary>
     private static JsonObject? DomainOnlyDnsRule(RoutingRule rule, IReadOnlyDictionary<string, string> ruleSetPaths, HashSet<string> ruleSetsUsed)

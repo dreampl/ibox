@@ -1,3 +1,4 @@
+using System.Net.NetworkInformation;
 using System.Text.Json;
 using JackiVpn.Application.Sessions;
 using JackiVpn.Cores;
@@ -124,6 +125,27 @@ public sealed class ServiceRequestHandler(
                 }
 
                 tunnel.SetTrafficLimits(limits);
+                return null;
+            }
+
+            case IpcMethods.SetAdapterDns:
+            {
+                var change = Parse<Domain.Network.AdapterDnsChange>(payload);
+                if (change.Servers is null || change.Problem() is { } problem)
+                {
+                    throw new IpcHandlerException(IpcErrorCodes.BadRequest, "Invalid DNS change.");
+                }
+
+                try
+                {
+                    // Only IP literals reach netsh, for an existing physical adapter (never the tunnel), by index.
+                    Networking.Adapters.WindowsAdapterDns.Apply(change with { Servers = change.Servers.ToArray() }, logger);
+                }
+                catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception or NetworkInformationException)
+                {
+                    throw new IpcHandlerException(IpcErrorCodes.BadRequest, ex.Message);
+                }
+
                 return null;
             }
 

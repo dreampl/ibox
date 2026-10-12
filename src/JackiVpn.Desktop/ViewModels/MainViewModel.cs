@@ -45,7 +45,13 @@ public sealed partial class MainViewModel : ObservableObject
         Subscriptions = new SubscriptionsViewModel(services, dialogs);
         Usage = new UsageViewModel(services, dialogs);
         Routing = new RoutingViewModel(services, dialogs);
-        Dns = new DnsViewModel(services.Settings, services.DnsFinder, services.Rescue.CanProbeDirectly);
+        Dns = new DnsViewModel(
+            services.Settings,
+            services.DnsFinder,
+            services.Rescue.CanProbeDirectly,
+            () => services.RoutingWatcher.ApplyNowAsync("DNS changed"),
+            () => services.Orchestrator.State == Domain.Connection.ConnectionState.Connected,
+            services.AdapterDns);
         Network = new NetworkViewModel(services, dialogs);
         Advanced = new AdvancedViewModel(services);
         Logs = new LogsViewModel(services, dialogs);

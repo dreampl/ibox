@@ -38,10 +38,13 @@ public static class IpcMethods
     /// <summary>New speed limits for the running session's relay.</summary>
     public const string SetTrafficLimits = "traffic.limits";
 
+    /// <summary>New DNS servers for one network adapter (<see cref="Domain.Network.AdapterDnsChange"/>; empty = automatic).</summary>
+    public const string SetAdapterDns = "adapter.dns.set";
+
     public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal)
     {
         Hello, GetStatus, StartTunnel, StopTunnel, KillTunnel, RepairNetwork, ReleaseKillSwitch, GetCoreInfo, ApplyWinHttpProxy, RestoreWinHttpProxy, Subscribe,
-        GetConnections, SetTrafficLimits,
+        GetConnections, SetTrafficLimits, SetAdapterDns,
     };
 }
 

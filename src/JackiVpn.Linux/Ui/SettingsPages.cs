@@ -5,6 +5,7 @@ using Avalonia.Input.Platform;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using JackiVpn.Application.Connectivity;
 using JackiVpn.Domain.Connection;
 using JackiVpn.Domain.Routing;
 using JackiVpn.Domain.Settings;
@@ -22,7 +23,7 @@ public abstract class OptionsPage(Shell shell) : Page(shell)
     protected void Set(Func<AppSettings, AppSettings> change)
     {
         S.Settings.Update(change);
-        if (S.Orchestrator.Status.State == ConnectionState.Connected && !_hinted)
+        if (!AppliesLive && S.Orchestrator.Status.State == ConnectionState.Connected && !_hinted)
         {
             _hinted = true;
             Shell.Toast("Saved", "Applies the next time you connect.");
@@ -30,6 +31,9 @@ public abstract class OptionsPage(Shell shell) : Page(shell)
     }
 
     private bool _hinted;
+
+    /// <summary>True when the page's changes reach the running connection by themselves (routing).</summary>
+    protected virtual bool AppliesLive => false;
 
     protected static StackPanel Stack(params Control[] children)
     {
@@ -43,10 +47,21 @@ public abstract class OptionsPage(Shell shell) : Page(shell)
     }
 }
 
-public sealed class RoutingPage(Shell shell) : OptionsPage(shell)
+public sealed class RoutingPage : OptionsPage
 {
     private readonly StackPanel _rules = new() { Spacing = 6 };
     private readonly StackPanel _ruleSets = new() { Spacing = 6 };
+
+    public RoutingPage(Shell shell)
+        : base(shell)
+    {
+        S.RoutingWatcher.Applied += (_, ok) => Dispatcher.UIThread.Post(() => Shell.Toast(
+            "Routing",
+            ok ? "Applied to the running connection." : "Saved. The running connection could not take the change; it applies on the next connection.",
+            warning: !ok));
+    }
+
+    protected override bool AppliesLive => true;
 
     public override string Title => "Routing";
 
@@ -351,12 +366,255 @@ internal static class RuleEditorDialog
 
 public sealed class DnsPage(Shell shell) : OptionsPage(shell)
 {
+    private readonly StackPanel _choice = new() { Spacing = 10 };
+    private readonly StackPanel _results = new() { Spacing = 4 };
+    private readonly TextBlock _status = Hint(string.Empty);
+    private bool _searching;
+
     public override string Title => "DNS";
 
     public override string Glyph => Icons.Dns;
 
+    private readonly StackPanel _adapters = new() { Spacing = 10 };
+
+    public override void OnShown()
+    {
+        RefreshChoice();
+        _ = Guard(RefreshAdaptersAsync);
+    }
+
+    /// <summary>Each adapter: what it uses now, a ready-made pair or typed servers, Automatic and Restore.</summary>
+    private async Task RefreshAdaptersAsync()
+    {
+        IReadOnlyList<Domain.Network.AdapterDns> list;
+        try
+        {
+            list = await S.AdapterDns.ListAsync(CancellationToken.None);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _adapters.Children.Clear();
+            _adapters.Children.Add(Hint(ex.Message));
+            return;
+        }
+
+        _adapters.Children.Clear();
+        if (list.Count == 0)
+        {
+            _adapters.Children.Add(Hint("No Wi-Fi or Ethernet adapters found."));
+        }
+
+        var presets = AdapterDnsPresets.All(Cur.Dns.Custom);
+        foreach (var a in list)
+        {
+            var adapter = a;
+            var servers = Input(adapter.Automatic ? null : string.Join(", ", adapter.Servers), _ => { }, "e.g. 1.1.1.1, 8.8.8.8", 230);
+            var preset = new ComboBox { ItemsSource = presets.Select(p => p.Name).ToList(), PlaceholderText = "Ready-made…", MinWidth = 170 };
+            preset.SelectionChanged += (_, _) =>
+            {
+                if (preset.SelectedIndex >= 0)
+                {
+                    servers.Text = string.Join(", ", presets[preset.SelectedIndex].Servers);
+                }
+            };
+            var message = Hint(string.Empty);
+            message.IsVisible = false;
+
+            async Task Change(IReadOnlyList<string> list)
+            {
+                try
+                {
+                    if (await S.AdapterDns.SetAsync(adapter, list, CancellationToken.None) is { } problem)
+                    {
+                        message.Text = problem;
+                        message.IsVisible = true;
+                        return;
+                    }
+
+                    Shell.Toast("DNS", $"{adapter.Name}: " + (list.Count == 0 ? "automatic again." : "now uses " + string.Join(", ", list) + "."));
+                    await RefreshAdaptersAsync();
+                }
+                catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+                {
+                    message.Text = ex.Message;
+                    message.IsVisible = true;
+                }
+            }
+
+            var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children =
+            {
+                preset,
+                servers,
+                Primary("Set", () => _ = Guard(() => Domain.Network.AdapterDnsChange.Parse(servers.Text) is { Count: > 0 } typed ? Change(typed) : Task.CompletedTask)),
+                Ghost("Automatic", () => _ = Guard(() => Change([]))),
+            } };
+            if (S.AdapterDns.CanRestore(adapter.Id))
+            {
+                actions.Children.Add(Ghost("Restore", () => _ = Guard(async () =>
+                {
+                    await S.AdapterDns.RestoreAsync(adapter, CancellationToken.None);
+                    await RefreshAdaptersAsync();
+                })));
+            }
+
+            var now = (adapter.Automatic ? "Automatic (from the network)" : "Set by hand") + (adapter.Servers.Count > 0 ? ": " + string.Join(", ", adapter.Servers) : string.Empty);
+            _adapters.Children.Add(Row($"{adapter.Name} · {adapter.Kind}{(adapter.Up ? string.Empty : " · not connected")}", now, actions));
+            _adapters.Children.Add(message);
+        }
+    }
+
+    /// <summary>Smart / network's own / manual, the manual pick, own resolvers and the search.</summary>
+    private void RefreshChoice()
+    {
+        var s = Cur;
+        var selection = DnsChoice.Selection(s);
+        var known = S.DnsFinder.AllCandidates();
+        _choice.Children.Clear();
+        _choice.Children.Add(Row("DNS to use", "Smart = the fastest clean resolver found on each network.", Combo(
+            [(DnsSelection.Smart, "Smart"), (DnsSelection.System, "Network's own"), (DnsSelection.Manual, "Manual")],
+            selection,
+            v =>
+            {
+                if (v != DnsChoice.Selection(Cur))
+                {
+                    Set(x => DnsChoice.Select(x, v, S.DnsFinder.BestForNetwork()));
+                    RefreshChoice();
+                }
+            })));
+        var inUse = selection switch
+        {
+            DnsSelection.Smart => S.DnsFinder.BestLabel() is { } best ? best + " (best on this network)" : "the network's own DNS until a search finds a better one",
+            DnsSelection.System => "the DNS servers of your network adapter",
+            _ => DnsChoice.Describe(s.Dns.Bootstrap, known),
+        };
+        _choice.Children.Add(T("In use: " + inUse, 12.5, FontWeight.SemiBold));
+
+        if (selection == DnsSelection.Manual)
+        {
+            var items = known.Select(c => (c.ToEndpoint(), c.Label + (c.Custom ? " (yours)" : c.Iranian ? " (Iran)" : string.Empty))).ToList();
+            var pick = Combo(items, s.Dns.Bootstrap, ep =>
+            {
+                if (ep != Cur.Dns.Bootstrap)
+                {
+                    Set(x => DnsChoice.Use(x, ep));
+                    RefreshChoice();
+                }
+            });
+            pick.MinWidth = 360;
+            _choice.Children.Add(Row("Choose from the list", null, pick));
+        }
+
+        // Add your own
+        var name = Input(null, _ => { }, "name", 130);
+        var address = Input(null, _ => { }, "IP address", 170);
+        var doh = new CheckBox { Content = "DoH" };
+        var host = Input(null, _ => { }, "DoH host (optional)", 170);
+        var error = Hint(string.Empty);
+        error.Foreground = B(Danger);
+        error.IsVisible = false;
+        var add = Primary("Add and use", () =>
+        {
+            var resolver = new CustomDnsResolver
+            {
+                Name = string.IsNullOrWhiteSpace(name.Text) ? address.Text?.Trim() ?? string.Empty : name.Text.Trim(),
+                Address = address.Text?.Trim() ?? string.Empty,
+                Transport = doh.IsChecked == true ? DnsTransport.Https : DnsTransport.Udp,
+                Host = doh.IsChecked == true && !string.IsNullOrWhiteSpace(host.Text) ? host.Text.Trim() : null,
+            };
+            var (next, problem) = DnsChoice.AddCustom(Cur, resolver);
+            if (problem is not null)
+            {
+                error.Text = problem;
+                error.IsVisible = true;
+                return;
+            }
+
+            Set(_ => DnsChoice.Use(next, resolver.ToEndpoint()));
+            RefreshChoice();
+            Shell.Toast("DNS", $"Added and now using {resolver.Name}.");
+        });
+        _choice.Children.Add(Row("Add your own DNS", "Plain or encrypted (DoH); added to the list and to the search.", new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { name, address, doh, host, add } }));
+        _choice.Children.Add(error);
+        foreach (var c in s.Dns.Custom)
+        {
+            var label = DnsCandidate.From(c).Label;
+            _choice.Children.Add(Row(label, null, Ghost("Remove", () =>
+            {
+                Set(x => DnsChoice.RemoveCustom(x, c.Name));
+                RefreshChoice();
+            })));
+        }
+
+        _choice.Children.Add(Row("Also use it for sites that go direct", "Sites your rules send outside the VPN are looked up with this DNS (when the Direct resolver below is Local).",
+            Toggle(s.Dns.UseChosenForDirect, v => Set(x => x with { Dns = x.Dns with { UseChosenForDirect = v } }))));
+        if (S.Orchestrator.Status.State == ConnectionState.Connected)
+        {
+            _choice.Children.Add(Row("Use the new DNS on this connection", "Restarts the connection on the same server.", Ghost("Apply now", () => _ = Guard(async () =>
+            {
+                var ok = await S.RoutingWatcher.ApplyNowAsync("DNS changed");
+                Shell.Toast("DNS", ok ? "Applied to the running connection." : "Could not apply now; used from the next connection.", warning: !ok);
+            }))));
+        }
+
+        FillResults(S.DnsFinder.Last);
+    }
+
+    private void FillResults(IReadOnlyList<DnsResult> results)
+    {
+        _results.Children.Clear();
+        foreach (var r in results)
+        {
+            var c = r.Candidate;
+            var verdict = !r.Reachable ? "No answer" : r.Clean ? "Clean" : r.Note?.StartsWith("intercepted", StringComparison.Ordinal) == true ? "Intercepted" : "Filtered";
+            var line = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+            line.Children.Add(Badge(verdict, r.Reachable && r.Clean ? Success : Danger));
+            line.Children.Add(T(r.LatencyMs is { } ms ? $"{ms:0} ms" : "—", 12));
+            if (r.Reachable && r.Clean)
+            {
+                line.Children.Add(Ghost("Use this", () =>
+                {
+                    Set(x => DnsChoice.Use(x, c.ToEndpoint()));
+                    RefreshChoice();
+                    Shell.Toast("DNS", "Now using " + c.Label + ".");
+                }));
+            }
+
+            _results.Children.Add(Row(c.Label + (c.Iranian ? " (Iran)" : string.Empty), null, line));
+        }
+    }
+
+    private async Task SearchAsync()
+    {
+        if (_searching)
+        {
+            return;
+        }
+
+        if (!S.Rescue.CanProbeDirectly())
+        {
+            Shell.Toast("DNS search", "Disconnect first: in TUN mode the test would measure the VPN, not your network.", warning: true);
+            return;
+        }
+
+        _searching = true;
+        _status.Text = "Asking every resolver (a few seconds)…";
+        try
+        {
+            var results = await Task.Run(() => S.DnsFinder.SearchAsync(CancellationToken.None));
+            var best = results.FirstOrDefault(r => r.Reachable && r.Clean);
+            _status.Text = best is null ? "No resolver answered honestly here." : $"Fastest clean: {best.Candidate.Label} ({best.LatencyMs:0} ms).";
+            RefreshChoice();
+        }
+        finally
+        {
+            _searching = false;
+        }
+    }
+
     protected override Control Build()
     {
+        var search = Section("DNS search", "Tests international, Iranian and your own resolvers from this network: speed, and whether they answer honestly or with the filter's block page.",
+            Row("Find the best DNS here", null, Primary("Search", () => _ = Guard(SearchAsync))), _status, _results);
         var d = Cur.Dns;
         var leak = Hint("This mode can reveal the sites you visit to your ISP or network (DNS leak).");
         leak.Foreground = B(Warning);
@@ -369,6 +627,10 @@ public sealed class DnsPage(Shell shell) : OptionsPage(shell)
         return Stack(
             Header("DNS", "How domain names are resolved while connected. The default keeps every lookup encrypted and inside the tunnel."),
             Section("DNS mode", null, Row("Mode", null, mode), leak),
+            Section("Which DNS", "The resolver used outside the tunnel: for VPN server addresses, and for direct sites if you turn that on. Names inside the tunnel use the encrypted resolver.", _choice),
+            search,
+            Section("Network adapters", "The DNS servers the system uses on each adapter (NetworkManager). Automatic takes them from the router again; IBOX remembers the original so you can restore it.",
+                Row("Read the adapters again", null, Ghost("Refresh", () => _ = Guard(RefreshAdaptersAsync))), _adapters),
             Section("Resolvers", "Local = the resolvers configured in the system.",
                 Resolver("Remote (through the VPN)", d.Remote, e => Set(x => x with { Dns = x.Dns with { Remote = e } })),
                 Resolver("Direct (for traffic routed outside the VPN)", d.Direct, e => Set(x => x with { Dns = x.Dns with { Direct = e } })),
