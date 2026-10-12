@@ -131,14 +131,14 @@ public sealed class OrchestratorStabilityTests : IDisposable
         var connect = orchestrator.ConnectAsync(new ConnectRequest(), Ct);
         await WaitUntilAsync(() => _backend.Starts == 1);
 
-        var disconnect = orchestrator.DisconnectAsync(Ct);
-        await WaitUntilAsync(() => _backend.Stops >= 1);
-        disconnect.IsCompleted.Should().BeFalse("bookkeeping waits for the stuck operation, but the tunnel is already down");
+        // A cancel does not wait for the stuck operation: the tunnel goes down and Disconnected is reported at once.
+        await orchestrator.DisconnectAsync(Ct).WaitAsync(TimeSpan.FromSeconds(3), Ct);
+        _backend.Stops.Should().BeGreaterThanOrEqualTo(1);
+        orchestrator.State.Should().Be(ConnectionState.Disconnected);
 
         release.SetResult();
-        await disconnect.WaitAsync(TimeSpan.FromSeconds(5), Ct);
-        await connect.WaitAsync(TimeSpan.FromSeconds(5), Ct);
-        orchestrator.State.Should().BeOneOf(ConnectionState.Disconnected, ConnectionState.Faulted);
+        (await connect.WaitAsync(TimeSpan.FromSeconds(5), Ct)).Should().BeFalse();
+        orchestrator.State.Should().Be(ConnectionState.Disconnected, "the late unwinding of the cancelled connect changes nothing");
     }
 
     [Theory]

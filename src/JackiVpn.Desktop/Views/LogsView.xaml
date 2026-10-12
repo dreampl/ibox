@@ -12,7 +12,6 @@
                     <Button Style="{StaticResource Button.Primary}" Content="Export diagnostics…" Command="{Binding ExportDiagnosticsCommand}" />
                 </StackPanel>
                 <StackPanel>
-                    <TextBlock Text="Logs" Style="{StaticResource Text.PageTitle}" />
                     <TextBlock Text="Secrets (subscription tokens, UUIDs, passwords, keys) are redacted before anything is written or shown." Style="{StaticResource Text.PageSubtitle}" />
                 </StackPanel>
             </DockPanel>

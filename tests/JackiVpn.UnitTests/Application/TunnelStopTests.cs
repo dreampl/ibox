@@ -120,6 +120,28 @@ public sealed class TunnelStopTests : IDisposable
         _killSwitch.Engaged.Should().BeFalse("even a stuck session must not leave the network blocked");
     }
 
+    [Fact]
+    public async Task Kill_lifts_the_kill_switch_at_once_and_finishes_the_teardown_later()
+    {
+        // A cancelled connect whose start ignores cancellation: the kill must not wait for it.
+        var release = new TaskCompletionSource();
+        var manager = Manager(() => new FakeRunner { StartBehaviour = _ => release.Task });
+        var start = manager.StartAsync(Request(killSwitch: true), CancellationToken.None);
+        await WaitUntilAsync(() => _runners.Count == 1 && _killSwitch.Engaged);
+
+        var sw = Stopwatch.StartNew();
+        manager.Kill();
+
+        sw.Elapsed.Should().BeLessThan(TimeSpan.FromMilliseconds(500), "a kill never waits for the session");
+        _killSwitch.Engaged.Should().BeFalse("the network works again right away");
+
+        release.SetResult();
+        await FluentActions.Awaiting(() => start).Should().ThrowAsync<OperationCanceledException>();
+        await WaitUntilAsync(() => manager.Status.State == TunnelState.Stopped);
+        _killSwitch.Engaged.Should().BeFalse("filters the start installed are removed by the teardown that follows");
+        _runners[0].IsRunning.Should().BeFalse();
+    }
+
     private static async Task WaitUntilAsync(Func<bool> condition)
     {
         var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);

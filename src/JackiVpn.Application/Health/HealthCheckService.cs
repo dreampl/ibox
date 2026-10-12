@@ -239,7 +239,7 @@ public sealed class HealthCheckService
         try
         {
             using var binary = _catalog.Verify(engine.Kind);
-            core = await CoreProcess.StartAsync(binary, engine.BuildLaunchSpec(_workDir), config, _logger, ct).ConfigureAwait(false);
+            core = await CoreProcess.StartAsync(binary, engine.BuildLaunchSpec(_workDir), config, _logger, ct, background: true).ConfigureAwait(false);
             await core.WaitForPortAsync(ports[^1], TimeSpan.FromSeconds(20), ct).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is CoreStartException or CoreIntegrityException)
@@ -256,6 +256,16 @@ public sealed class HealthCheckService
             }
 
             return;
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancelled while the probe core was starting (e.g. the user cancelled a connect): never leave it running.
+            if (core is not null)
+            {
+                await core.DisposeAsync().ConfigureAwait(false);
+            }
+
+            throw;
         }
 
         try

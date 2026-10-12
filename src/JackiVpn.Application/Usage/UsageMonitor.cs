@@ -113,6 +113,9 @@ public sealed class UsageMonitor : IAsyncDisposable
     /// <summary>Tick interval; the platform raises it while the app is in the background (battery).</summary>
     public TimeSpan Interval { get; set; } = TimeSpan.FromSeconds(2);
 
+    /// <summary>Adjusts each tick's interval to the moment (hidden, power saver); null = <see cref="Interval"/> as is.</summary>
+    public Func<TimeSpan, TimeSpan>? Pace { get; set; }
+
     /// <summary>Alerts and texts in Persian.</summary>
     public Func<bool> Persian { get; init; } = static () => false;
 
@@ -146,7 +149,7 @@ public sealed class UsageMonitor : IAsyncDisposable
     {
         while (!ct.IsCancellationRequested)
         {
-            var interval = Interval;
+            var interval = Pace?.Invoke(Interval) ?? Interval;
             try
             {
                 await Task.Delay(interval, _time, ct).ConfigureAwait(false);

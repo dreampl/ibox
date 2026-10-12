@@ -6,7 +6,7 @@ using JackiVpn.Security;
 namespace JackiVpn.Application.Health;
 
 /// <summary>Where traffic actually leaves the tunnel, as seen by an external service through the connection.</summary>
-public sealed record ExitInfo(string Ip, string? CountryCode, string? CountryName, string? City, string? Isp, DateTimeOffset SeenUtc);
+public sealed record ExitInfo(string Ip, string? CountryCode, string? CountryName, string? City, string? Isp, DateTimeOffset SeenUtc, double? Latitude = null, double? Longitude = null);
 
 /// <summary>Learned, non-secret facts about one server configuration (keyed by its identity fingerprint).</summary>
 public sealed record ProfileInsight

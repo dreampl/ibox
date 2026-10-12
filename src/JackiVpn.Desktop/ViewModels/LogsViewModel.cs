@@ -5,6 +5,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Data;
 using System.Windows.Threading;
@@ -70,11 +71,26 @@ public sealed partial class LogsViewModel : ObservableObject
 
         View = CollectionViewSource.GetDefaultView(Lines);
         View.Filter = o => o is LogLine l && Matches(l);
-        services.LogBuffer.Appended += (_, r) => _incoming.Enqueue(r);
+        // Batched every 300 ms, but only while lines are arriving: an idle log costs no timer ticks.
         _flush = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(300) };
-        _flush.Tick += (_, _) => Flush();
-        _flush.Start();
+        _flush.Tick += (_, _) =>
+        {
+            _flush.Stop();
+            Interlocked.Exchange(ref _scheduled, 0);
+            Flush();
+        };
+        var dispatcher = System.Windows.Threading.Dispatcher.CurrentDispatcher;
+        services.LogBuffer.Appended += (_, r) =>
+        {
+            _incoming.Enqueue(r);
+            if (Interlocked.Exchange(ref _scheduled, 1) == 0)
+            {
+                dispatcher.BeginInvoke(new Action(_flush.Start), DispatcherPriority.Background);
+            }
+        };
     }
+
+    private int _scheduled;
 
     public event EventHandler? LinesAppended;
 

@@ -62,6 +62,10 @@ public sealed class ServiceRequestHandler(
                 await tunnel.StopAsync(ct).ConfigureAwait(false);
                 return IpcFraming.ToElement(tunnel.Status);
 
+            case IpcMethods.KillTunnel:
+                tunnel.Kill();
+                return IpcFraming.ToElement(tunnel.Status);
+
             case IpcMethods.ReleaseKillSwitch:
                 await tunnel.ReleaseKillSwitchAsync(ct).ConfigureAwait(false);
                 return IpcFraming.ToElement(tunnel.Status);

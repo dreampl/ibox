@@ -177,7 +177,7 @@ public sealed class ConnectionTuner
         try
         {
             using var binary = _catalog.Verify(engine.Kind);
-            await using var core = await CoreProcess.StartAsync(binary, engine.BuildLaunchSpec(_workDir), config, _logger, ct).ConfigureAwait(false);
+            await using var core = await CoreProcess.StartAsync(binary, engine.BuildLaunchSpec(_workDir), config, _logger, ct, background: true).ConfigureAwait(false);
             await core.WaitForPortAsync(ports[^1], TimeSpan.FromSeconds(20), ct).ConfigureAwait(false);
             var url = Uri.TryCreate(settings.Probe.ProbeUrls.FirstOrDefault(), UriKind.Absolute, out var u) ? u : new Uri("https://www.gstatic.com/generate_204");
             Uri.TryCreate(settings.Probe.DataCheckUrl, UriKind.Absolute, out var data);
@@ -430,7 +430,7 @@ public sealed class ConnectionTuner
         try
         {
             using var binary = _catalog.Verify(engine.Kind);
-            await using var core = await CoreProcess.StartAsync(binary, engine.BuildLaunchSpec(_workDir), config, _logger, ct).ConfigureAwait(false);
+            await using var core = await CoreProcess.StartAsync(binary, engine.BuildLaunchSpec(_workDir), config, _logger, ct, background: true).ConfigureAwait(false);
             await core.WaitForPortAsync(ports[0], TimeSpan.FromSeconds(20), ct).ConfigureAwait(false);
             var proxy = new Uri($"socks5://127.0.0.1:{ports[0]}");
             var urls = settings.Probe.ProbeUrls.Select(u => Uri.TryCreate(u, UriKind.Absolute, out var x) ? x : null).OfType<Uri>().ToList();

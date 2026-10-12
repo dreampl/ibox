@@ -22,6 +22,9 @@ public static class IpcMethods
     public const string GetStatus = "status.get";
     public const string StartTunnel = "tunnel.start";
     public const string StopTunnel = "tunnel.stop";
+
+    /// <summary>Hard stop of a cancelled connect: kill the cores and lift the kill switch now, clean up the rest after.</summary>
+    public const string KillTunnel = "tunnel.kill";
     public const string RepairNetwork = "network.repair";
     public const string ReleaseKillSwitch = "killswitch.release";
     public const string GetCoreInfo = "core.info";
@@ -37,7 +40,7 @@ public static class IpcMethods
 
     public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal)
     {
-        Hello, GetStatus, StartTunnel, StopTunnel, RepairNetwork, ReleaseKillSwitch, GetCoreInfo, ApplyWinHttpProxy, RestoreWinHttpProxy, Subscribe,
+        Hello, GetStatus, StartTunnel, StopTunnel, KillTunnel, RepairNetwork, ReleaseKillSwitch, GetCoreInfo, ApplyWinHttpProxy, RestoreWinHttpProxy, Subscribe,
         GetConnections, SetTrafficLimits,
     };
 }

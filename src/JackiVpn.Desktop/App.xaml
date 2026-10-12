@@ -12,6 +12,7 @@
             <BooleanToVisibilityConverter x:Key="Bool2Vis" />
             <v:NullToVisibilityConverter x:Key="Null2Vis" />
             <v:ZeroToVisibilityConverter x:Key="ZeroToVis" />
+                <v:CountToVisibilityConverter x:Key="Count2Vis" />
             <v:InverseBoolConverter x:Key="InvBool" />
             <v:InverseBoolToVisibilityConverter x:Key="InvBool2Vis" />
             <v:HealthBrushConverter x:Key="HealthBrush" />

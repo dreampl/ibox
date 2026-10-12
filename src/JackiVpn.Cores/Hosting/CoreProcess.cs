@@ -75,7 +75,8 @@ public sealed partial class CoreProcess : IAsyncDisposable
         CoreLaunchSpec spec,
         GeneratedCoreConfig config,
         ILogger logger,
-        CancellationToken ct)
+        CancellationToken ct,
+        bool background = false)
     {
         ArgumentNullException.ThrowIfNull(binary);
         ArgumentNullException.ThrowIfNull(spec);
@@ -131,7 +132,14 @@ public sealed partial class CoreProcess : IAsyncDisposable
 
             core.ProcessId = process.Id;
             job?.Assign(process);
-            ProcessTuning.ForLowLatency(process, logger);
+            if (background)
+            {
+                ProcessTuning.ForBackground(process, logger);
+            }
+            else
+            {
+                ProcessTuning.ForLowLatency(process, logger);
+            }
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
             await process.StandardInput.WriteAsync(config.Json.AsMemory(), ct).ConfigureAwait(false);

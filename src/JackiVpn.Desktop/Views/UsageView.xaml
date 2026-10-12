@@ -24,41 +24,40 @@
                     <TextBlock Text="{Binding ModeReason}" Style="{StaticResource Text.Caption}" HorizontalAlignment="Right" Margin="0,6,4,0" v:Motion.FadeOnChange="True" />
                 </StackPanel>
                 <StackPanel>
-                    <TextBlock Text="Usage" Style="{StaticResource Text.PageTitle}" />
                     <TextBlock Text="Where your data goes, what is using it right now, and how to keep it under control." Style="{StaticResource Text.PageSubtitle}" />
                 </StackPanel>
             </DockPanel>
 
             <!-- Overview -->
             <UniformGrid Columns="4" Margin="0,0,0,0">
-                <Border Style="{StaticResource Card}" Margin="0,0,12,16">
+                <v:ClaySurface Margin="0,0,12,16">
                     <StackPanel>
                         <TextBlock Text="This period" Style="{StaticResource Text.Caption}" />
                         <TextBlock Text="{Binding PeriodUsed}" FontSize="26" FontWeight="SemiBold" />
                         <TextBlock Text="{Binding PeriodCap}" Style="{StaticResource Text.Hint}" />
                         <ProgressBar Value="{Binding PeriodPercent}" Maximum="100" Height="6" Margin="0,8,0,0" />
                     </StackPanel>
-                </Border>
-                <Border Style="{StaticResource Card}" Margin="0,0,12,16">
+                </v:ClaySurface>
+                <v:ClaySurface Margin="0,0,12,16">
                     <StackPanel>
                         <TextBlock Text="Today" Style="{StaticResource Text.Caption}" />
                         <TextBlock Text="{Binding Today}" FontSize="26" FontWeight="SemiBold" />
                         <TextBlock Text="{Binding TodayDetail}" Style="{StaticResource Text.Hint}" TextWrapping="Wrap" />
                     </StackPanel>
-                </Border>
-                <Border Style="{StaticResource Card}" Margin="0,0,12,16">
+                </v:ClaySurface>
+                <v:ClaySurface Margin="0,0,12,16">
                     <StackPanel>
                         <TextBlock Text="Right now" Style="{StaticResource Text.Caption}" />
                         <TextBlock Text="{Binding NowDown}" FontSize="17" FontWeight="SemiBold" Margin="0,4,0,0" Foreground="{DynamicResource B.Accent}" />
                         <TextBlock Text="{Binding NowUp}" FontSize="17" FontWeight="SemiBold" Foreground="{StaticResource UpBrush}" />
                     </StackPanel>
-                </Border>
-                <Border Style="{StaticResource Card}" Margin="0,0,0,16">
+                </v:ClaySurface>
+                <v:ClaySurface Margin="0,0,0,16">
                     <StackPanel>
                         <TextBlock Text="Peak speed" Style="{StaticResource Text.Caption}" />
                         <TextBlock Text="{Binding Peak}" FontSize="17" FontWeight="SemiBold" Margin="0,6,0,0" />
                     </StackPanel>
-                </Border>
+                </v:ClaySurface>
             </UniformGrid>
             <TextBlock Text="{Binding PeriodDetail}" Style="{StaticResource Text.Hint}" Margin="4,-6,0,14" />
 
@@ -68,7 +67,7 @@
                     <ColumnDefinition Width="16" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
-                <Border Style="{StaticResource Card}">
+                <v:ClaySurface>
                     <StackPanel>
                         <TextBlock Text="Using the network now" Style="{StaticResource Text.Section}" />
                         <ItemsControl ItemsSource="{Binding Live}">
@@ -95,8 +94,8 @@
                             <TextBlock Text="Connect to see which apps use the tunnel (TUN mode shows every app)." Style="{StaticResource Text.Hint}" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="360" />
                         </StackPanel>
                     </StackPanel>
-                </Border>
-                <Border Grid.Column="2" Style="{StaticResource Card}">
+                </v:ClaySurface>
+                <v:ClaySurface Grid.Column="2">
                     <StackPanel>
                         <TextBlock Text="Last 30 days" Style="{StaticResource Text.Section}" />
                         <v:UsageBars Height="90" Down="{Binding DailyDown}" Up="{Binding DailyUp}" DownBrush="{DynamicResource B.Accent}" UpBrush="{StaticResource UpBrush}" LabelBrush="{DynamicResource B.TextMuted}" />
@@ -104,11 +103,11 @@
                         <v:UsageBars Height="60" Down="{Binding HourlyDown}" Up="{Binding HourlyUp}" DownBrush="{DynamicResource B.Accent}" UpBrush="{StaticResource UpBrush}" LabelBrush="{DynamicResource B.TextMuted}" />
                         <TextBlock Text="Blue = download · orange = upload" Style="{StaticResource Text.Caption}" Margin="0,4,0,0" />
                     </StackPanel>
-                </Border>
+                </v:ClaySurface>
             </Grid>
 
             <!-- Apps / Sites / Alerts -->
-            <Border Style="{StaticResource Card}">
+            <v:ClaySurface>
                 <StackPanel>
                     <DockPanel Margin="0,0,0,10">
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
@@ -254,10 +253,10 @@
                         </ItemsControl>
                     </StackPanel>
                 </StackPanel>
-            </Border>
+            </v:ClaySurface>
 
             <!-- Traffic control -->
-            <Border Style="{StaticResource Card}">
+            <v:ClaySurface>
                 <StackPanel>
                     <TextBlock Text="Traffic control" Style="{StaticResource Text.Section}" />
                     <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding SmartControl}" Margin="0,0,0,12">
@@ -318,10 +317,10 @@
                         </StackPanel>
                     </Grid>
                 </StackPanel>
-            </Border>
+            </v:ClaySurface>
 
             <!-- Cap and alerts -->
-            <Border Style="{StaticResource Card}">
+            <v:ClaySurface>
                 <StackPanel>
                     <TextBlock Text="Data cap and alerts" Style="{StaticResource Text.Section}" />
                     <UniformGrid Columns="4" Margin="0,0,0,10">
@@ -385,10 +384,10 @@
                         <Button Style="{StaticResource Button.Danger}" Content="Reset all" Command="{Binding ResetCommand}" CommandParameter="all" />
                     </WrapPanel>
                 </StackPanel>
-            </Border>
+            </v:ClaySurface>
 
             <!-- Workplace -->
-            <Border Style="{StaticResource Card}">
+            <v:ClaySurface>
                 <StackPanel>
                     <DockPanel>
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
@@ -427,7 +426,7 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </StackPanel>
-            </Border>
+            </v:ClaySurface>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

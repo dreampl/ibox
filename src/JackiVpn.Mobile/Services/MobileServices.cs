@@ -92,8 +92,11 @@ public sealed class MobileServices : IAsyncDisposable
 
         var plans = new SessionPlanFactory(Catalog);
         var sessionLogger = LoggerFactory.CreateLogger("JackiVpn.Session");
+        Background = new Application.Background.BackgroundPolicy(new AndroidDeviceConditions(context), UserBusy, LoggerFactory.CreateLogger("JackiVpn.Background"));
+        SubscriptionService.Background = Background;
         Orchestrator = new ConnectionOrchestrator(new OrchestratorDependencies
         {
+            Background = Background,
             Settings = settings,
             Profiles = Profiles,
             Subscriptions = Subscriptions,
@@ -137,6 +140,7 @@ public sealed class MobileServices : IAsyncDisposable
         usage = new Application.Usage.UsageMonitor(UsageBook, nics, Orchestrator.GetConnectionsAsync, settings, Notifications, LoggerFactory.CreateLogger("JackiVpn.Usage"))
         {
             Interval = TimeSpan.FromSeconds(3),
+            Pace = i => Background.PowerSaver ? i * 2 : i,
             Persian = () => Localization.L.IsPersian,
             WorkplaceDailyCapMb = () => Workplace.Active?.Rules.DailyCapMb ?? 0,
             InternalDomains = () => Workplace.Active?.InternalDomains ?? [],
@@ -146,7 +150,10 @@ public sealed class MobileServices : IAsyncDisposable
         Traffic = new Application.Traffic.TrafficController(Orchestrator, settings, Workplace, Usage, LoggerFactory.CreateLogger("JackiVpn.Traffic")) { ProcessAware = false };
         var updateLog = LoggerFactory.CreateLogger("JackiVpn.Updates");
         Updates = new Infrastructure.Updates.UpdateMonitor(new Infrastructure.Updates.AppUpdateService(updateLog), () => Settings.Current.Updates,
-            Version.TryParse(AppInfo.Current.VersionString, out var v) ? v : new Version(0, 0, 0), "android", CurrentAbi, updateLog);
+            Version.TryParse(AppInfo.Current.VersionString, out var v) ? v : new Version(0, 0, 0), "android", CurrentAbi, updateLog)
+        {
+            WaitForUpkeep = ct => Background.WaitUntilAllowedAsync(Application.Background.BackgroundWork.Upkeep, ct),
+        };
         Activity = new ActivityMonitor(this);
         Orchestrator.StatusChanged += (_, st) => StatusSurfaces.Update(context, st);
         Orchestrator.StatusChanged += (_, _) => MainThread.BeginInvokeOnMainThread(() => _island?.Update(Orchestrator.Status, IslandMode()));
@@ -198,9 +205,22 @@ public sealed class MobileServices : IAsyncDisposable
     /// <summary>The app is in the background or the screen is off (battery saving).</summary>
     public bool IsBackground { get; private set; }
 
+    /// <summary>When the app's own work may run: power saver, metered network, background, the user's traffic.</summary>
+    public Application.Background.BackgroundPolicy Background { get; }
+
+    /// <summary>A game or stream is on, or the tunnel is busy carrying the user's traffic: maintenance waits.</summary>
+    private bool UserBusy()
+    {
+        var s = Orchestrator.Status;
+        return s.State == Domain.Connection.ConnectionState.Connected
+            && (Domain.Connection.ActivityRules.IsQuiet(s.Activity) || (s.Traffic?.DownloadBytesPerSecond ?? 0) > ConnectionOrchestrator.BusyBytesPerSecond);
+    }
+
     public void SetForeground(bool foreground)
     {
         IsBackground = !foreground;
+        Background.Hidden = !foreground;
+        Background.Refresh();
         Orchestrator.SetBackground(!foreground);
         // Battery: usage is sampled every 15 s and orbs stop drawing while nobody looks.
         Usage.Interval = TimeSpan.FromSeconds(foreground ? 3 : 15);

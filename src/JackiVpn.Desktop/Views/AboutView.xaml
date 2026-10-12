@@ -12,7 +12,7 @@
                 </StackPanel>
             </StackPanel>
 
-            <Border Style="{StaticResource Card}" DataContext="{Binding DataContext.Update, RelativeSource={RelativeSource AncestorType=Window}}">
+            <v:ClaySurface DataContext="{Binding DataContext.Update, RelativeSource={RelativeSource AncestorType=Window}}">
                 <StackPanel>
                     <DockPanel>
                         <Button DockPanel.Dock="Right" Content="Check for updates" Command="{Binding CheckCommand}" VerticalAlignment="Top" />
@@ -38,16 +38,16 @@
                         </StackPanel>
                     </CheckBox>
                 </StackPanel>
-            </Border>
+            </v:ClaySurface>
 
-            <Border Style="{StaticResource Card}">
+            <v:ClaySurface>
                 <StackPanel>
                     <TextBlock Text="Privacy" Style="{StaticResource Text.Section}" />
                     <TextBlock Text="{Binding Privacy, Mode=OneTime}" Style="{StaticResource Text.Label}" />
                 </StackPanel>
-            </Border>
+            </v:ClaySurface>
 
-            <Border Style="{StaticResource Card}">
+            <v:ClaySurface>
                 <StackPanel>
                     <TextBlock Text="Components" Style="{StaticResource Text.Section}" />
                     <ItemsControl ItemsSource="{Binding Components}">
@@ -69,15 +69,15 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </StackPanel>
-            </Border>
+            </v:ClaySurface>
 
-            <Border Style="{StaticResource Card}">
+            <v:ClaySurface>
                 <StackPanel>
                     <TextBlock Text="Third-party notices" Style="{StaticResource Text.Section}" />
                     <TextBox Text="{Binding Notices, Mode=OneTime}" Style="{StaticResource TextBox.Mono}" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="320"
                              VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top" />
                 </StackPanel>
-            </Border>
+            </v:ClaySurface>
 
             <TextBlock Style="{StaticResource Text.Hint}">
                 <Run Text="Install folder: " /><Run Text="{Binding InstallFolder, Mode=OneTime}" FontFamily="{StaticResource MonoFont}" />

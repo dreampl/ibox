@@ -811,11 +811,23 @@ public static class SingBoxConfigBuilder
 
         if (traffic.ShapeBackground)
         {
+            foreach (var (cls, apps) in CategoryClasses(traffic))
+            {
+                if (apps.Any(a => AppPattern(a) is not null))
+                {
+                    classes.Add(cls);
+                }
+            }
+
             classes.Add(ShapeClasses.Background);
         }
 
         return classes;
     }
+
+    /// <summary>Built-in categories below browsing, in rule order (media players, then downloaders).</summary>
+    private static (string Class, IReadOnlyList<string> Apps)[] CategoryClasses(TrafficPolicy traffic) =>
+        [(ShapeClasses.Media, traffic.MediaApps), (ShapeClasses.Downloads, traffic.DownloadApps)];
 
     private static void AddBlockRules(JsonArray rules, TrafficPolicy traffic)
     {
@@ -875,6 +887,17 @@ public static class SingBoxConfigBuilder
                 .Where(c => c.Type is RuleConditionType.ProcessName or RuleConditionType.ProcessPath)
                 .SelectMany(c => c.Values))
             .Select(AppPattern).OfType<string>().Distinct(StringComparer.Ordinal).ToList();
+
+        // Media players and downloaders get their own (lower) classes; apps the user routes by name are left alone.
+        foreach (var (cls, apps) in CategoryClasses(traffic))
+        {
+            var patterns = apps.Select(AppPattern).OfType<string>().Where(p => !priority.Contains(p)).Distinct(StringComparer.Ordinal).ToList();
+            if (patterns.Count > 0)
+            {
+                rules.Add(new JsonObject { ["inbound"] = inbound.DeepClone(), ["network"] = tcp.DeepClone(), ["process_path_regex"] = SingBoxOutboundBuilder.Array(patterns), ["outbound"] = ShapeTag(cls) });
+            }
+        }
+
         var conditions = new JsonArray(new JsonObject { ["inbound"] = inbound.DeepClone() }, new JsonObject { ["network"] = tcp.DeepClone() });
         if (priority.Count > 0)
         {

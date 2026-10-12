@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
@@ -154,12 +155,70 @@ public static class Motion
             return;
         }
 
-        element.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(from, to, new Duration(period))
+        // A slow pulse needs no more than 15 frames per second.
+        Endless(element, UIElement.OpacityProperty, new DoubleAnimation(from, to, new Duration(period))
         {
             AutoReverse = true,
             RepeatBehavior = RepeatBehavior.Forever,
             EasingFunction = EaseInOut,
-        });
+        }, framesPerSecond: 15);
+    }
+
+    // ------------------------------------------------------------------ endless animations
+
+    private static readonly List<WeakReference<AnimationClock>> EndlessClocks = [];
+    private static bool _paused;
+
+    /// <summary>
+    /// Starts an endless decoration (pulse, spinner, ripple) at a capped frame rate. Every endless clock pauses while
+    /// the main window is not on screen (<see cref="SetMainWindowShown"/>): nobody sees it, and a running animation
+    /// keeps WPF rendering frames.
+    /// </summary>
+    public static void Endless(IAnimatable target, DependencyProperty property, AnimationTimeline animation, int framesPerSecond)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(animation);
+        Timeline.SetDesiredFrameRate(animation, framesPerSecond);
+        var clock = animation.CreateClock();
+        target.ApplyAnimationClock(property, clock);
+        if (_paused)
+        {
+            clock.Controller?.Pause();
+        }
+
+        lock (EndlessClocks)
+        {
+            EndlessClocks.RemoveAll(w => !w.TryGetTarget(out var c) || c.CurrentState == ClockState.Stopped || c.Controller is null);
+            EndlessClocks.Add(new WeakReference<AnimationClock>(clock));
+        }
+    }
+
+    /// <summary>Called by the main window when it is minimized, hidden to the tray, or shown again.</summary>
+    public static void SetMainWindowShown(bool shown)
+    {
+        if (_paused == !shown)
+        {
+            return;
+        }
+
+        _paused = !shown;
+        lock (EndlessClocks)
+        {
+            foreach (var weak in EndlessClocks)
+            {
+                if (weak.TryGetTarget(out var clock) && clock.Controller is { } controller)
+                {
+                    if (_paused)
+                    {
+                        controller.Pause();
+                    }
+                    else
+                    {
+                        controller.Resume();
+                    }
+                }
+            }
+        }
     }
 
     public static void FadeTo(UIElement element, double to, TimeSpan? duration = null)

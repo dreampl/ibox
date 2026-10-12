@@ -117,6 +117,34 @@ public sealed class EyeMotion
     /// <summary>True while something visibly moves (renderers can drop to a slow tick otherwise).</summary>
     public bool IsMoving { get; private set; }
 
+    /// <summary>
+    /// Calm while nobody looks closely (a faded notch, a hidden island): no glancing around, only an occasional slow
+    /// blink — the eye still looks alive, and its window is redrawn a few times a minute instead of constantly.
+    /// </summary>
+    public bool Resting
+    {
+        get => _resting;
+        set
+        {
+            if (_resting == value)
+            {
+                return;
+            }
+
+            _resting = value;
+            if (value && _state == EyeState.Awake)
+            {
+                (_tx, _ty) = (EyeMark.RestLookX, EyeMark.RestLookY);
+            }
+            else if (!value)
+            {
+                _nextWander = _time + 0.4;
+            }
+        }
+    }
+
+    private bool _resting;
+
     /// <summary>Look towards a point: direction -1…1 per axis (beyond the edge is clamped).</summary>
     public void LookAt(double x, double y)
     {
@@ -140,7 +168,7 @@ public sealed class EyeMotion
         _time += dt;
         if (_state == EyeState.Awake)
         {
-            if (_time - _lastLook > 2.5 && _time >= _nextWander)
+            if (!_resting && _time - _lastLook > 2.5 && _time >= _nextWander)
             {
                 // Idle: glance somewhere else, sometimes back to the resting gaze.
                 if (_random.NextDouble() < 0.3)
@@ -160,7 +188,7 @@ public sealed class EyeMotion
             {
                 _blinkStart = _time;
                 _doubleBlink = _random.NextDouble() < 0.12;
-                _nextBlink = _time + 2.6 + (_random.NextDouble() * 3.8);
+                _nextBlink = _time + (_resting ? 9 + (_random.NextDouble() * 9) : 2.6 + (_random.NextDouble() * 3.8));
             }
         }
 

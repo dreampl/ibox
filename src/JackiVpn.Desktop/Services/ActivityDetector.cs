@@ -79,11 +79,32 @@ public sealed partial class ActivityDetector : IDisposable
 
     private async Task LoopAsync(CancellationToken ct)
     {
-        using var timer = new PeriodicTimer(Tick);
         try
         {
-            while (await timer.WaitForNextTickAsync(ct).ConfigureAwait(false))
+            while (!ct.IsCancellationRequested)
             {
+                // Nothing to detect while disconnected: sleep until a connection exists instead of ticking every 5 s.
+                if (_orchestrator.State != ConnectionState.Connected)
+                {
+                    if (_current != ActivityProfile.Normal)
+                    {
+                        _current = ActivityProfile.Normal;
+                        _orchestrator.ReportActivity(_current);
+                    }
+
+                    _candidateReadings = _silentReadings = 0;
+                    _streamTicks.Clear();
+                    if (_reportedGame is not null)
+                    {
+                        _reportedGame = null;
+                        GameChanged?.Invoke(null, []);
+                    }
+
+                    await WaitForConnectionAsync(ct).ConfigureAwait(false);
+                    continue;
+                }
+
+                await Task.Delay(Tick, ct).ConfigureAwait(false);
                 try
                 {
                     var status = _orchestrator.Status;
@@ -103,6 +124,33 @@ public sealed partial class ActivityDetector : IDisposable
         }
         catch (OperationCanceledException)
         {
+        }
+    }
+
+    private async Task WaitForConnectionAsync(CancellationToken ct)
+    {
+        var connected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        void OnStatus(object? sender, ConnectionStatus s)
+        {
+            if (s.State == ConnectionState.Connected)
+            {
+                connected.TrySetResult();
+            }
+        }
+
+        _orchestrator.StatusChanged += OnStatus;
+        try
+        {
+            if (_orchestrator.State == ConnectionState.Connected)
+            {
+                return;
+            }
+
+            await connected.Task.WaitAsync(ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _orchestrator.StatusChanged -= OnStatus;
         }
     }
 

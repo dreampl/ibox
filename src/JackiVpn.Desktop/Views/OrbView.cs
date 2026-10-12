@@ -36,19 +36,29 @@ public sealed class OrbView : FrameworkElement
     public static readonly DependencyProperty IsRunningProperty = DependencyProperty.Register(
         nameof(IsRunning), typeof(bool), typeof(OrbView), new PropertyMetadata(true, (d, _) => ((OrbView)d).UpdateSubscription()));
 
-    private static readonly List<OrbView> Running = [];
     private static readonly Stopwatch Clock = Stopwatch.StartNew();
-    private static TimeSpan _lastTick;
     private readonly OrbFrame _frame = new();
     private readonly Dictionary<int, SolidColorBrush> _brushes = [];
     private readonly Dictionary<int, Pen> _pens = [];
+    private readonly ViewClock _clock;
+    private TimeSpan _lastTick;
 
     public OrbView()
     {
         IsHitTestVisible = false;
-        Loaded += (_, _) => UpdateSubscription();
-        Unloaded += (_, _) => Unsubscribe();
-        IsVisibleChanged += (_, _) => UpdateSubscription();
+
+        // An orb always moves while it runs: drawn every frame (at most ~60 fps), never while off screen.
+        _clock = new ViewClock(this, TimeSpan.FromMilliseconds(16), () =>
+        {
+            var now = Clock.Elapsed;
+            if (now - _lastTick >= TimeSpan.FromMilliseconds(15))
+            {
+                _lastTick = now;
+                InvalidateVisual();
+            }
+
+            return true;
+        });
     }
 
     public OrbState State { get => (OrbState)GetValue(StateProperty); set => SetValue(StateProperty, value); }
@@ -66,47 +76,8 @@ public sealed class OrbView : FrameworkElement
 
     private void UpdateSubscription()
     {
-        if (IsLoaded && IsVisible && IsRunning && !Motion.Reduced)
-        {
-            if (!Running.Contains(this))
-            {
-                Running.Add(this);
-                if (Running.Count == 1)
-                {
-                    CompositionTarget.Rendering += OnRendering;
-                }
-            }
-        }
-        else
-        {
-            Unsubscribe();
-        }
-
+        _clock.Enabled = IsRunning;
         InvalidateVisual();
-    }
-
-    private void Unsubscribe()
-    {
-        if (Running.Remove(this) && Running.Count == 0)
-        {
-            CompositionTarget.Rendering -= OnRendering;
-        }
-    }
-
-    private static void OnRendering(object? sender, EventArgs e)
-    {
-        // At most ~60 frames per second, whatever the monitor rate.
-        var now = Clock.Elapsed;
-        if (now - _lastTick < TimeSpan.FromMilliseconds(15))
-        {
-            return;
-        }
-
-        _lastTick = now;
-        foreach (var orb in Running.ToArray())
-        {
-            orb.InvalidateVisual();
-        }
     }
 
     protected override void OnRender(DrawingContext dc)

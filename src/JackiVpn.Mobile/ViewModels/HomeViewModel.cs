@@ -377,6 +377,12 @@ public sealed partial class HomeViewModel : ObservableObject
             ConnectionState.Faulted => (L.Get("St_Failed"), L.Get("St_FailedDetail")),
             _ => (st.State.ToString(), string.Empty),
         };
+        if (st.State is ConnectionState.Preparing or ConnectionState.Testing or ConnectionState.Connecting or ConnectionState.Reconnecting or ConnectionState.SwitchingServer)
+        {
+            // The power button cancels while anything is in progress.
+            StatusDetail = string.IsNullOrEmpty(StatusDetail) ? L.Get("St_TapToCancel") : StatusDetail + " · " + L.Get("St_TapToCancel");
+        }
+
         Activity = st.State == ConnectionState.Connected ? st.Activity : ActivityProfile.Normal;
         Refresh();
 

@@ -195,7 +195,8 @@ public sealed partial class NotchWindow : Window
 
         _eye.BeforeFrame = eye =>
         {
-            if (eye.State == EyeState.Awake && ScreenCursor.TryGet(out var p) && p != _lastCursor)
+            // A faded notch rests: following every mouse move across the screen would redraw it all day.
+            if (eye.State == EyeState.Awake && !_faded && ScreenCursor.TryGet(out var p) && p != _lastCursor)
             {
                 _lastCursor = p;
                 eye.LookAtScreen(p, 420, 260);
@@ -286,8 +287,22 @@ public sealed partial class NotchWindow : Window
 
     private bool _first = true;
 
+    private string? _shownKey;
+
     public void Update(ConnectionStatus status, VisualMode mode)
     {
+        // The status arrives every second (traffic counters): redraw only when something the notch shows changed.
+        var key = string.Join('|',
+            status.State, status.LatencyMs is { } l ? Math.Round(l).ToString(System.Globalization.CultureInfo.InvariantCulture) : "-", status.ProfileName,
+            status.ExitCountryName ?? status.ExitCountryCode, status.LastError, status.Mode, mode,
+            status.ConnectedSinceUtc is { } since ? ((int)(DateTimeOffset.UtcNow - since).TotalMinutes).ToString(System.Globalization.CultureInfo.InvariantCulture) : "-");
+        if (!_first && key == _shownKey)
+        {
+            return;
+        }
+
+        _shownKey = key;
+
         // The very first state counts as a change too (it is said, then becomes its icon).
         var firstUpdate = _first;
         var changed = status.State != _status.State || _first;
@@ -682,7 +697,7 @@ public sealed partial class NotchWindow : Window
                 return;
             }
 
-            _eye.Eye.Poke();
+            _eye.Eye.Poke(); _eye.Wake();
             SetExpanded(true);
         }
         else
@@ -729,6 +744,13 @@ public sealed partial class NotchWindow : Window
     {
         _faded = faded;
         FadeTo(faded ? FadedOpacity : 1, faded ? 700 : 220);
+
+        // Faded, the eye rests (no glancing, rare blinks): a transparent window is costly to redraw all day.
+        _eye.Eye.Resting = faded;
+        if (!faded)
+        {
+            _eye.Wake();
+        }
     }
 
     private void FadeTo(double opacity, int ms)
@@ -797,7 +819,7 @@ public sealed partial class NotchWindow : Window
         else
         {
             // A tap: the eye reacts (double blink and a hop).
-            _eye.Eye.Poke();
+            _eye.Eye.Poke(); _eye.Wake();
         }
     }
 
@@ -920,7 +942,19 @@ public sealed partial class NotchWindow : Window
         }
 
         menu.Items.Add(Item("Open IBOX", () => OpenRequested?.Invoke(this, EventArgs.Empty)));
-        menu.Items.Add(Item("Connect / disconnect", () => ToggleRequested?.Invoke(this, EventArgs.Empty)));
+        var toggle = Item("Connect", () => ToggleRequested?.Invoke(this, EventArgs.Empty));
+        menu.Items.Add(toggle);
+        menu.Opened += (_, _) =>
+        {
+            toggle.Header = _status.State switch
+            {
+                ConnectionState.Disconnected or ConnectionState.Faulted => "Connect",
+                ConnectionState.Connected => "Disconnect",
+                ConnectionState.Disconnecting => "Stopping…",
+                _ => "Cancel connecting",
+            };
+            toggle.IsEnabled = _status.State != ConnectionState.Disconnecting;
+        };
         menu.Items.Add(Item("Customize…", () => CustomizeRequested?.Invoke(this, EventArgs.Empty)));
         menu.Items.Add(new Separator());
         menu.Items.Add(Item("Hide notch", () => HideRequested?.Invoke(this, EventArgs.Empty)));

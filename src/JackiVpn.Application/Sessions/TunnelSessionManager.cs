@@ -182,6 +182,9 @@ public sealed class TunnelSessionManager : IAsyncDisposable
                 _plan = await _planFactory(sessionRequest, ct).ConfigureAwait(false);
                 _request = request;
                 var notes = await LaunchAsync(ct).ConfigureAwait(false);
+
+                // Pre-empted while a step ignored the token: never report Running; the stop waiting for the gate cleans up.
+                ct.ThrowIfCancellationRequested();
                 SetStatus(_status with
                 {
                     State = TunnelState.Running,
@@ -255,6 +258,29 @@ public sealed class TunnelSessionManager : IAsyncDisposable
         {
             _gate.Release();
         }
+    }
+
+    /// <summary>
+    /// Hard stop of a cancelled connect whose graceful stop hangs: the cores die and the kill-switch filters go at
+    /// once (the network works again), then the normal stop runs once whatever holds the session yields — it also
+    /// removes filters a start that was still in flight may have installed after this.
+    /// </summary>
+    public void Kill()
+    {
+        Preempt();
+        _logger.LogWarning("Tunnel kill requested (cancelled connect).");
+        EmergencyTeardown();
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await StopAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                _logger.LogError("Teardown after kill failed: {Error}", ex.Message);
+            }
+        });
     }
 
     /// <summary>
@@ -483,7 +509,7 @@ public sealed class TunnelSessionManager : IAsyncDisposable
         var lists = new[]
         {
             traffic.BlockedApps, traffic.BlockedDomains, traffic.BlockedCidrs, traffic.InternalDomains, traffic.InternalCidrs, traffic.InternalDns,
-            traffic.PriorityApps, traffic.LimitedApps,
+            traffic.PriorityApps, traffic.LimitedApps, traffic.MediaApps, traffic.DownloadApps,
         };
         lists = [.. lists, .. traffic.DomainClasses.Select(d => d.Domains)];
         if (traffic.DomainClasses.Count > 64 || traffic.DomainClasses.Any(d => !Cores.Generation.SingBoxConfigBuilder.IsClassName(d.Class)))

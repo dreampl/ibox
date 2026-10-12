@@ -11,11 +11,10 @@
     </UserControl.Resources>
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="32,26,32,26" v:Motion.StaggerChildren="True">
-            <TextBlock Text="Advanced" Style="{StaticResource Text.PageTitle}" />
             <TextBlock Text="Engines, multiplexing, smart selection and ownership verification. Defaults are tuned for stability." Style="{StaticResource Text.PageSubtitle}" />
 
             <!-- Speed & handshake -->
-            <Border Style="{StaticResource Card}">
+            <v:ClaySurface>
                 <StackPanel>
                     <TextBlock Text="Speed &amp; handshake" Style="{StaticResource Text.Section}" />
                     <TextBlock Text="Base ping is set by the distance to the server. These settings remove the extra waiting on top of it: per-connection handshakes, DNS round trips and QUIC over TCP."
@@ -83,10 +82,10 @@
                         <ComboBox Grid.Column="1" ItemsSource="{Binding TunStacks}" SelectedItem="{Binding TunStack}" VerticalAlignment="Top" />
                     </Grid>
                 </StackPanel>
-            </Border>
+            </v:ClaySurface>
 
             <!-- Engines -->
-            <Border Style="{StaticResource Card}">
+            <v:ClaySurface>
                 <StackPanel>
                     <DockPanel Margin="0,0,0,10">
                         <Button DockPanel.Dock="Right" Content="Check" Command="{Binding RefreshCoresCommand}" />
@@ -120,10 +119,10 @@
                         <ComboBox Grid.Column="1" ItemsSource="{Binding CorePreferences}" SelectedItem="{Binding Core}" VerticalAlignment="Top" />
                     </Grid>
                 </StackPanel>
-            </Border>
+            </v:ClaySurface>
 
             <!-- MUX -->
-            <Border Style="{StaticResource Card}">
+            <v:ClaySurface>
                 <StackPanel>
                     <TextBlock Text="Multiplexing (MUX)" Style="{StaticResource Text.Section}" />
                     <Grid Style="{StaticResource Row}">
@@ -145,10 +144,10 @@
                         <TextBlock Text="{Binding MuxMessage}" Style="{StaticResource Text.Hint}" VerticalAlignment="Center" Margin="12,0,0,0" />
                     </StackPanel>
                 </StackPanel>
-            </Border>
+            </v:ClaySurface>
 
             <!-- Smart -->
-            <Border Style="{StaticResource Card}">
+            <v:ClaySurface>
                 <StackPanel>
                     <TextBlock Text="Smart selection &amp; failover" Style="{StaticResource Text.Section}" />
                     <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding ProactiveSwitching}" Margin="0,0,0,14">
@@ -176,10 +175,10 @@
                         <DockPanel Margin="0,0,0,10"><TextBox DockPanel.Dock="Right" Width="70" Text="{Binding WeightThroughput}" /><TextBlock Text="Throughput" Style="{StaticResource Text.Label}" /></DockPanel>
                     </UniformGrid>
                 </StackPanel>
-            </Border>
+            </v:ClaySurface>
 
             <!-- Probes -->
-            <Border Style="{StaticResource Card}">
+            <v:ClaySurface>
                 <StackPanel>
                     <TextBlock Text="Server tests" Style="{StaticResource Text.Section}" />
                     <UniformGrid Columns="2">
@@ -197,10 +196,10 @@
                         <TextBlock Text="Show public IP after connecting (asks api.ipify.org through the VPN)" Style="{StaticResource Text.Label}" />
                     </CheckBox>
                 </StackPanel>
-            </Border>
+            </v:ClaySurface>
 
             <!-- Ownership -->
-            <Border Style="{StaticResource Card}">
+            <v:ClaySurface>
                 <StackPanel>
                     <TextBlock Text="Jacki infrastructure verification" Style="{StaticResource Text.Section}" />
                     <TextBlock Text="Jacki Smart Connect is enabled only for subscriptions or configs proven to belong to the owner: a domain allow-list, a provider header over HTTPS, or a signed manifest."
@@ -241,16 +240,16 @@
                     <TextBlock Text="Manifest public key (ECDSA P-256, PEM)" Style="{StaticResource Text.Label}" />
                     <TextBox Text="{Binding ManifestPublicKey}" Style="{StaticResource TextBox.Mono}" AcceptsReturn="True" Height="80" Margin="0,6,0,0" VerticalContentAlignment="Top" />
                 </StackPanel>
-            </Border>
+            </v:ClaySurface>
 
             <!-- Subscriptions -->
-            <Border Style="{StaticResource Card}">
+            <v:ClaySurface>
                 <StackPanel>
                     <TextBlock Text="Subscription requests" Style="{StaticResource Text.Section}" />
                     <DockPanel Margin="0,0,0,12"><TextBox DockPanel.Dock="Right" Width="260" Text="{Binding UserAgent}" /><TextBlock Text="User-Agent" Style="{StaticResource Text.Label}" /></DockPanel>
                     <DockPanel><TextBox DockPanel.Dock="Right" Style="{StaticResource NumBox}" Text="{Binding FetchTimeoutSeconds}" /><TextBlock Text="Timeout (s)" Style="{StaticResource Text.Label}" /></DockPanel>
                 </StackPanel>
-            </Border>
+            </v:ClaySurface>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

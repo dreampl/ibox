@@ -142,12 +142,14 @@ public sealed class HttpLiveProbe : ILiveProbe, IDisposable
 
         string? city = null;
         string? isp = null;
+        (double Lat, double Lon)? point = null;
         if (Uri.TryCreate(settings.GeoDetailsUrl, UriKind.Absolute, out var geo) && geo.Scheme == Uri.UriSchemeHttps)
         {
             try
             {
                 var json = await http.GetStringAsync(new Uri(geo, Uri.EscapeDataString(ip)), ct).ConfigureAwait(false);
                 (city, isp, var geoCc) = ParseGeo(json);
+                point = ParseGeoPoint(json);
                 cc ??= geoCc;
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
@@ -156,7 +158,7 @@ public sealed class HttpLiveProbe : ILiveProbe, IDisposable
             }
         }
 
-        return new ExitInfo(ip, cc, CountryName(cc), city, isp, DateTimeOffset.UtcNow);
+        return new ExitInfo(ip, cc, CountryName(cc), city, isp, DateTimeOffset.UtcNow, point?.Lat, point?.Lon);
     }
 
     public async Task<double?> PingAsync(ConnectionMode mode, int? localProxyPort, ProbeSettings settings, CancellationToken ct)
@@ -236,6 +238,18 @@ public sealed class HttpLiveProbe : ILiveProbe, IDisposable
         var isp = root.TryGetProperty("connection", out var conn) ? Str(conn, "isp") ?? Str(conn, "org") : null;
         var cc = Str(root, "country_code");
         return (Str(root, "city"), isp, cc is { Length: 2 } ? cc.ToUpperInvariant() : null);
+    }
+
+    /// <summary>Coordinates of the exit (city level) from the geo lookup, for the dashboard map.</summary>
+    public static (double Lat, double Lon)? ParseGeoPoint(string json)
+    {
+        using var doc = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = 16 });
+        var root = doc.RootElement;
+        return root.ValueKind == JsonValueKind.Object
+            && root.TryGetProperty("latitude", out var lat) && lat.ValueKind == JsonValueKind.Number && lat.GetDouble() is >= -90 and <= 90 and var la
+            && root.TryGetProperty("longitude", out var lon) && lon.ValueKind == JsonValueKind.Number && lon.GetDouble() is >= -180 and <= 180 and var lo
+            ? (la, lo)
+            : null;
     }
 
     public static string? CountryName(string? code)

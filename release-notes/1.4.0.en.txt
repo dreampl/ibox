@@ -1,0 +1,10 @@
+IBOX 1.4.0
+
+New
+- Cancel while connecting: the main button becomes "Cancel" while IBOX tests servers, connects, retries or switches. A cancel stops everything at once (tests, cores, retries), restores the proxy and network, never leaves the kill switch blocking, and is back to "Not connected" in about a second.
+- New look (Windows): dark and light themes (System / Light / Dark, switches live), clay cards, icon rail, top bar with connection status, notifications and a light/dark switch, a new dashboard with a dotted world map, round flags, live traffic, speed test, server card and subscription strip.
+- Traffic priority: games first, then calls (Discord, Teams, Zoom, Telegram… never slowed), browsing, media players, and downloads and updates last while gaming or streaming.
+
+Better battery and CPU
+- IBOX's own background work (subscription refresh, update checks, server tests, tuning, DNS search, stats) waits on battery saver, while you game, stream or download, and heavy parts wait on metered networks or while IBOX is hidden.
+- Much lower idle use on Windows: animations draw only when something moves and stop when the window is minimized; test cores run at low priority.

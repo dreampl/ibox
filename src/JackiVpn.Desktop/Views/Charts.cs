@@ -26,6 +26,9 @@ public sealed class TrafficChart : FrameworkElement
     public static readonly DependencyProperty UpStrokeProperty = DependencyProperty.Register(
         nameof(UpStroke), typeof(Brush), typeof(TrafficChart), new FrameworkPropertyMetadata(Brushes.DodgerBlue, FrameworkPropertyMetadataOptions.AffectsRender));
 
+    public static readonly DependencyProperty UpFillProperty = DependencyProperty.Register(
+        nameof(UpFill), typeof(Brush), typeof(TrafficChart), new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+
     public static readonly DependencyProperty GridBrushProperty = DependencyProperty.Register(
         nameof(GridBrush), typeof(Brush), typeof(TrafficChart), new FrameworkPropertyMetadata(Brushes.Gray, FrameworkPropertyMetadataOptions.AffectsRender));
 
@@ -41,6 +44,8 @@ public sealed class TrafficChart : FrameworkElement
     public Brush? DownFill { get => (Brush?)GetValue(DownFillProperty); set => SetValue(DownFillProperty, value); }
 
     public Brush UpStroke { get => (Brush)GetValue(UpStrokeProperty); set => SetValue(UpStrokeProperty, value); }
+
+    public Brush? UpFill { get => (Brush?)GetValue(UpFillProperty); set => SetValue(UpFillProperty, value); }
 
     public Brush GridBrush { get => (Brush)GetValue(GridBrushProperty); set => SetValue(GridBrushProperty, value); }
 
@@ -71,29 +76,31 @@ public sealed class TrafficChart : FrameworkElement
         var top = 14.0;
         var plotH = h - top - 2;
 
-        if (down.Count > 1)
+        // Two soft areas (download over upload), each with its own gradient fill under a rounded line.
+        void Series(IReadOnlyList<double> values, Brush stroke, Brush? fill, double thickness)
         {
-            var line = Smooth(Points(down, w, plotH, top, max));
-            var area = line.Clone();
-            if (area.Figures.Count > 0)
+            var line = Smooth(Points(values, w, plotH, top, max));
+            if (fill is not null && line.Figures.Count > 0)
             {
+                var area = line.Clone();
                 var f = area.Figures[0];
                 f.Segments.Add(new LineSegment(new Point(w, h), false));
                 f.Segments.Add(new LineSegment(new Point(f.StartPoint.X, h), false));
                 f.IsClosed = true;
-            }
-
-            if (DownFill is { } fill)
-            {
                 dc.DrawGeometry(fill, null, area);
             }
 
-            dc.DrawGeometry(null, new Pen(DownStroke, 2) { LineJoin = PenLineJoin.Round }, line);
+            dc.DrawGeometry(null, new Pen(stroke, thickness) { LineJoin = PenLineJoin.Round, StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round }, line);
+        }
+
+        if (down.Count > 1)
+        {
+            Series(down, DownStroke, DownFill, 2.4);
         }
 
         if (up.Count > 1)
         {
-            dc.DrawGeometry(null, new Pen(UpStroke, 1.6) { LineJoin = PenLineJoin.Round }, Smooth(Points(up, w, plotH, top, max)));
+            Series(up, UpStroke, UpFill, 2);
         }
 
         var label = new FormattedText(ViewModels.Format.Speed((long)max), CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,

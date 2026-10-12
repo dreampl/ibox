@@ -50,7 +50,7 @@ public sealed class SettingsViewModel : SettingsPageViewModel
         ];
     }
 
-    public IReadOnlyList<AppTheme> Themes { get; } = Choices.Of<AppTheme>();
+    public IReadOnlyList<AppTheme> Themes { get; } = [AppTheme.System, AppTheme.Light, AppTheme.Dark];
 
     public IReadOnlyList<AppLogLevel> LogLevels { get; } = Choices.Of<AppLogLevel>();
 
