@@ -27,6 +27,24 @@ Android 10 or later
 4. Kill switch: Settings > Open Android VPN settings > gear next to IBOX > turn on "Always-on VPN" and
    "Block connections without VPN".
 
+Linux (Ubuntu / Debian, 64-bit)
+-------------------------------
+1. Install the package: sudo apt install ./jackivpn_<version>_amd64.deb
+   (or unpack jackivpn_<version>_amd64.tar.gz anywhere and run ./jackivpn from it).
+2. Open IBOX from the applications menu (or run: jackivpn gui). The package gives sing-box the network
+   permission TUN mode needs, so no sudo is needed to connect.
+3. Add your subscription link under Subscriptions and connect.
+Uninstall: sudo apt remove jackivpn
+
+New in 1.5.0
+------------
+- Profiles with their own encrypted settings (avatar at the bottom of the side bar).
+- Dual VPN in Work mode: Usage > Workplace > Dual VPN.
+- Node-based routing editor in the browser: Routing > Node editor.
+- DNS: smart, the network's own, or your own (also DNS-over-HTTPS); DNS per network adapter (DNS page).
+- AI agents (Claude…) through MCP or the ibox-ctl command line: Settings > AI agents (off by default).
+- Now playing in the notch; Linux gets the new look and the notch.
+
 New in 1.0.0
 ------------
 - New phone design and Persian language (Settings > Language).

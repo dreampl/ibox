@@ -27,7 +27,7 @@ public sealed class NotificationToggle(NotificationCategory category, string lab
     }
 }
 
-public sealed class SettingsViewModel : SettingsPageViewModel
+public sealed partial class SettingsViewModel : SettingsPageViewModel
 {
     private readonly AppServices _s;
 
@@ -73,6 +73,26 @@ public sealed class SettingsViewModel : SettingsPageViewModel
     public bool NotchShowCountry { get => S.Ui.Notch.ShowCountry; set => SetNotch(n => n with { ShowCountry = value }); }
 
     public bool NotchShowDuration { get => S.Ui.Notch.ShowDuration; set => SetNotch(n => n with { ShowDuration = value }); }
+
+    public bool AgentEnabled
+    {
+        get => S.Agent.Enabled;
+        set => Set(s => s with { Agent = s.Agent with { Enabled = value, AllowChanges = value && s.Agent.AllowChanges } });
+    }
+
+    public bool AgentAllowChanges
+    {
+        get => S.Agent.AllowChanges;
+        set => Set(s => s with { Agent = s.Agent with { AllowChanges = value } });
+    }
+
+    /// <summary>The MCP server entry for this install (ibox-ctl next to the app).</summary>
+    public string AgentConfig => "{\n  \"mcpServers\": {\n    \"ibox\": {\n      \"command\": " + System.Text.Json.JsonSerializer.Serialize(System.IO.Path.Combine(AppContext.BaseDirectory, "ibox-ctl.exe")) + ",\n      \"args\": [\"mcp\"]\n    }\n  }\n}";
+
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    private void CopyAgentConfig() => System.Windows.Clipboard.SetText(AgentConfig);
+
+    public bool NotchShowNowPlaying { get => S.Ui.Notch.ShowNowPlaying; set => SetNotch(n => n with { ShowNowPlaying = value }); }
 
     public bool NotchHideInFullScreen { get => S.Ui.Notch.HideInFullScreen; set => SetNotch(n => n with { HideInFullScreen = value }); }
 

@@ -391,9 +391,15 @@ public sealed record StartupSettings
     public bool UseSmartConnect { get; init; } = true;
 }
 
+/// <summary>A node's place on the routing editor's canvas.</summary>
+public sealed record NodePoint(double X, double Y);
+
 public sealed record UiSettings
 {
     public AppTheme Theme { get; init; } = AppTheme.System;
+
+    /// <summary>Where the node editor placed each node (rules "r:{id}", conditions "c:{id}:{n}", actions "a:{type}").</summary>
+    public IReadOnlyDictionary<string, NodePoint> RoutingLayout { get; init; } = new Dictionary<string, NodePoint>(StringComparer.Ordinal);
     public bool CloseToTray { get; init; } = true;
 
     /// <summary>Force reduced motion regardless of the Windows setting.</summary>
@@ -454,6 +460,9 @@ public sealed record NotchSettings
     public bool ShowServer { get; init; }
     public bool ShowCountry { get; init; }
     public bool ShowDuration { get; init; }
+
+    /// <summary>What is playing (music, video) with play/pause, next and previous.</summary>
+    public bool ShowNowPlaying { get; init; } = true;
 
     /// <summary>Horizontal position on the top edge, 0 = left … 1 = right.</summary>
     public double Position { get; init; } = 0.5;
@@ -625,4 +634,18 @@ public sealed record AppSettings
     public TrafficControlSettings Traffic { get; init; } = new();
     public WorkplaceSettings Workplace { get; init; } = new();
     public ConnectivitySettings Connectivity { get; init; } = new();
+
+    /// <summary>Control by the command line and AI agents (MCP). Off by default.</summary>
+    public AgentSettings Agent { get; init; } = new();
+}
+
+/// <summary>
+/// The local control channel for the command line and AI agents (MCP). Only the same OS user can reach it. Reading
+/// (status, servers, rules) needs <see cref="Enabled"/>; changing anything also needs <see cref="AllowChanges"/>.
+/// </summary>
+public sealed record AgentSettings
+{
+    public bool Enabled { get; init; }
+
+    public bool AllowChanges { get; init; }
 }

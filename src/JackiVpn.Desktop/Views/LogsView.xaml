@@ -1,6 +1,7 @@
 <UserControl x:Class="JackiVpn.Desktop.Views.LogsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="clr-namespace:JackiVpn.Desktop.Views"
              xmlns:vm="clr-namespace:JackiVpn.Desktop.ViewModels">
     <DockPanel Margin="32,26,32,16">
         <StackPanel DockPanel.Dock="Top">
@@ -26,7 +27,7 @@
                 </StackPanel>
             </DockPanel>
         </StackPanel>
-        <Border Background="{DynamicResource B.Card}" BorderBrush="{DynamicResource B.Border}" BorderThickness="1" CornerRadius="8" Padding="6">
+        <v:ClaySurface CornerRadius="22" Padding="8">
             <ListBox x:Name="List" ItemsSource="{Binding View}" Style="{StaticResource List.Plain}" FontFamily="{StaticResource MonoFont}" FontSize="12"
                      VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
                 <ListBox.ItemContainerStyle>
@@ -70,6 +71,6 @@
                     </DataTemplate>
                 </ListBox.ItemTemplate>
             </ListBox>
-        </Border>
+        </v:ClaySurface>
     </DockPanel>
 </UserControl>

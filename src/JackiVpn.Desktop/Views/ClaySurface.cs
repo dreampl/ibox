@@ -14,7 +14,7 @@ public sealed class ClaySurface : ContentControl
     public static readonly DependencyProperty CornerRadiusProperty = DependencyProperty.Register(
         nameof(CornerRadius), typeof(CornerRadius), typeof(ClaySurface), new FrameworkPropertyMetadata(new CornerRadius(20)));
 
-    /// <summary>Raised = stronger shadow (hero), Flat = no shadow (nested surfaces).</summary>
+    /// <summary>Raised = stronger shadow (the dashboard hero), Flat = no shadow (nested surfaces).</summary>
     public static readonly DependencyProperty ElevationProperty = DependencyProperty.Register(
         nameof(Elevation), typeof(ClayElevation), typeof(ClaySurface), new FrameworkPropertyMetadata(ClayElevation.Normal));
 
@@ -29,4 +29,5 @@ public enum ClayElevation
 {
     Normal = 0,
     Flat,
+    Raised,
 }

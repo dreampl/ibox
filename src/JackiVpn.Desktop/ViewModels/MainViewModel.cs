@@ -40,6 +40,12 @@ public sealed partial class MainViewModel : ObservableObject
     public MainViewModel(AppServices services, IDialogService dialogs)
     {
         _services = services;
+        services.Accounts.Changed += (_, _) => Ui.Post(() =>
+        {
+            OnPropertyChanged(nameof(ActiveAccount));
+            OnPropertyChanged(nameof(ActivePicture));
+            OnPropertyChanged(nameof(ProfileTip));
+        });
         Dashboard = new DashboardViewModel(services, dialogs, this);
         Servers = new ServersViewModel(services, dialogs);
         Subscriptions = new SubscriptionsViewModel(services, dialogs);
@@ -171,6 +177,17 @@ public sealed partial class MainViewModel : ObservableObject
         Notices.Clear();
         UnreadNotices = 0;
     }
+
+    /// <summary>The rail's profile button: switch, add and edit local profiles.</summary>
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    private void OpenProfiles() => new Views.ProfilesWindow(_services).Show();
+
+    /// <summary>The active profile, for the rail avatar.</summary>
+    public Application.Accounts.LocalAccount? ActiveAccount => _services.Accounts.Active;
+
+    public string? ActivePicture => ActiveAccount is { } a ? _services.Accounts.PicturePath(a) : null;
+
+    public string ProfileTip => ActiveAccount is { } a ? "Profile: " + a.Name : "Profile";
 
     /// <summary>The top bar's light/dark switch (leaves "System" for the shown opposite).</summary>
     [CommunityToolkit.Mvvm.Input.RelayCommand]

@@ -412,6 +412,9 @@
                                 <DockPanel Margin="0,6">
                                     <Button DockPanel.Dock="Right" Style="{StaticResource Button.Ghost}" Content="Remove"
                                             Command="{Binding Tag.RemoveWorkplaceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
+                                    <Button DockPanel.Dock="Right" Style="{StaticResource Button.Ghost}" Content="Dual VPN…" Margin="0,0,6,0"
+                                            ToolTip="Away from the office, in Work mode: company traffic through a work VPN, everything else through this one"
+                                            Command="{Binding Tag.EditDualVpnCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
                                     <StackPanel>
                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
                                         <TextBlock Style="{StaticResource Text.Caption}" TextTrimming="CharacterEllipsis">
@@ -419,6 +422,11 @@
                                             <Run Text="{Binding InternalDomains[0], Mode=OneWay, FallbackValue='—'}" />
                                             <Run Text="{Binding InternalCidrs[0], Mode=OneWay, FallbackValue=''}" />
                                             <Run Text="{Binding PolicyKeySha256, Mode=OneWay, StringFormat='· signed policy {0}', FallbackValue=''}" />
+                                        </TextBlock>
+                                        <TextBlock Style="{StaticResource Text.Caption}" Foreground="{DynamicResource B.Accent}" TextTrimming="CharacterEllipsis">
+                                            <Run Text="Dual VPN:" />
+                                            <Run Text="{Binding DualVpn.Route, Mode=OneWay}" />
+                                            <Run Text="{Binding DualVpn.Interface, Mode=OneWay, FallbackValue=''}" />
                                         </TextBlock>
                                     </StackPanel>
                                 </DockPanel>

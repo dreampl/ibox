@@ -7,6 +7,8 @@
         <StackPanel Margin="32,26,32,26" v:Motion.StaggerChildren="True">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
+                    <Button Style="{StaticResource Button.Outline}" Content="Node editor…" Command="{Binding OpenNodeEditorCommand}" Margin="0,0,8,0"
+                            ToolTip="Edit the rules as connected nodes in your browser" />
                     <Button Content="Import…" Command="{Binding ImportCommand}" Margin="0,0,8,0" />
                     <Button Content="Export…" Command="{Binding ExportCommand}" />
                 </StackPanel>

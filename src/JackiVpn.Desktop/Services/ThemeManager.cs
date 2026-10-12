@@ -124,7 +124,11 @@ public static partial class ThemeManager
             GradientStops = [new GradientStop(light ? Colors.White : C("C.CardHover"), 0), new GradientStop(C("C.Idle"), 0.6), new GradientStop(C("C.Idle2"), 1)],
         });
         dict["E.ClayShadow"] = Frozen(new DropShadowEffect { Color = C("C.Shadow"), BlurRadius = light ? 34 : 30, ShadowDepth = light ? 10 : 8, Direction = 290, Opacity = shadowOpacity, RenderingBias = RenderingBias.Performance });
-        dict["E.ClayLight"] = Frozen(new DropShadowEffect { Color = C("C.ShadowLight"), BlurRadius = 18, ShadowDepth = light ? 6 : 2, Direction = 120, Opacity = lightOpacity, RenderingBias = RenderingBias.Performance });
+        dict["E.ClayShadowRaised"] = Frozen(new DropShadowEffect { Color = C("C.Shadow"), BlurRadius = light ? 44 : 40, ShadowDepth = light ? 14 : 12, Direction = 290, Opacity = Math.Min(1, shadowOpacity * 1.15), RenderingBias = RenderingBias.Performance });
+
+        // The white glow only shows on the light theme; on the dark one it would be invisible work for the GPU.
+        dict["V.LightOnly"] = light ? Visibility.Visible : Visibility.Collapsed;
+        dict["E.ClayLight"] = light ? Frozen(new DropShadowEffect { Color = C("C.ShadowLight"), BlurRadius = 18, ShadowDepth = 6, Direction = 120, Opacity = lightOpacity, RenderingBias = RenderingBias.Performance }) : null;
         dict["E.SoftShadow"] = Frozen(new DropShadowEffect { Color = C("C.Shadow"), BlurRadius = 16, ShadowDepth = 4, Direction = 290, Opacity = shadowOpacity * 0.8, RenderingBias = RenderingBias.Performance });
         dict["E.AccentGlow"] = Frozen(new DropShadowEffect { Color = C("C.Accent"), BlurRadius = 18, ShadowDepth = 3, Direction = 270, Opacity = light ? 0.35 : 0.5, RenderingBias = RenderingBias.Performance });
 

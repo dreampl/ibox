@@ -65,6 +65,7 @@ public sealed class AppServices : IAsyncDisposable
         ConnectionHistory = new SqliteConnectionHistoryRepository(Database);
         Settings = new SettingsStore(new SqliteSettingsRepository(Database), LoggerFactory.CreateLogger("JackiVpn.Settings"));
         Func<AppSettings> settings = () => Settings.Current;
+        Accounts = new Application.Accounts.LocalAccountService(System.IO.Path.Combine(Paths.UserDataRoot, "profiles"), protector, Settings, LoggerFactory.CreateLogger("JackiVpn.Profiles"));
 
         Catalog = new CoreBinaryCatalog(Paths.CoresDir);
         SingBox = new SingBoxCoreEngine(Catalog, LoggerFactory.CreateLogger<SingBoxCoreEngine>());
@@ -170,6 +171,22 @@ public sealed class AppServices : IAsyncDisposable
         };
         Traffic = new Application.Traffic.TrafficController(Orchestrator, settings, Workplace, Usage, LoggerFactory.CreateLogger("JackiVpn.Traffic"));
         RoutingWatcher = new Application.Routing.RoutingWatcher(Settings, Orchestrator, LoggerFactory.CreateLogger("JackiVpn.Routing"));
+        RoutingEditor = new Application.Routing.RoutingEditorServer(Settings, LoggerFactory.CreateLogger("JackiVpn.RoutingEditor"));
+        Agent = new Application.Agent.AgentPipeServer(
+            new Application.Agent.AgentController(new Application.Agent.AgentDependencies
+            {
+                Settings = Settings,
+                Orchestrator = Orchestrator,
+                Profiles = Profiles,
+                Health = Health.Snapshot,
+                CountryOf = fp => Insights.Get(fp)?.Exit?.CountryCode,
+                DnsFinder = DnsFinder,
+                SpeedTest = SpeedTest,
+                Logger = LoggerFactory.CreateLogger("JackiVpn.Agent"),
+            }),
+            () => Settings.Current.Agent,
+            LoggerFactory.CreateLogger("JackiVpn.Agent"));
+        Settings.Changed += (_, _) => Agent.Sync();
     }
 
     public Application.Connectivity.DnsFinder DnsFinder { get; }
@@ -222,6 +239,12 @@ public sealed class AppServices : IAsyncDisposable
     /// <summary>Applies routing changes to the running connection.</summary>
     public Application.Routing.RoutingWatcher RoutingWatcher { get; }
 
+    /// <summary>The node-based routing editor in the browser (loopback, on demand).</summary>
+    public Application.Routing.RoutingEditorServer RoutingEditor { get; }
+
+    /// <summary>Control by the command line and AI agents (MCP), when the user turns it on.</summary>
+    public Application.Agent.AgentPipeServer Agent { get; }
+
     public AppPaths Paths { get; }
     public LogBuffer LogBuffer { get; }
     public LoggingOptions LoggingOptions { get; }
@@ -264,6 +287,9 @@ public sealed class AppServices : IAsyncDisposable
     public ProfileService ProfileService { get; }
     public RuleSetManager RuleSets { get; }
     public ServiceControl Service { get; }
+
+    /// <summary>Local profiles: each person's own (encrypted) settings.</summary>
+    public Application.Accounts.LocalAccountService Accounts { get; }
 
     /// <summary>DNS servers of the network adapters (changed through the service).</summary>
     public Application.Connectivity.AdapterDnsService AdapterDns { get; }
@@ -341,6 +367,9 @@ public sealed class AppServices : IAsyncDisposable
     {
         try
         {
+            await Accounts.SaveActiveAsync(CancellationToken.None).ConfigureAwait(false);
+            await Agent.DisposeAsync().ConfigureAwait(false);
+            await RoutingEditor.DisposeAsync().ConfigureAwait(false);
             await Orchestrator.DisposeAsync().ConfigureAwait(false);
         }
         finally

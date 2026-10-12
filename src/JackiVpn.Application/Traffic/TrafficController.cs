@@ -125,11 +125,22 @@ public sealed class TrafficController
             (mode, reason) = (TrafficMode.Normal, "normal");
         }
 
+        // Dual VPN: away from the office, Work mode brings the workplace along (its company traffic takes the work VPN).
+        var away = false;
+        if (work is null && mode == TrafficMode.Work && s.Workplace.Profiles.FirstOrDefault(p => p.DualVpn.IsOn) is { } remote)
+        {
+            (work, away) = (remote, true);
+            Reason = reason + " · dual VPN: " + remote.Name;
+        }
+        else
+        {
+            Reason = reason;
+        }
+
         Mode = mode;
-        Reason = reason;
         lock (_gate)
         {
-            return new TrafficContext { Mode = mode, Workplace = work, ProcessAware = ProcessAware, GamePath = _game.Path, GameFamily = _game.Family };
+            return new TrafficContext { Mode = mode, Workplace = work, Away = away, ProcessAware = ProcessAware, GamePath = _game.Path, GameFamily = _game.Family };
         }
     }
 

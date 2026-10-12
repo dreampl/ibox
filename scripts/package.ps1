@@ -49,7 +49,7 @@ try {
 
         $payload = Join-Path $publish 'win-x64'
         if (Test-Path $payload) { Remove-Item -Recurse -Force $payload }
-        foreach ($project in 'src\JackiVpn.Desktop\JackiVpn.Desktop.csproj', 'src\JackiVpn.Service\JackiVpn.Service.csproj') {
+        foreach ($project in 'src\JackiVpn.Desktop\JackiVpn.Desktop.csproj', 'src\JackiVpn.Service\JackiVpn.Service.csproj', 'src\JackiVpn.AgentCli\JackiVpn.AgentCli.csproj') {
             Write-Step "Publishing $project (self-contained win-x64)"
             Invoke-Dotnet publish $project -c Release -r win-x64 --self-contained true -o $payload --nologo
         }

@@ -74,3 +74,12 @@ public sealed partial record AdapterDnsChange(string AdapterId, IReadOnlyList<st
     [GeneratedRegex(@"^[A-Za-z0-9][A-Za-z0-9_.@-]{0,14}$")]
     public static partial Regex LinuxDevice();
 }
+
+/// <summary>Network adapter names as the OS shows them ("Ethernet 2", "OpenVPN Connect DCO Adapter", "tun0").</summary>
+public static partial class AdapterNames
+{
+    public static bool IsValid(string? name) => name is { Length: > 0 and <= 64 } && Friendly().IsMatch(name) && name.Trim() == name;
+
+    [GeneratedRegex(@"^[\p{L}\p{N}][\p{L}\p{N} _.@#()+\-]*$")]
+    private static partial Regex Friendly();
+}

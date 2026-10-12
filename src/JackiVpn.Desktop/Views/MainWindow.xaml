@@ -49,11 +49,10 @@
                 <DockPanel>
                     <!-- Profile (local profiles: phase 4) -->
                     <Button DockPanel.Dock="Bottom" Style="{StaticResource Button.Ghost}" HorizontalAlignment="Center" Margin="0,8,0,0" Padding="6,6"
-                            ToolTip="Profile" AutomationProperties.Name="Profile" Command="{Binding OpenProfilesCommand}">
+                            ToolTip="{Binding ProfileTip}" AutomationProperties.Name="Profile" Command="{Binding OpenProfilesCommand}">
                         <StackPanel Orientation="Horizontal">
-                            <Border Width="34" Height="34" CornerRadius="17" Background="{DynamicResource B.TileFill}" BorderBrush="{DynamicResource B.Border}" BorderThickness="1">
-                                <TextBlock Style="{StaticResource Icon}" Text="&#xE77B;" FontSize="16" Foreground="{DynamicResource B.TextSecondary}" />
-                            </Border>
+                            <v:AvatarView Width="34" Height="34" Initials="{Binding ActiveAccount.Initials, FallbackValue=''}" ColorIndex="{Binding ActiveAccount.Color, FallbackValue=0}"
+                                          PicturePath="{Binding ActivePicture}" />
                             <TextBlock Style="{StaticResource Icon}" Text="&#xE70D;" FontSize="9" Margin="6,0,0,0" Foreground="{DynamicResource B.TextMuted}" />
                         </StackPanel>
                     </Button>

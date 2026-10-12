@@ -26,6 +26,7 @@
     <ProjectReference Include="..\..\src\JackiVpn.Application\JackiVpn.Application.csproj" />
     <ProjectReference Include="..\..\src\JackiVpn.Ipc\JackiVpn.Ipc.csproj" />
     <ProjectReference Include="..\..\src\JackiVpn.Infrastructure\JackiVpn.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\JackiVpn.Agent\JackiVpn.Agent.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Fixtures\**\*" CopyToOutputDirectory="PreserveNewest" />

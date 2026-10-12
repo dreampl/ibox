@@ -13,6 +13,7 @@
   <ItemGroup>
     <ProjectReference Include="..\JackiVpn.Application\JackiVpn.Application.csproj" />
     <ProjectReference Include="..\JackiVpn.Infrastructure\JackiVpn.Infrastructure.csproj" />
+    <ProjectReference Include="..\JackiVpn.Agent\JackiVpn.Agent.csproj" />
     <PackageReference Include="Avalonia" />
     <PackageReference Include="Avalonia.Desktop" />
     <PackageReference Include="Avalonia.Themes.Fluent" />

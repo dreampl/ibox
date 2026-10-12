@@ -42,22 +42,15 @@ public sealed class OrbView : Control
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
-        if (!Running.Contains(this))
-        {
-            Running.Add(this);
-        }
-
-        _timer ??= new DispatcherTimer(TimeSpan.FromMilliseconds(33), DispatcherPriority.Render, (_, _) => Tick());
-        _timer.Start();
+        _attached = true;
+        Sync();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
-        if (Running.Remove(this) && Running.Count == 0)
-        {
-            _timer?.Stop();
-        }
+        _attached = false;
+        Sync();
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -67,6 +60,34 @@ public sealed class OrbView : Control
         {
             _brushes.Clear();
             _pens.Clear();
+        }
+        else if (change.Property == IsVisibleProperty)
+        {
+            Sync();
+        }
+    }
+
+    private bool _attached;
+
+    /// <summary>
+    /// Only orbs on screen and visible keep the shared 30 fps timer alive: a hidden orb (the connect button's, a
+    /// "testing…" one) would otherwise wake the UI thread 30 times a second for nothing.
+    /// </summary>
+    private void Sync()
+    {
+        if (_attached && IsVisible)
+        {
+            if (!Running.Contains(this))
+            {
+                Running.Add(this);
+            }
+
+            _timer ??= new DispatcherTimer(TimeSpan.FromMilliseconds(33), DispatcherPriority.Render, (_, _) => Tick());
+            _timer.Start();
+        }
+        else if (Running.Remove(this) && Running.Count == 0)
+        {
+            _timer?.Stop();
         }
     }
 

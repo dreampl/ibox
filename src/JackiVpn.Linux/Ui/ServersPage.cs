@@ -49,15 +49,21 @@ public sealed class ServersPage(Shell shell) : Page(shell)
             },
         };
         _search.TextChanged += (_, _) => Render();
-        S.Health.Progress += (_, _) => QueueRender();
-        S.Orchestrator.StatusChanged += (_, st) =>
+        EventHandler<Application.Health.ProbeProgress> progress = (_, _) => QueueRender();
+        S.Health.Progress += progress;
+        Track(() => S.Health.Progress -= progress);
+        EventHandler<ConnectionStatus> status = (_, st) =>
         {
             if (st.State is ConnectionState.Connected or ConnectionState.Disconnected)
             {
                 QueueRender();
             }
         };
-        S.SubscriptionService.Updated += (_, _) => Dispatcher.UIThread.Post(() => _ = LoadAsync());
+        S.Orchestrator.StatusChanged += status;
+        Track(() => S.Orchestrator.StatusChanged -= status);
+        EventHandler<Application.Subscriptions.SubscriptionUpdateReport> updated = (_, _) => Dispatcher.UIThread.Post(() => _ = LoadAsync());
+        S.SubscriptionService.Updated += updated;
+        Track(() => S.SubscriptionService.Updated -= updated);
         return new StackPanel
         {
             Children =
@@ -238,27 +244,34 @@ public sealed class ServersPage(Shell shell) : Page(shell)
         var more = new Button { Content = Icon(Icons.More, 18, Text2, 3), Background = Brushes.Transparent, Padding = new Thickness(6), ContextMenu = Menu(p, isDefault) };
         more.Click += (_, _) => more.ContextMenu?.Open(more);
 
-        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto,Auto"), ColumnSpacing = 12 };
+        // Round flag of the exit IBOX last saw for this server (initials badge until it has connected once).
+        var flag = new FlagView { Width = 38, Height = 38, CountryCode = S.Insights.Get(p.Fingerprint)?.Exit?.CountryCode ?? Domain.Visuals.CountryGuess.FromName(p.DisplayName), VerticalAlignment = VerticalAlignment.Center };
+        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto,Auto,Auto"), ColumnSpacing = 14 };
+        grid.Children.Add(flag);
+        Grid.SetColumn(info, 1);
         grid.Children.Add(info);
-        Grid.SetColumn(latencyText, 1);
+        Grid.SetColumn(latencyText, 2);
         grid.Children.Add(latencyText);
-        Grid.SetColumn(connect, 2);
+        Grid.SetColumn(connect, 3);
         grid.Children.Add(connect);
-        Grid.SetColumn(more, 3);
+        Grid.SetColumn(more, 4);
         grid.Children.Add(more);
 
+        IBrush Rest() => active ? B(Success, Look.P.IsLight ? 0.07 : 0.1) : CardFill;
         var row = new Border
         {
-            Background = B(active ? CardHover : CardBg),
-            BorderBrush = B(active ? Success : isDefault ? Accent : Ui.Border, active || isDefault ? 0.6 : 1),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(10),
-            Padding = new Thickness(14, 9),
+            Background = Rest(),
+            BorderBrush = B(active ? Success : isDefault ? Accent : Ui.Border, active || isDefault ? 0.7 : (Look.P.IsLight ? 0.9 : 0.55)),
+            BorderThickness = new Thickness(active || isDefault ? 1.5 : 1),
+            CornerRadius = new CornerRadius(18),
+            Padding = new Thickness(14, 10),
+            Margin = new Thickness(0, 0, 0, 4),
+            BoxShadow = ClayShadow(),
             Child = grid,
             ContextMenu = Menu(p, isDefault),
         };
         row.PointerEntered += (_, _) => row.Background = B(CardHover);
-        row.PointerExited += (_, _) => row.Background = B(active ? CardHover : CardBg);
+        row.PointerExited += (_, _) => row.Background = Rest();
         row.DoubleTapped += (_, _) => _ = ConnectAsync(p);
         return row;
     }

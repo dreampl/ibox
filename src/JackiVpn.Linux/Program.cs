@@ -19,6 +19,8 @@ const string Usage = """
                                                  proxy mode (default): 127.0.0.1:10808 + GNOME proxy
                                                  --tun: whole system
       jackivpn remove-subscription <number>
+      jackivpn ctl status|connect|disconnect|…  control the running window (see: jackivpn ctl help)
+      jackivpn mcp                              MCP server for AI agents (talks to the running window)
 
     Ctrl+C disconnects.
     """;
@@ -32,6 +34,17 @@ if (args.Length == 0 || args[0] == "gui")
     }
 
     return AppBuilder.Configure<JackiVpn.Linux.Ui.GuiApp>().UsePlatformDetect().StartWithClassicDesktopLifetime(args);
+}
+
+// AI agents and scripts: control the running window over its local pipe (MCP server, or one-shot commands).
+if (args[0] == "mcp")
+{
+    return await JackiVpn.Agent.AgentCli.RunAsync(["mcp"], Console.Out, Console.Error, "jackivpn ctl");
+}
+
+if (args[0] == "ctl")
+{
+    return await JackiVpn.Agent.AgentCli.RunAsync(args[1..], Console.Out, Console.Error, "jackivpn ctl");
 }
 
 if (args[0] is "help" or "-h" or "--help")

@@ -564,6 +564,25 @@ public sealed partial class UsageViewModel : SettingsPageViewModel
     }
 
     [RelayCommand]
+    private async Task EditDualVpnAsync(WorkplaceProfile? profile)
+    {
+        if (profile is null)
+        {
+            return;
+        }
+
+        var servers = await _services.Profiles.GetAllAsync(System.Threading.CancellationToken.None);
+        if (Views.DualVpnWindow.Edit(profile, servers) is not { } edited)
+        {
+            return;
+        }
+
+        Set(s => s with { Workplace = s.Workplace with { Profiles = s.Workplace.Profiles.Select(p => p.Id == edited.Id ? edited : p).ToArray() } });
+        _ = _services.Traffic.SettingsChangedAsync();
+        RefreshWorkplace();
+    }
+
+    [RelayCommand]
     private void RemoveWorkplace(WorkplaceProfile? profile)
     {
         if (profile is not null && _dialogs.Confirm("Remove workplace", $"Remove \"{profile.Name}\"?"))

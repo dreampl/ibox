@@ -1,0 +1,726 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>IBOX Routing Editor</title>
+<style>
+:root {
+  --bg: #0D1322; --bg2: #111A2C; --card: #161F33; --card2: #131B2D; --hover: #1C2740; --tile: #1D2840; --input: #19233A;
+  --border: #263350; --hl: rgba(255,255,255,.07); --shadow: rgba(2,5,12,.55); --text: #F1F5F9; --text2: #94A3B8; --muted: #64748B;
+  --accent: #3B82F6; --accent2: #7C6CF6; --ok: #22C55E; --warn: #F59E0B; --danger: #EF4444; --grid: rgba(148,163,184,.07);
+  color-scheme: dark;
+}
+:root.light {
+  --bg: #EDF1F7; --bg2: #F5F7FB; --card: #FFFFFF; --card2: #FAFBFE; --hover: #F3F6FB; --tile: #EFF3F9; --input: #F1F4F9;
+  --border: #E2E8F0; --hl: #FFFFFF; --shadow: rgba(124,141,176,.22); --text: #1E293B; --text2: #64748B; --muted: #94A3B8;
+  --accent: #3B82F6; --accent2: #6A8DF8; --ok: #22C55E; --warn: #F59E0B; --danger: #EF4444; --grid: rgba(100,116,139,.09);
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 13px/1.4 Inter, "Segoe UI", system-ui, -apple-system, sans-serif; overflow: hidden; }
+button, input, select, textarea { font: inherit; color: inherit; }
+.top { position: fixed; inset: 0 0 auto 0; height: 60px; display: flex; align-items: center; gap: 10px; padding: 0 18px; background: var(--bg); z-index: 20; }
+.logo { font-weight: 800; letter-spacing: .5px; font-size: 18px; margin-right: 6px; }
+.logo span { color: var(--accent); }
+.title { font-size: 15px; font-weight: 600; }
+.sub { color: var(--text2); font-size: 12px; }
+.spacer { flex: 1; }
+.btn { border: 1px solid var(--border); background: var(--card); border-radius: 12px; padding: 7px 13px; cursor: pointer; box-shadow: 0 2px 8px var(--shadow); white-space: nowrap; }
+.btn:hover { background: var(--hover); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.round { width: 36px; height: 36px; padding: 0; border-radius: 18px; display: inline-grid; place-items: center; }
+.btn:disabled { opacity: .5; cursor: default; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; background: var(--card); border: 1px solid var(--border); font-size: 12px; }
+.dot { width: 8px; height: 8px; border-radius: 4px; background: var(--muted); }
+.dot.dirty { background: var(--warn); }
+.dot.saved { background: var(--ok); }
+.menu { position: relative; }
+.menu-list { position: absolute; top: 42px; left: 0; min-width: 230px; background: var(--card); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 12px 32px var(--shadow); padding: 6px; display: none; z-index: 30; }
+.menu.open .menu-list { display: block; }
+.menu-list button { display: flex; width: 100%; text-align: left; border: 0; background: none; padding: 8px 10px; border-radius: 9px; cursor: pointer; gap: 8px; align-items: center; }
+.menu-list button:hover { background: var(--hover); }
+.side { position: fixed; top: 60px; bottom: 0; width: 280px; padding: 0 14px 14px; z-index: 10; display: flex; flex-direction: column; gap: 12px; overflow: auto; }
+.left { left: 0; }
+.right { right: 0; width: 320px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 14px; box-shadow: 0 6px 22px var(--shadow), inset 0 1px 0 var(--hl); }
+.card h3 { margin: 0 0 4px; font-size: 13.5px; }
+.card .hint { color: var(--text2); font-size: 11.5px; margin: 0 0 10px; }
+.order { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.order li { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 11px; background: var(--tile); cursor: grab; border: 1px solid transparent; }
+.order li.sel { border-color: var(--accent); }
+.order li.off { opacity: .55; }
+.order li.drop { border-top: 2px solid var(--accent); }
+.order .n { color: var(--muted); font-variant-numeric: tabular-nums; width: 20px; }
+.order .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tag { font-size: 10.5px; font-weight: 700; letter-spacing: .3px; padding: 2px 7px; border-radius: 999px; text-transform: uppercase; }
+.t-Proxy { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+.t-Direct { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+.t-Block { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger); }
+.t-none { background: var(--input); color: var(--muted); }
+label.f { display: block; color: var(--text2); font-size: 11.5px; margin: 10px 0 4px; }
+.inp { width: 100%; background: var(--input); border: 1px solid var(--border); border-radius: 10px; padding: 7px 9px; outline: none; }
+.inp:focus { border-color: var(--accent); }
+textarea.inp { min-height: 120px; resize: vertical; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+.row { display: flex; gap: 8px; align-items: center; }
+.check { display: flex; gap: 8px; align-items: center; margin-top: 10px; cursor: pointer; }
+.problems { color: var(--danger); font-size: 12px; margin: 8px 0 0; padding-left: 16px; }
+#viewport { position: fixed; inset: 60px 334px 0 294px; overflow: hidden; border-radius: 22px 22px 0 0; background: var(--bg2);
+  background-image: radial-gradient(var(--grid) 1.2px, transparent 1.2px); background-size: 22px 22px; cursor: grab; touch-action: none; }
+#viewport.panning { cursor: grabbing; }
+#world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+#edges { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; }
+.edge { fill: none; stroke: var(--muted); stroke-width: 2.4; opacity: .8; }
+.edge.hit { stroke: transparent; stroke-width: 14; cursor: pointer; opacity: 1; }
+.edge.Proxy { stroke: var(--accent); } .edge.Direct { stroke: var(--ok); } .edge.Block { stroke: var(--danger); }
+.edge.sel { stroke-width: 4; opacity: 1; }
+.edge.dim { opacity: .18; }
+.edge.temp { stroke: var(--accent); stroke-dasharray: 6 5; }
+.node { position: absolute; width: 250px; background: var(--card); border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 8px 24px var(--shadow), inset 0 1px 0 var(--hl); user-select: none; }
+.node.sel { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent), 0 8px 24px var(--shadow); }
+.node.bad { border-color: var(--danger); }
+.node.dim { opacity: .35; }
+.node.match { box-shadow: 0 0 0 4px color-mix(in srgb, var(--ok) 45%, transparent), 0 8px 24px var(--shadow); }
+.node.off { opacity: .55; }
+.nh { display: flex; align-items: center; gap: 9px; padding: 10px 12px; cursor: move; }
+.ic { width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center; flex: none; font-size: 14px; }
+.nt { font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nb { padding: 0 12px 11px; color: var(--text2); font-size: 12px; word-break: break-all; }
+.nb .v { display: inline-block; background: var(--tile); padding: 1px 7px; border-radius: 7px; margin: 2px 4px 0 0; color: var(--text); font-family: ui-monospace, Consolas, monospace; font-size: 11.5px; }
+.prio { font-size: 11px; color: var(--muted); font-weight: 700; }
+.port { position: absolute; top: 22px; width: 14px; height: 14px; border-radius: 7px; background: var(--card); border: 2.5px solid var(--muted); cursor: crosshair; }
+.port.out { right: -8px; } .port.in { left: -8px; }
+.port:hover, .port.hot { border-color: var(--accent); background: var(--accent); }
+.k-dest .ic { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+.k-app .ic { background: color-mix(in srgb, var(--accent2) 18%, transparent); color: var(--accent2); }
+.k-net .ic { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+.k-rule .ic { background: var(--tile); color: var(--text); }
+.node.action { width: 200px; }
+.a-Proxy .ic { background: var(--accent); color: #fff; } .a-Direct .ic { background: var(--ok); color: #fff; } .a-Block .ic { background: var(--danger); color: #fff; }
+.node.final .ic { background: var(--tile); color: var(--text2); }
+.zoom { position: fixed; right: 348px; bottom: 16px; display: flex; gap: 6px; z-index: 15; }
+.toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 10px 16px; box-shadow: 0 12px 32px var(--shadow); z-index: 40; display: none; max-width: 560px; }
+.toast.err { border-color: var(--danger); }
+.result { margin-top: 10px; padding: 10px; border-radius: 12px; background: var(--tile); font-size: 12px; display: none; }
+.empty { color: var(--muted); font-size: 12px; }
+kbd { background: var(--tile); border-radius: 5px; padding: 0 5px; font-size: 11px; }
+@media (max-width: 1100px) { .right { display: none; } #viewport { right: 0; } .zoom { right: 14px; } }
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="logo">I<span>BOX</span></div>
+  <div>
+    <div class="title">Routing editor</div>
+    <div class="sub">Conditions → rules → where traffic goes. The first matching rule wins.</div>
+  </div>
+  <div class="spacer"></div>
+  <span class="pill"><span class="dot" id="state-dot"></span><span id="state">Loading…</span></span>
+  <div class="menu" id="add-menu">
+    <button class="btn" id="add-btn">＋ Add</button>
+    <div class="menu-list" id="add-list"></div>
+  </div>
+  <button class="btn" id="arrange" title="Arrange the nodes in columns">Arrange</button>
+  <button class="btn" id="reload" title="Discard changes and load the saved rules">Reload</button>
+  <button class="btn primary" id="save" title="Save and apply (Ctrl+S)">Save &amp; apply</button>
+  <button class="btn round" id="theme" title="Theme: dark, light, system"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5a6.5 6.5 0 0 1 0 13z" fill="currentColor"/></svg></button>
+</div>
+
+<div class="side left">
+  <div class="card">
+    <h3>Order</h3>
+    <p class="hint">Drag to reorder. Traffic takes the first rule that matches.</p>
+    <ul class="order" id="order"></ul>
+    <p class="empty" id="order-empty">No rules yet. Add a rule and connect conditions to it.</p>
+  </div>
+  <div class="card">
+    <h3>Test a destination</h3>
+    <p class="hint">Checks the <b>saved</b> rules, as the app routes.</p>
+    <input class="inp" id="t-dest" placeholder="example.com or 1.2.3.4">
+    <div class="row" style="margin-top:8px">
+      <input class="inp" id="t-port" placeholder="Port (443)" style="width:50%">
+      <select class="inp" id="t-net" style="width:50%"><option>tcp</option><option>udp</option></select>
+    </div>
+    <input class="inp" id="t-app" placeholder="App (optional), e.g. telegram.exe" style="margin-top:8px">
+    <button class="btn" id="t-run" style="margin-top:10px;width:100%">Test</button>
+    <div class="result" id="t-result"></div>
+  </div>
+</div>
+
+<div id="viewport">
+  <div id="world"><svg id="edges"></svg></div>
+</div>
+<div class="zoom">
+  <button class="btn round" id="z-out" title="Zoom out">−</button>
+  <button class="btn round" id="z-fit" title="Fit">⤢</button>
+  <button class="btn round" id="z-in" title="Zoom in">＋</button>
+</div>
+
+<div class="side right">
+  <div class="card" id="inspector">
+    <h3 id="i-title">Nothing selected</h3>
+    <p class="hint" id="i-hint">Select a node to edit it. Drag from a node's right dot to another node's left dot to connect them. <kbd>Del</kbd> removes the selection.</p>
+    <div id="i-body"></div>
+  </div>
+  <div class="card">
+    <h3>How it works</h3>
+    <p class="hint" style="margin:0">A rule matches when <b>any</b> of its destination conditions (domains, IPs, country lists, rule-sets) matches <b>and</b> each of its other conditions (apps, ports, protocol) matches. Each rule leads to one place: through the VPN, direct, or blocked. Saving applies to the running connection at once.</p>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+const BASE = location.pathname.replace(/[^/]*$/, '');
+const TYPES = {
+  DomainSuffix: { label: 'Domain & subdomains', kind: 'dest', icon: '◎', ph: 'example.com\ngoogle.com', help: 'Matches the domain and every subdomain.' },
+  Domain: { label: 'Exact domain', kind: 'dest', icon: '◉', ph: 'www.example.com', help: 'Only these exact names.' },
+  DomainKeyword: { label: 'Domain contains', kind: 'dest', icon: '⌕', ph: 'google', help: 'Any name containing the word.' },
+  DomainRegex: { label: 'Domain pattern (regex)', kind: 'dest', icon: '✱', ph: '^.*\\.example\\.(com|net)$', help: 'A regular expression over the name.' },
+  IpCidr: { label: 'IP / subnet', kind: 'dest', icon: '⌗', ph: '1.2.3.4\n10.0.0.0/8', help: 'Addresses or CIDR ranges.' },
+  GeoIp: { label: 'Country IPs (GeoIP)', kind: 'dest', icon: '⚑', ph: 'ir\ncn', help: 'Two-letter country codes; the list downloads by itself.' },
+  GeoSite: { label: 'Site list (GeoSite)', kind: 'dest', icon: '☰', ph: 'category-ir\ncategory-ads-all', help: 'GeoSite list names; the list downloads by itself.' },
+  RuleSet: { label: 'Rule-set', kind: 'dest', icon: '⧉', ph: '', help: 'A rule-set added on the Routing page.' },
+  PrivateIp: { label: 'Private network', kind: 'dest', icon: '⌂', ph: '', help: 'LAN and other private addresses. No values.' },
+  ProcessName: { label: 'App', kind: 'app', icon: '▣', ph: 'telegram.exe\nchrome.exe', help: 'Program names (any case).' },
+  ProcessPath: { label: 'App path', kind: 'app', icon: '▤', ph: 'C:\\Program Files\\App\\app.exe', help: 'Full program paths.' },
+  Port: { label: 'Port', kind: 'net', icon: '⊡', ph: '443\n8443', help: 'Destination ports.' },
+  PortRange: { label: 'Port range', kind: 'net', icon: '⊟', ph: '1000:2000', help: 'Ranges as from:to.' },
+  Protocol: { label: 'Protocol', kind: 'net', icon: '≋', ph: 'bittorrent\nquic', help: 'Sniffed protocol: http, tls, quic, stun, dns, bittorrent, dtls, ssh, rdp, ntp.' },
+  Network: { label: 'TCP / UDP', kind: 'net', icon: '⇄', ph: 'udp', help: 'tcp or udp.' },
+};
+const ACTIONS = { Proxy: { label: 'Through the VPN', icon: '⛨' }, Direct: { label: 'Direct', icon: '→' }, Block: { label: 'Block', icon: '⦸' } };
+const COL = { cond: 40, rule: 420, action: 820 };
+
+let doc = null;              // last loaded / saved document
+let nodes = new Map();       // id -> node
+let edges = [];              // {from, to}
+let order = [];              // rule node ids, first match first
+let selected = null;         // {node: id} | {edge: index}
+let dirty = false;
+let problems = new Map();    // rule id -> [messages]
+let view = { x: 30, y: 30, k: 1 };
+let highlight = null;        // test result: rule node id + action
+
+const $ = (id) => document.getElementById(id);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+const rid = () => 'ui-' + Array.from(crypto.getRandomValues(new Uint8Array(5)), b => b.toString(16).padStart(2, '0')).join('');
+
+// ---------------------------------------------------------------- theme
+const params = new URLSearchParams(location.search);
+let theme = params.get('theme') || 'system';
+function applyTheme() {
+  const light = theme === 'light' || (theme === 'system' && matchMedia('(prefers-color-scheme: light)').matches);
+  document.documentElement.classList.toggle('light', light);
+}
+matchMedia('(prefers-color-scheme: light)').addEventListener('change', applyTheme);
+$('theme').onclick = () => { theme = theme === 'dark' ? 'light' : theme === 'light' ? 'system' : 'dark'; applyTheme(); toast('Theme: ' + theme); };
+applyTheme();
+
+// ---------------------------------------------------------------- model
+function fromDoc(d) {
+  nodes = new Map(); edges = []; order = [];
+  const L = d.layout || {};
+  let y = 30;
+  d.rules.forEach((r) => {
+    const id = 'r:' + r.id;
+    const conds = r.conditions || [];
+    const h = Math.max(1, conds.length) * 104;
+    const p = L[id] || { x: COL.rule, y: y + h / 2 - 50 };
+    nodes.set(id, { id, kind: 'rule', x: p.x, y: p.y, rule: { id: r.id, name: r.name, enabled: r.enabled !== false, invert: !!r.invert, description: r.description || '', fromPreset: r.fromPreset ?? null } });
+    conds.forEach((c, j) => {
+      const cid = 'c:' + r.id + ':' + j;
+      const cp = L[cid] || { x: COL.cond, y: y + j * 104 };
+      nodes.set(cid, { id: cid, kind: 'cond', x: cp.x, y: cp.y, type: c.type, values: (c.values || []).slice() });
+      edges.push({ from: cid, to: id });
+    });
+    const a = r.action && ACTIONS[r.action.type] ? r.action.type : null;
+    if (a) edges.push({ from: id, to: 'a:' + a });
+    order.push(id);
+    y += h + 26;
+  });
+  Object.keys(ACTIONS).forEach((a, i) => {
+    const id = 'a:' + a;
+    const p = L[id] || { x: COL.action, y: 60 + i * 190 };
+    nodes.set(id, { id, kind: 'action', x: p.x, y: p.y, action: a });
+  });
+  const fp = L['final'] || { x: COL.rule, y: Math.max(y, 420) };
+  nodes.set('final', { id: 'final', kind: 'final', x: fp.x, y: fp.y });
+  edges.push({ from: 'final', to: 'a:' + (ACTIONS[d.final] ? d.final : 'Proxy') });
+}
+
+/** The graph as rules (in order), the final action, the layout, and what would be lost. */
+function toDoc() {
+  const rules = []; const layout = {}; const loose = [];
+  for (const id of order) {
+    const n = nodes.get(id);
+    const conds = edges.filter(e => e.to === id).map(e => nodes.get(e.from)).filter(Boolean).sort((a, b) => a.y - b.y);
+    const out = edges.find(e => e.from === id);
+    const conditions = conds.map(c => ({ type: c.type, values: c.type === 'PrivateIp' ? (c.values.length ? c.values : []) : c.values }));
+    const rule = { id: n.rule.id, name: n.rule.name, enabled: n.rule.enabled, conditions, action: { type: out ? nodes.get(out.to).action : 'None' }, invert: n.rule.invert };
+    if (n.rule.description) rule.description = n.rule.description;
+    if (n.rule.fromPreset) rule.fromPreset = n.rule.fromPreset;
+    rules.push(rule);
+    layout[id] = { x: n.x, y: n.y };
+    conds.forEach((c, j) => { const key = 'c:' + n.rule.id + ':' + j; layout[key] = layout[key] ? { x: c.x + 16, y: c.y + 16 } : { x: c.x, y: c.y }; });
+  }
+  for (const n of nodes.values()) {
+    if (n.kind === 'action' || n.kind === 'final') layout[n.id] = { x: n.x, y: n.y };
+    if (n.kind === 'cond' && !edges.some(e => e.from === n.id)) loose.push(n);
+  }
+  const fe = edges.find(e => e.from === 'final');
+  return { doc: { rules, final: fe ? nodes.get(fe.to).action : 'Proxy', layout, version: doc ? doc.version : null }, loose };
+}
+
+function setDirty(v) {
+  dirty = v;
+  $('state-dot').className = 'dot ' + (v ? 'dirty' : 'saved');
+  $('state').textContent = v ? 'Unsaved changes' : 'Saved';
+}
+
+// ---------------------------------------------------------------- drawing
+const world = $('world'); const svg = $('edges'); const viewport = $('viewport');
+function applyView() { world.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.k})`; }
+
+function nodeTitle(n) {
+  if (n.kind === 'cond') return TYPES[n.type] ? TYPES[n.type].label : n.type;
+  if (n.kind === 'rule') return n.rule.name || 'Rule';
+  if (n.kind === 'action') return ACTIONS[n.action].label;
+  return 'Everything else';
+}
+
+let rendering = false;
+function render() {
+  // Removing a focused field fires its blur handler, which asks for another render: never nest.
+  if (rendering) return;
+  rendering = true;
+  try {
+    for (const e of [...world.querySelectorAll('.node')]) e.remove();
+    for (const n of nodes.values()) world.appendChild(drawNode(n));
+    drawEdges();
+    drawOrder();
+    drawInspector();
+  } finally {
+    rendering = false;
+  }
+}
+const renderSoon = () => setTimeout(render, 0);
+
+function drawNode(n) {
+  const d = el('div', 'node');
+  d.dataset.id = n.id;
+  d.style.left = n.x + 'px'; d.style.top = n.y + 'px';
+  const head = el('div', 'nh');
+  const icon = el('div', 'ic');
+  const title = el('div', 'nt', nodeTitle(n));
+  head.append(icon, title);
+  d.append(head);
+  if (n.kind === 'cond') {
+    const t = TYPES[n.type] || { kind: 'dest', icon: '?' };
+    d.classList.add('k-' + t.kind);
+    icon.textContent = t.icon;
+    const body = el('div', 'nb');
+    const vals = n.values.slice(0, 6);
+    if (n.type === 'PrivateIp') body.textContent = 'LAN, 10.x, 192.168.x …';
+    else if (!vals.length) body.append(el('span', 'empty', 'No values yet'));
+    vals.forEach(v => body.append(el('span', 'v', v)));
+    if (n.values.length > 6) body.append(el('span', null, ' +' + (n.values.length - 6) + ' more'));
+    d.append(body);
+    d.append(port(n, 'out'));
+  } else if (n.kind === 'rule') {
+    d.classList.add('k-rule');
+    icon.textContent = '⑂';
+    const prio = el('span', 'prio', '#' + (order.indexOf(n.id) + 1));
+    head.append(prio);
+    const body = el('div', 'nb');
+    const conds = edges.filter(e => e.to === n.id).length;
+    const out = edges.find(e => e.from === n.id);
+    body.textContent = (conds ? conds + ' condition' + (conds > 1 ? 's' : '') : 'Connect conditions') + (n.rule.invert ? ' · inverted' : '') + (n.rule.enabled ? '' : ' · off') + (out ? '' : ' · connect an action');
+    d.append(body);
+    if (!n.rule.enabled) d.classList.add('off');
+    if (problems.has(n.rule.id)) d.classList.add('bad');
+    d.append(port(n, 'in'), port(n, 'out'));
+  } else if (n.kind === 'action') {
+    d.classList.add('action', 'a-' + n.action);
+    icon.textContent = ACTIONS[n.action].icon;
+    const count = edges.filter(e => e.to === n.id && e.from !== 'final').length;
+    d.append(el('div', 'nb', count + ' rule' + (count === 1 ? '' : 's') + (edges.some(e => e.from === 'final' && e.to === n.id) ? ' + everything else' : '')));
+    d.append(port(n, 'in'));
+  } else {
+    d.classList.add('final');
+    icon.textContent = '∗';
+    d.append(el('div', 'nb', 'Traffic no rule matched'));
+    d.append(port(n, 'out'));
+  }
+  if (selected && selected.node === n.id) d.classList.add('sel');
+  if (highlight) {
+    const lit = n.id === highlight.rule || n.id === 'a:' + highlight.action || (highlight.rule === null && n.id === 'final') || edges.some(e => e.to === highlight.rule && e.from === n.id);
+    d.classList.add(lit ? 'match' : 'dim');
+  }
+  head.addEventListener('pointerdown', (ev) => startDrag(ev, n));
+  d.addEventListener('pointerdown', (ev) => { if (!ev.target.classList.contains('port')) { select({ node: n.id }); ev.stopPropagation(); } });
+  return d;
+}
+
+function port(n, dir) {
+  const p = el('div', 'port ' + dir);
+  p.dataset.node = n.id; p.dataset.dir = dir;
+  if (dir === 'out') p.addEventListener('pointerdown', (ev) => startConnect(ev, n));
+  return p;
+}
+
+function anchor(n, dir) {
+  const w = n.kind === 'action' ? 200 : 250;
+  return { x: n.x + (dir === 'out' ? w : 0), y: n.y + 29 };
+}
+
+function curve(a, b) {
+  const dx = Math.max(60, Math.abs(b.x - a.x) * 0.5);
+  return `M ${a.x} ${a.y} C ${a.x + dx} ${a.y}, ${b.x - dx} ${b.y}, ${b.x} ${b.y}`;
+}
+
+function drawEdges() {
+  svg.replaceChildren();
+  edges.forEach((e, i) => {
+    const a = nodes.get(e.from), b = nodes.get(e.to);
+    if (!a || !b) return;
+    const d = curve(anchor(a, 'out'), anchor(b, 'in'));
+    const target = b.kind === 'action' ? b.action : (edges.find(x => x.from === b.id) ? nodes.get(edges.find(x => x.from === b.id).to).action : '');
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', d);
+    path.setAttribute('class', 'edge ' + (target || '') + (selected && selected.edge === i ? ' sel' : '') + (highlight && !(e.from === highlight.rule || e.to === highlight.rule || (highlight.rule === null && e.from === 'final')) ? ' dim' : ''));
+    const hit = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    hit.setAttribute('d', d);
+    hit.setAttribute('class', 'edge hit');
+    hit.addEventListener('pointerdown', (ev) => { select({ edge: i }); ev.stopPropagation(); });
+    svg.append(path, hit);
+  });
+}
+
+function drawOrder() {
+  const list = $('order');
+  list.replaceChildren();
+  $('order-empty').style.display = order.length ? 'none' : 'block';
+  order.forEach((id, i) => {
+    const n = nodes.get(id);
+    const li = el('li');
+    if (!n.rule.enabled) li.classList.add('off');
+    if (selected && selected.node === id) li.classList.add('sel');
+    const out = edges.find(e => e.from === id);
+    li.append(el('span', 'n', String(i + 1)), el('span', 'nm', n.rule.name || 'Rule'));
+    const a = out ? nodes.get(out.to).action : null;
+    li.append(el('span', 'tag t-' + (a || 'none'), a || '—'));
+    li.draggable = true;
+    li.addEventListener('dragstart', (ev) => { ev.dataTransfer.setData('text/plain', String(i)); ev.dataTransfer.effectAllowed = 'move'; });
+    li.addEventListener('dragover', (ev) => { ev.preventDefault(); li.classList.add('drop'); });
+    li.addEventListener('dragleave', () => li.classList.remove('drop'));
+    li.addEventListener('drop', (ev) => {
+      ev.preventDefault();
+      const from = Number(ev.dataTransfer.getData('text/plain'));
+      if (Number.isInteger(from) && from !== i) { const [m] = order.splice(from, 1); order.splice(i, 0, m); setDirty(true); render(); }
+    });
+    li.addEventListener('click', () => { select({ node: id }); centerOn(n); });
+    list.append(li);
+  });
+}
+
+function drawInspector() {
+  const body = $('i-body'); body.replaceChildren();
+  const title = $('i-title'); const hint = $('i-hint');
+  const n = selected && selected.node ? nodes.get(selected.node) : null;
+  if (selected && selected.edge !== undefined) {
+    title.textContent = 'Connection'; hint.textContent = 'Press Delete to remove this connection.';
+    const b = el('button', 'btn', 'Remove connection'); b.onclick = () => removeSelected(); body.append(b); return;
+  }
+  if (!n) { title.textContent = 'Nothing selected'; hint.textContent = 'Select a node to edit it. Drag from a node\u2019s right dot to another node\u2019s left dot to connect them. Delete removes the selection.'; return; }
+  title.textContent = nodeTitle(n);
+  if (n.kind === 'cond') {
+    hint.textContent = (TYPES[n.type] && TYPES[n.type].help) || '';
+    body.append(el('label', 'f', 'Kind'));
+    const sel = el('select', 'inp');
+    Object.entries(TYPES).forEach(([k, t]) => { const o = el('option', null, t.label); o.value = k; if (k === n.type) o.selected = true; sel.append(o); });
+    sel.onchange = () => { n.type = sel.value; changed(); };
+    body.append(sel);
+    if (n.type !== 'PrivateIp') {
+      body.append(el('label', 'f', n.type === 'RuleSet' && doc.ruleSets.length ? 'Values, one per line (rule-sets: ' + doc.ruleSets.join(', ') + ')' : 'Values, one per line'));
+      const ta = el('textarea', 'inp'); ta.value = n.values.join('\n'); ta.placeholder = (TYPES[n.type] || {}).ph || '';
+      ta.oninput = () => { n.values = ta.value.split(/[\n,]+/).map(s => s.trim()).filter(Boolean); changedSoft(); };
+      ta.onblur = renderSoon;
+      body.append(ta);
+    }
+    const used = edges.filter(e => e.from === n.id).length;
+    body.append(el('p', 'hint', used ? 'Used by ' + used + ' rule' + (used > 1 ? 's' : '') + '.' : 'Not connected: connect it to a rule, or it is dropped on save.'));
+  } else if (n.kind === 'rule') {
+    hint.textContent = 'Position #' + (order.indexOf(n.id) + 1) + ' in the order.';
+    body.append(el('label', 'f', 'Name'));
+    const name = el('input', 'inp'); name.value = n.rule.name; name.maxLength = 128;
+    name.oninput = () => { n.rule.name = name.value; changedSoft(); };
+    name.onblur = renderSoon;
+    body.append(name);
+    body.append(check('On', n.rule.enabled, v => { n.rule.enabled = v; changed(); }));
+    body.append(check('Invert (match everything the conditions do not)', n.rule.invert, v => { n.rule.invert = v; changed(); }));
+    body.append(el('label', 'f', 'Note'));
+    const note = el('input', 'inp'); note.value = n.rule.description; note.maxLength = 300;
+    note.oninput = () => { n.rule.description = note.value; changedSoft(); };
+    body.append(note);
+    const row = el('div', 'row'); row.style.marginTop = '12px';
+    const up = el('button', 'btn', '↑ Earlier'); up.onclick = () => move(n.id, -1);
+    const down = el('button', 'btn', '↓ Later'); down.onclick = () => move(n.id, 1);
+    row.append(up, down); body.append(row);
+    const del = el('button', 'btn', 'Delete rule'); del.style.marginTop = '10px'; del.onclick = () => removeSelected(); body.append(del);
+    if (problems.has(n.rule.id)) { const ul = el('ul', 'problems'); problems.get(n.rule.id).forEach(m => ul.append(el('li', null, m))); body.append(ul); }
+  } else if (n.kind === 'action') {
+    hint.textContent = n.action === 'Proxy' ? 'Through the VPN server.' : n.action === 'Direct' ? 'Straight to the internet, outside the VPN.' : 'Refused.';
+  } else {
+    hint.textContent = 'Connect it to where traffic goes when no rule matched (the final action).';
+  }
+}
+
+function check(text, value, onChange) {
+  const l = el('label', 'check'); const c = el('input'); c.type = 'checkbox'; c.checked = value;
+  c.onchange = () => onChange(c.checked); l.append(c, el('span', null, text)); return l;
+}
+
+function changed() { setDirty(true); clearHighlight(false); render(); }
+function changedSoft() { setDirty(true); }
+
+function move(id, delta) {
+  const i = order.indexOf(id); const j = i + delta;
+  if (i < 0 || j < 0 || j >= order.length) return;
+  [order[i], order[j]] = [order[j], order[i]]; changed();
+}
+
+// ---------------------------------------------------------------- interaction
+function select(s) { selected = s; render(); }
+
+function toWorld(ev) {
+  const r = viewport.getBoundingClientRect();
+  return { x: (ev.clientX - r.left - view.x) / view.k, y: (ev.clientY - r.top - view.y) / view.k };
+}
+
+function startDrag(ev, n) {
+  if (ev.button !== 0) return;
+  ev.stopPropagation();
+  select({ node: n.id });
+  const start = toWorld(ev); const ox = n.x, oy = n.y; let moved = false;
+  const nodeEl = world.querySelector(`.node[data-id="${CSS.escape(n.id)}"]`);
+  const onMove = (e) => {
+    const p = toWorld(e); n.x = Math.round(ox + p.x - start.x); n.y = Math.round(oy + p.y - start.y); moved = true;
+    if (nodeEl) { nodeEl.style.left = n.x + 'px'; nodeEl.style.top = n.y + 'px'; }
+    drawEdges();
+  };
+  const onUp = () => { removeEventListener('pointermove', onMove); removeEventListener('pointerup', onUp); if (moved) setDirty(true); };
+  addEventListener('pointermove', onMove); addEventListener('pointerup', onUp);
+}
+
+function canConnect(a, b) {
+  return (a.kind === 'cond' && b.kind === 'rule') || ((a.kind === 'rule' || a.kind === 'final') && b.kind === 'action');
+}
+
+function startConnect(ev, n) {
+  ev.stopPropagation(); ev.preventDefault();
+  const temp = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  temp.setAttribute('class', 'edge temp'); svg.append(temp);
+  const a = anchor(n, 'out');
+  let hot = null;
+  const onMove = (e) => {
+    temp.setAttribute('d', curve(a, toWorld(e)));
+    const t = document.elementFromPoint(e.clientX, e.clientY);
+    const target = t && t.closest('.node');
+    if (hot) hot.classList.remove('hot');
+    hot = null;
+    if (target) { const m = nodes.get(target.dataset.id); if (m && canConnect(n, m)) { hot = target.querySelector('.port.in'); if (hot) hot.classList.add('hot'); } }
+  };
+  const onUp = (e) => {
+    removeEventListener('pointermove', onMove); removeEventListener('pointerup', onUp); temp.remove();
+    const t = document.elementFromPoint(e.clientX, e.clientY);
+    const target = t && t.closest('.node');
+    const m = target ? nodes.get(target.dataset.id) : null;
+    if (m && canConnect(n, m)) {
+      if (n.kind !== 'cond') edges = edges.filter(x => x.from !== n.id);   // a rule leads to one place
+      if (!edges.some(x => x.from === n.id && x.to === m.id)) edges.push({ from: n.id, to: m.id });
+      changed();
+    } else if (m && m !== n) {
+      toast(n.kind === 'cond' ? 'Conditions connect to rules.' : 'Rules connect to Through the VPN, Direct or Block.', true);
+    }
+  };
+  addEventListener('pointermove', onMove); addEventListener('pointerup', onUp);
+}
+
+viewport.addEventListener('pointerdown', (ev) => {
+  if (ev.target !== viewport && ev.target !== svg && ev.target !== world) return;
+  select(null); clearHighlight(true);
+  const sx = ev.clientX, sy = ev.clientY, ox = view.x, oy = view.y;
+  viewport.classList.add('panning');
+  const onMove = (e) => { view.x = ox + e.clientX - sx; view.y = oy + e.clientY - sy; applyView(); };
+  const onUp = () => { viewport.classList.remove('panning'); removeEventListener('pointermove', onMove); removeEventListener('pointerup', onUp); };
+  addEventListener('pointermove', onMove); addEventListener('pointerup', onUp);
+});
+
+viewport.addEventListener('wheel', (ev) => {
+  ev.preventDefault();
+  zoomAt(ev.clientX, ev.clientY, ev.deltaY < 0 ? 1.1 : 1 / 1.1);
+}, { passive: false });
+
+function zoomAt(cx, cy, f) {
+  const r = viewport.getBoundingClientRect();
+  const k = Math.min(2, Math.max(0.3, view.k * f));
+  const px = cx - r.left, py = cy - r.top;
+  view.x = px - (px - view.x) * (k / view.k); view.y = py - (py - view.y) * (k / view.k); view.k = k; applyView();
+}
+
+function fit() {
+  if (!nodes.size) return;
+  const xs = [...nodes.values()].map(n => n.x), ys = [...nodes.values()].map(n => n.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs) + 260, minY = Math.min(...ys), maxY = Math.max(...ys) + 120;
+  const r = viewport.getBoundingClientRect();
+  view.k = Math.min(1.2, Math.max(0.3, Math.min((r.width - 60) / (maxX - minX), (r.height - 60) / (maxY - minY))));
+  view.x = 30 - minX * view.k; view.y = 30 - minY * view.k; applyView();
+}
+
+function centerOn(n) {
+  const r = viewport.getBoundingClientRect();
+  view.x = r.width / 2 - (n.x + 125) * view.k; view.y = r.height / 2 - (n.y + 40) * view.k; applyView();
+}
+
+$('z-in').onclick = () => { const r = viewport.getBoundingClientRect(); zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1.2); };
+$('z-out').onclick = () => { const r = viewport.getBoundingClientRect(); zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1 / 1.2); };
+$('z-fit').onclick = fit;
+
+function removeSelected() {
+  if (!selected) return;
+  if (selected.edge !== undefined) { edges.splice(selected.edge, 1); }
+  else {
+    const n = nodes.get(selected.node);
+    if (!n || n.kind === 'action' || n.kind === 'final') { toast('The destinations and "Everything else" stay.', true); return; }
+    nodes.delete(n.id); edges = edges.filter(e => e.from !== n.id && e.to !== n.id); order = order.filter(id => id !== n.id);
+  }
+  selected = null; changed();
+}
+
+addEventListener('keydown', (ev) => {
+  const typing = ev.target instanceof HTMLInputElement || ev.target instanceof HTMLTextAreaElement || ev.target instanceof HTMLSelectElement;
+  if ((ev.key === 'Delete' || ev.key === 'Backspace') && !typing) { ev.preventDefault(); removeSelected(); }
+  if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 's') { ev.preventDefault(); save(); }
+  if (ev.key === 'Escape') { select(null); closeMenu(); }
+});
+
+// ---------------------------------------------------------------- add / arrange
+const addList = $('add-list');
+function closeMenu() { $('add-menu').classList.remove('open'); }
+$('add-btn').onclick = (ev) => { ev.stopPropagation(); $('add-menu').classList.toggle('open'); };
+document.addEventListener('pointerdown', (ev) => { if (!ev.target.closest('#add-menu')) closeMenu(); });
+function addItem(text, icon, fn) { const b = el('button'); b.append(el('span', null, icon), el('span', null, text)); b.onclick = () => { closeMenu(); fn(); }; addList.append(b); }
+function visibleCenter() { const r = viewport.getBoundingClientRect(); return { x: (r.width / 2 - view.x) / view.k - 125, y: (r.height / 2 - view.y) / view.k - 40 }; }
+addItem('Rule', '⑂', () => {
+  const p = visibleCenter(); const r = rid(); const id = 'r:' + r;
+  nodes.set(id, { id, kind: 'rule', x: Math.round(p.x), y: Math.round(p.y), rule: { id: r, name: 'New rule', enabled: true, invert: false, description: '', fromPreset: null } });
+  order.unshift(id); selected = { node: id }; changed();
+});
+Object.entries(TYPES).forEach(([k, t]) => addItem(t.label, t.icon, () => {
+  const p = visibleCenter(); const id = 'n:' + rid();
+  nodes.set(id, { id, kind: 'cond', x: Math.round(p.x - 300), y: Math.round(p.y), type: k, values: [] });
+  selected = { node: id }; changed();
+}));
+
+$('arrange').onclick = () => {
+  let y = 30;
+  for (const id of order) {
+    const conds = edges.filter(e => e.to === id).map(e => nodes.get(e.from));
+    const h = Math.max(1, conds.length) * 104;
+    conds.forEach((c, j) => { c.x = COL.cond; c.y = y + j * 104; });
+    const n = nodes.get(id); n.x = COL.rule; n.y = y + h / 2 - 50;
+    y += h + 26;
+  }
+  const loose = [...nodes.values()].filter(n => n.kind === 'cond' && !edges.some(e => e.from === n.id));
+  loose.forEach((c) => { c.x = COL.cond - 300; c.y = y; y += 104; });
+  Object.keys(ACTIONS).forEach((a, i) => { const n = nodes.get('a:' + a); n.x = COL.action; n.y = 60 + i * 190; });
+  const f = nodes.get('final'); f.x = COL.rule; f.y = Math.max(y, 420);
+  changed(); fit();
+};
+
+// ---------------------------------------------------------------- server
+async function api(method, path, body) {
+  const res = await fetch(BASE + path, { method, headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' });
+  const text = await res.text();
+  let data = null; try { data = text ? JSON.parse(text) : null; } catch { data = { message: text }; }
+  return { status: res.status, data };
+}
+
+async function load() {
+  const r = await api('GET', 'api/graph');
+  if (r.status !== 200) { toast('Could not load the rules (' + r.status + ').', true); return; }
+  doc = r.data; problems = new Map(); selected = null; highlight = null;
+  fromDoc(doc); setDirty(false); render(); fit();
+}
+
+async function save() {
+  const { doc: d, loose } = toDoc();
+  const noAction = d.rules.filter(r => r.action.type === 'None');
+  if (noAction.length) {
+    problems = new Map(noAction.map(r => [r.id, ['Connect this rule to Through the VPN, Direct or Block.']]));
+    render(); toast(noAction.length + ' rule(s) lead nowhere: connect them to a destination.', true); return;
+  }
+  if (loose.length && !confirm(loose.length + ' condition(s) are not connected to a rule and will be dropped. Save anyway?')) return;
+  $('save').disabled = true;
+  try {
+    const r = await api('PUT', 'api/graph', d);
+    if (r.status === 200 && r.data.ok) {
+      doc = { ...doc, rules: d.rules, final: d.final, layout: d.layout, version: r.data.version };
+      problems = new Map();
+      fromDoc(doc); setDirty(false); render();
+      toast('Saved. A running connection picks the rules up in a moment.');
+    } else if (r.data && r.data.problems) {
+      problems = new Map();
+      const general = [];
+      r.data.problems.forEach(p => { if (p.ruleId) { if (!problems.has(p.ruleId)) problems.set(p.ruleId, []); problems.get(p.ruleId).push(p.message); } else general.push(p.message); });
+      render();
+      toast(general[0] || 'Some rules need fixing (marked red).', true);
+    } else {
+      toast('Saving failed (' + r.status + ').', true);
+    }
+  } catch (e) {
+    toast('IBOX is not reachable. Is the app still open?', true);
+  } finally {
+    $('save').disabled = false;
+  }
+}
+
+$('save').onclick = save;
+$('reload').onclick = () => { if (!dirty || confirm('Discard your changes?')) load(); };
+addEventListener('beforeunload', (ev) => { if (dirty) { ev.preventDefault(); ev.returnValue = ''; } });
+
+// ---------------------------------------------------------------- test
+function clearHighlight(redraw) { if (highlight) { highlight = null; $('t-result').style.display = 'none'; if (redraw) render(); } }
+$('t-run').onclick = async () => {
+  const dest = $('t-dest').value.trim();
+  const port = parseInt($('t-port').value, 10);
+  const isIp = /^[0-9.]+$|:/.test(dest);
+  const r = await api('POST', 'api/test', { domain: isIp ? null : dest, ip: isIp ? dest : null, port: Number.isFinite(port) ? port : null, network: $('t-net').value, app: $('t-app').value.trim() || null });
+  const box = $('t-result');
+  if (r.status !== 200) { box.style.display = 'block'; box.textContent = 'Test failed (' + r.status + ').'; return; }
+  const ruleNode = r.data.ruleId ? 'r:' + r.data.ruleId : null;
+  highlight = { rule: ruleNode, action: r.data.action };
+  box.style.display = 'block'; box.replaceChildren();
+  const head = el('div', 'row'); head.append(el('span', 'tag t-' + r.data.action, r.data.action), el('b', null, ruleNode && nodes.get(ruleNode) ? nodes.get(ruleNode).rule.name : 'Everything else'));
+  box.append(head, el('div', 'hint', r.data.explanation));
+  if (dirty) box.append(el('div', 'hint', 'You have unsaved changes; the test used the saved rules.'));
+  render();
+  const n = ruleNode ? nodes.get(ruleNode) : nodes.get('final'); if (n) centerOn(n);
+};
+$('t-dest').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('t-run').click(); });
+
+// ---------------------------------------------------------------- toast
+let toastTimer = 0;
+function toast(text, err) {
+  const t = $('toast'); t.textContent = text; t.className = 'toast' + (err ? ' err' : ''); t.style.display = 'block';
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.style.display = 'none'; }, err ? 6000 : 3200);
+}
+
+applyView();
+load();
+</script>
+</body>
+</html>

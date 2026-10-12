@@ -48,6 +48,7 @@ public sealed class LinuxServices : IAsyncDisposable
         var healthHistory = new SqliteHealthHistoryRepository(database);
         Settings = new SettingsStore(new SqliteSettingsRepository(database), _loggerFactory.CreateLogger("JackiVpn.Settings"));
         Func<AppSettings> settings = () => Settings.Current;
+        Accounts = new Application.Accounts.LocalAccountService(Path.Combine(DataDir, "profiles"), protector, Settings, _loggerFactory.CreateLogger("JackiVpn.Profiles"));
 
         var coresDir = Path.Combine(AppContext.BaseDirectory, "cores");
         var catalog = new CoreBinaryCatalog(coresDir, Path.Combine(coresDir, "manifest.json"));
@@ -56,7 +57,7 @@ public sealed class LinuxServices : IAsyncDisposable
         var workDir = Path.Combine(DataDir, "run");
         var notifications = new NotificationService(sink, () => Settings.Current.Notifications, _loggerFactory.CreateLogger("JackiVpn.Notifications"));
         var disconnects = new DisconnectTracker();
-        var insights = new InsightStore(Path.Combine(DataDir, "state", "insights.json"));
+        var insights = Insights = new InsightStore(Path.Combine(DataDir, "state", "insights.json"));
         GnomeProxy.MarkerPath = Path.Combine(DataDir, "state", "desktop-proxy.mode");
         Workplace = new Application.Workplace.WorkplaceService(new LinuxNetworkFacts(), settings, _loggerFactory.CreateLogger("JackiVpn.Workplace"));
         Func<string> networkKey = () => Workplace.Facts.Key is { Length: > 0 } key ? key : "default";
@@ -118,6 +119,21 @@ public sealed class LinuxServices : IAsyncDisposable
         };
         Traffic = new Application.Traffic.TrafficController(Orchestrator, settings, Workplace, Usage, _loggerFactory.CreateLogger("JackiVpn.Traffic"));
         RoutingWatcher = new Application.Routing.RoutingWatcher(Settings, Orchestrator, _loggerFactory.CreateLogger("JackiVpn.Routing"));
+        RoutingEditor = new Application.Routing.RoutingEditorServer(Settings, _loggerFactory.CreateLogger("JackiVpn.RoutingEditor"));
+        Agent = new Application.Agent.AgentPipeServer(
+            new Application.Agent.AgentController(new Application.Agent.AgentDependencies
+            {
+                Settings = Settings,
+                Orchestrator = Orchestrator,
+                Profiles = Profiles,
+                Health = Health.Snapshot,
+                CountryOf = fp => Insights.Get(fp)?.Exit?.CountryCode,
+                DnsFinder = DnsFinder,
+                SpeedTest = SpeedTest,
+                Logger = _loggerFactory.CreateLogger("JackiVpn.Agent"),
+            }),
+            () => Settings.Current.Agent,
+            _loggerFactory.CreateLogger("JackiVpn.Agent"));
         RuleSets = ruleSets;
     }
 
@@ -140,6 +156,12 @@ public sealed class LinuxServices : IAsyncDisposable
     /// <summary>Applies routing changes to the running connection.</summary>
     public Application.Routing.RoutingWatcher RoutingWatcher { get; }
 
+    /// <summary>The node-based routing editor in the browser (loopback, on demand).</summary>
+    public Application.Routing.RoutingEditorServer RoutingEditor { get; }
+
+    /// <summary>Control by the command line and AI agents (MCP), when the user turns it on (desktop window only).</summary>
+    public Application.Agent.AgentPipeServer Agent { get; }
+
     public RuleSetManager RuleSets { get; }
 
     public string DataDir { get; }
@@ -154,11 +176,20 @@ public sealed class LinuxServices : IAsyncDisposable
 
     public SpeedTestService SpeedTest { get; } = new();
 
+    /// <summary>What the desktop's media players are playing (MPRIS), for the notch.</summary>
+    public Application.Media.INowPlayingSource NowPlaying { get; } = new MprisNowPlaying();
+
+    /// <summary>What IBOX learned per server (last exit country, working fixes).</summary>
+    public InsightStore Insights { get; }
+
     public SqliteProfileRepository Profiles { get; }
 
     public SqliteSubscriptionRepository Subscriptions { get; }
 
     public SettingsStore Settings { get; }
+
+    /// <summary>Local profiles: each person's own (encrypted) settings.</summary>
+    public Application.Accounts.LocalAccountService Accounts { get; }
 
     public HealthCheckService Health { get; }
 
@@ -171,6 +202,7 @@ public sealed class LinuxServices : IAsyncDisposable
     public async Task InitializeAsync(CancellationToken ct)
     {
         await Settings.LoadAsync(ct).ConfigureAwait(false);
+        await Accounts.InitializeAsync(ct).ConfigureAwait(false);
         if (Settings.Current.Routing is { Rules.Count: 0, Preset: Domain.Routing.RoutingPreset.Rule or Domain.Routing.RoutingPreset.IranFriendly } routing)
         {
             var preset = RoutingPresets.Build(routing.Preset);
@@ -213,6 +245,9 @@ public sealed class LinuxServices : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        await Accounts.SaveActiveAsync(CancellationToken.None).ConfigureAwait(false);
+        await Agent.DisposeAsync().ConfigureAwait(false);
+        await RoutingEditor.DisposeAsync().ConfigureAwait(false);
         await Usage.DisposeAsync().ConfigureAwait(false);
         await Orchestrator.DisposeAsync().ConfigureAwait(false);
         _loggerFactory.Dispose();

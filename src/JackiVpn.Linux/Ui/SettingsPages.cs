@@ -55,10 +55,6 @@ public sealed class RoutingPage : OptionsPage
     public RoutingPage(Shell shell)
         : base(shell)
     {
-        S.RoutingWatcher.Applied += (_, ok) => Dispatcher.UIThread.Post(() => Shell.Toast(
-            "Routing",
-            ok ? "Applied to the running connection." : "Saved. The running connection could not take the change; it applies on the next connection.",
-            warning: !ok));
     }
 
     protected override bool AppliesLive => true;
@@ -69,6 +65,12 @@ public sealed class RoutingPage : OptionsPage
 
     protected override Control Build()
     {
+        EventHandler<bool> applied = (_, ok) => Dispatcher.UIThread.Post(() => Shell.Toast(
+            "Routing",
+            ok ? "Applied to the running connection." : "Saved. The running connection could not take the change; it applies on the next connection.",
+            warning: !ok));
+        S.RoutingWatcher.Applied += applied;
+        Track(() => S.RoutingWatcher.Applied -= applied);
         var preset = EnumCombo(Cur.Routing.Preset, p =>
         {
             if (p == RoutingPreset.Custom)
@@ -86,8 +88,22 @@ public sealed class RoutingPage : OptionsPage
         {
             Orientation = Orientation.Horizontal,
             Spacing = 8,
-            Children = { Ghost("Add rule-set…", () => _ = AddRuleSetAsync()), Primary("Add rule", () => _ = EditRuleAsync(null)) },
+            Children = { Ghost("Node editor…", OpenNodeEditor), Ghost("Add rule-set…", () => _ = AddRuleSetAsync()), Primary("Add rule", () => _ = EditRuleAsync(null)) },
         };
+
+        // The node editor (in the browser) saves into the same settings: show its rules here as they land.
+        var seen = Application.Routing.RoutingWatcher.Key(Cur);
+        EventHandler<Domain.Settings.AppSettings> changed = (_, x) =>
+        {
+            var key = Application.Routing.RoutingWatcher.Key(x);
+            if (key != seen)
+            {
+                seen = key;
+                Dispatcher.UIThread.Post(Render);
+            }
+        };
+        S.Settings.Changed += changed;
+        Track(() => S.Settings.Changed -= changed);
         return Stack(
             Header("Routing", "Rules are checked top to bottom; the first match wins.", actions),
             Section("Preset", "Rule = everything through VPN except BitTorrent; Global = everything through VPN; Direct = nothing through VPN; Iran friendly = Iranian sites and IPs direct, the rest through VPN (every preset rule is editable).",
@@ -100,6 +116,21 @@ public sealed class RoutingPage : OptionsPage
     }
 
     public override void OnShown() => Render();
+
+    /// <summary>Conditions → rules → destinations as nodes, in the default browser (served on loopback only).</summary>
+    private void OpenNodeEditor()
+    {
+        var url = S.RoutingEditor.Open(Look.P.IsLight ? Domain.Settings.AppTheme.Light : Domain.Settings.AppTheme.Dark);
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("xdg-open", url) { UseShellExecute = false })?.Dispose();
+            Shell.Toast("Node editor", "Opened in your browser. Saving there applies here.");
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            Shell.Toast("Node editor", "No browser could be opened. Open this address yourself: " + url, warning: true);
+        }
+    }
 
     private void Render()
     {
@@ -723,12 +754,31 @@ public sealed class AdvancedPage(Shell shell) : OptionsPage(shell)
 
 public sealed class SettingsPage(Shell shell) : OptionsPage(shell)
 {
+    /// <summary>The MCP server entry for this install (the jackivpn binary itself, "mcp").</summary>
+    private static string AgentConfig() =>
+        "{\n  \"mcpServers\": {\n    \"ibox\": {\n      \"command\": " + System.Text.Json.JsonSerializer.Serialize(Environment.ProcessPath ?? "jackivpn") + ",\n      \"args\": [\"mcp\"]\n    }\n  }\n}";
+
     public override string Title => "Settings";
 
     public override string Glyph => Icons.Settings;
 
     protected override Control Build() => Stack(
-        Header("Settings", "Startup, notifications and logging."),
+        Header("Settings", "Appearance, startup, notifications and logging."),
+        Section("Appearance", null,
+            Row("Theme", "System follows the desktop's light or dark setting. Changes apply at once.", Combo(
+                [(AppTheme.System, "System"), (AppTheme.Light, "Light"), (AppTheme.Dark, "Dark")],
+                Cur.Ui.Theme,
+                v => S.Settings.Update(x => x with { Ui = x.Ui with { Theme = v } })))),
+        Section("Notch", "A small island on the top edge with the connection state, ping and what is playing; hover for more, drag along the edge.",
+            Row("Show the notch", null, Toggle(Cur.Ui.Notch.Enabled, v => S.Settings.Update(x => x with { Ui = x.Ui with { Notch = x.Ui.Notch with { Enabled = v } } }))),
+            Row("Live ping", null, Toggle(Cur.Ui.Notch.ShowPing, v => S.Settings.Update(x => x with { Ui = x.Ui with { Notch = x.Ui.Notch with { ShowPing = v } } }))),
+            Row("Server name", null, Toggle(Cur.Ui.Notch.ShowServer, v => S.Settings.Update(x => x with { Ui = x.Ui with { Notch = x.Ui.Notch with { ShowServer = v } } }))),
+            Row("Now playing", "Music or video from your players (MPRIS, needs playerctl), with play/pause and skip.", Toggle(Cur.Ui.Notch.ShowNowPlaying, v => S.Settings.Update(x => x with { Ui = x.Ui with { Notch = x.Ui.Notch with { ShowNowPlaying = v } } })))),
+        Section("AI agents (MCP) & command line", "Lets an AI assistant (Claude, any MCP client) or scripts on this computer see the status, servers and rules through jackivpn ctl / jackivpn mcp. Only programs running as you can reach it; nothing is opened to the network.",
+            Row("Allow agent control", null, Toggle(Cur.Agent.Enabled, v => S.Settings.Update(x => x with { Agent = x.Agent with { Enabled = v, AllowChanges = v && x.Agent.AllowChanges } }))),
+            Row("Allow changes", "Connect, disconnect, switch server and mode, add or remove rules, change DNS. Off = read only.", Toggle(Cur.Agent.AllowChanges, v => S.Settings.Update(x => x with { Agent = x.Agent with { AllowChanges = v } }))),
+            Row("MCP client configuration", null, Ghost("Copy", () => _ = TopLevel.GetTopLevel(this)?.Clipboard?.SetTextAsync(AgentConfig()))),
+            new TextBox { Text = AgentConfig(), IsReadOnly = true, FontFamily = new FontFamily("monospace"), FontSize = 12, TextWrapping = TextWrapping.Wrap }),
         Section("Startup", null,
             Row("Connect automatically on start", "Uses smart selection or your default server, as configured.", Toggle(Cur.Startup.AutoConnect, v => Set(x => x with { Startup = x.Startup with { AutoConnect = v } })))),
         Section("Notifications", null,
