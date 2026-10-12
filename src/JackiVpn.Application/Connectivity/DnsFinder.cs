@@ -11,11 +11,26 @@ namespace JackiVpn.Application.Connectivity;
 /// <summary>A resolver the finder can try.</summary>
 public sealed record DnsCandidate(string Name, string Address, DnsTransport Transport, bool Iranian = false)
 {
+    /// <summary>DoH host name (TLS name) when the user entered one; the query still goes to <see cref="Address"/>.</summary>
+    public string? Host { get; init; }
+
+    public string? Path { get; init; }
+
+    /// <summary>Entered by the user (not one of the built-in resolvers).</summary>
+    public bool Custom { get; init; }
+
     public DnsServerEndpoint ToEndpoint() => Transport == DnsTransport.Https
-        ? new DnsServerEndpoint { Transport = DnsTransport.Https, Server = Address, Path = "/dns-query" }
+        ? new DnsServerEndpoint { Transport = DnsTransport.Https, Server = Address, Path = Path ?? "/dns-query", TlsServerName = Host }
         : new DnsServerEndpoint { Transport = DnsTransport.Udp, Server = Address };
 
     public string Label => $"{Name} · {(Transport == DnsTransport.Https ? "encrypted (DoH)" : "plain")} · {Address}";
+
+    public static DnsCandidate From(CustomDnsResolver r)
+    {
+        ArgumentNullException.ThrowIfNull(r);
+        var ep = r.ToEndpoint();
+        return new DnsCandidate(r.Name.Trim(), ep.Server!, ep.Transport) { Host = ep.TlsServerName, Path = ep.Transport == DnsTransport.Https ? ep.Path : null, Custom = true };
+    }
 }
 
 /// <summary>How one resolver did on this network.</summary>
@@ -73,6 +88,25 @@ public sealed class DnsFinder
         _saved = Load();
     }
 
+    /// <summary>Resolvers the user added (included in every search).</summary>
+    public Func<IEnumerable<DnsCandidate>>? Extra { get; init; }
+
+    /// <summary>Built-in resolvers followed by the user's own.</summary>
+    public IReadOnlyList<DnsCandidate> AllCandidates()
+    {
+        IEnumerable<DnsCandidate> extra = [];
+        try
+        {
+            extra = Extra?.Invoke() ?? [];
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            _logger.LogDebug("Custom resolvers unavailable: {Error}", ex.Message);
+        }
+
+        return Candidates.Concat(extra.Where(e => !Candidates.Any(c => c.ToEndpoint() == e.ToEndpoint()))).ToList();
+    }
+
     /// <summary>The last results for the current network (newest search), if any.</summary>
     public IReadOnlyList<DnsResult> Last { get; private set; } = [];
 
@@ -91,7 +125,7 @@ public sealed class DnsFinder
     /// <summary>Tests every candidate in parallel (a few seconds) and remembers the winner for this network.</summary>
     public async Task<IReadOnlyList<DnsResult>> SearchAsync(CancellationToken ct)
     {
-        var results = await Task.WhenAll(Candidates.Select(c => TestAsync(c, ct))).ConfigureAwait(false);
+        var results = await Task.WhenAll(AllCandidates().Select(c => TestAsync(c, ct))).ConfigureAwait(false);
 
         // Something on this network answering every plain query itself (a transparent DNS proxy, another VPN): when
         // far-away resolvers all "answer" in a few milliseconds, port 53 is intercepted — their honesty is unknown.
@@ -174,10 +208,11 @@ public sealed class DnsFinder
         {
             if (c.Transport == DnsTransport.Https)
             {
-                using var request = new HttpRequestMessage(HttpMethod.Post, $"https://{c.Address}/dns-query") { Content = new ByteArrayContent(query) };
+                var authority = c.Host ?? (IPAddress.TryParse(c.Address, out var literal) && literal.AddressFamily == AddressFamily.InterNetworkV6 ? $"[{c.Address}]" : c.Address);
+                using var request = new HttpRequestMessage(HttpMethod.Post, $"https://{authority}{c.Path ?? "/dns-query"}") { Content = new ByteArrayContent(query) };
                 request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/dns-message");
                 request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/dns-message"));
-                using var response = await _http.SendAsync(request, timeout.Token).ConfigureAwait(false);
+                using var response = await (c.Host is null ? _http : PinnedClient(c.Address)).SendAsync(request, timeout.Token).ConfigureAwait(false);
                 if (response.IsSuccessStatusCode)
                 {
                     answer = await response.Content.ReadAsByteArrayAsync(timeout.Token).ConfigureAwait(false);
@@ -185,8 +220,9 @@ public sealed class DnsFinder
             }
             else
             {
-                using var udp = new UdpClient(AddressFamily.InterNetwork);
-                await udp.SendAsync(query, new IPEndPoint(IPAddress.Parse(c.Address), 53), timeout.Token).ConfigureAwait(false);
+                var target = IPAddress.Parse(c.Address);
+                using var udp = new UdpClient(target.AddressFamily);
+                await udp.SendAsync(query, new IPEndPoint(target, 53), timeout.Token).ConfigureAwait(false);
                 var received = await udp.ReceiveAsync(timeout.Token).ConfigureAwait(false);
                 answer = received.Buffer;
             }
@@ -204,6 +240,42 @@ public sealed class DnsFinder
 
         var addresses = SecureDns.ParseAnswer(answer, query);
         return (addresses.Count > 0, watch.Elapsed.TotalMilliseconds, addresses);
+    }
+
+    private readonly Dictionary<string, HttpClient> _pinned = new(StringComparer.Ordinal);
+
+    /// <summary>DoH by host name, connected to the address the user gave (the system's DNS is never asked for the host).</summary>
+    private HttpClient PinnedClient(string address)
+    {
+        lock (_gate)
+        {
+            if (!_pinned.TryGetValue(address, out var client))
+            {
+                var ip = IPAddress.Parse(address);
+                var handler = new SocketsHttpHandler
+                {
+                    UseProxy = false,
+                    ConnectTimeout = TimeSpan.FromSeconds(2.5),
+                    ConnectCallback = async (context, token) =>
+                    {
+                        var socket = new Socket(ip.AddressFamily, SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
+                        try
+                        {
+                            await socket.ConnectAsync(new IPEndPoint(ip, context.DnsEndPoint.Port), token).ConfigureAwait(false);
+                            return new NetworkStream(socket, ownsSocket: true);
+                        }
+                        catch
+                        {
+                            socket.Dispose();
+                            throw;
+                        }
+                    },
+                };
+                _pinned[address] = client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(3) };
+            }
+
+            return client;
+        }
     }
 
     // ------------------------------------------------------------------ persistence (per network)

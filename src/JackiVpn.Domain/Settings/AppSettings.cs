@@ -114,6 +114,65 @@ public sealed record DnsServerEndpoint
     public static DnsServerEndpoint SystemLocal => new() { Transport = DnsTransport.Local };
 }
 
+/// <summary>A resolver entered by hand: an IP address, plain DNS or DNS-over-HTTPS (optionally with its host name).</summary>
+public sealed record CustomDnsResolver
+{
+    public required string Name { get; init; }
+
+    /// <summary>IP address (v4 or v6). Names are not accepted: this resolver may be the one that resolves names.</summary>
+    public required string Address { get; init; }
+
+    /// <summary><see cref="DnsTransport.Udp"/> (plain) or <see cref="DnsTransport.Https"/> (DoH).</summary>
+    public DnsTransport Transport { get; init; } = DnsTransport.Udp;
+
+    /// <summary>DoH only: the server's host name (TLS name and HTTP host), e.g. dns.google.</summary>
+    public string? Host { get; init; }
+
+    /// <summary>DoH only: path, default /dns-query.</summary>
+    public string? Path { get; init; }
+
+    public const int MaxCount = 32;
+
+    public DnsServerEndpoint ToEndpoint() => Transport == DnsTransport.Https
+        ? new DnsServerEndpoint { Transport = DnsTransport.Https, Server = Address.Trim(), Path = string.IsNullOrWhiteSpace(Path) ? "/dns-query" : Path.Trim(), TlsServerName = string.IsNullOrWhiteSpace(Host) ? null : Host.Trim() }
+        : new DnsServerEndpoint { Transport = DnsTransport.Udp, Server = Address.Trim() };
+
+    /// <summary>Null when the entry is usable, else what is wrong with it (shown to the user).</summary>
+    public string? Problem()
+    {
+        if (string.IsNullOrWhiteSpace(Name) || Name.Length > 40 || Name.Any(char.IsControl))
+        {
+            return "Give it a short name (up to 40 characters).";
+        }
+
+        var address = Address?.Trim() ?? string.Empty;
+        if (!System.Net.IPAddress.TryParse(address, out _) || (!address.Contains(':', StringComparison.Ordinal) && address.Count(c => c == '.') != 3))
+        {
+            return "The address must be an IP address, e.g. 1.1.1.1 or 2606:4700:4700::1111.";
+        }
+
+        if (Transport is not (DnsTransport.Udp or DnsTransport.Https))
+        {
+            return "Choose plain DNS or DNS-over-HTTPS.";
+        }
+
+        if (Transport == DnsTransport.Https)
+        {
+            if (!string.IsNullOrWhiteSpace(Host) && Uri.CheckHostName(Host.Trim()) != UriHostNameType.Dns)
+            {
+                return "The DoH host must be a host name, e.g. dns.google.";
+            }
+
+            if (!string.IsNullOrWhiteSpace(Path) && (!Path.Trim().StartsWith('/') || Path.Length > 128 || Path.Any(c => char.IsControl(c) || c == ' ')))
+            {
+                return "The DoH path must start with / (default /dns-query).";
+            }
+        }
+
+        return null;
+    }
+}
+
 public sealed record DnsSettings
 {
     public DnsMode Mode { get; init; } = DnsMode.AutoSecure;
@@ -132,6 +191,12 @@ public sealed record DnsSettings
     /// tunnel round-trip per new domain. Names routed Direct always get real answers.
     /// </summary>
     public bool FakeIpEnabled { get; init; } = true;
+
+    /// <summary>Resolvers the user added by hand: offered next to the built-in ones and included in the DNS search.</summary>
+    public IReadOnlyList<CustomDnsResolver> Custom { get; init; } = [];
+
+    /// <summary>The chosen resolver (smart or manual) also answers names routed Direct, instead of the system's.</summary>
+    public bool UseChosenForDirect { get; init; }
 
     public string FakeIpV4Range { get; init; } = "198.18.0.0/15";
     public string FakeIpV6Range { get; init; } = "fc00::/18";

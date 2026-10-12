@@ -45,6 +45,79 @@
                 </StackPanel>
             </v:ClaySurface>
 
+            <!-- Which DNS: smart (searched per network), the network's own, or one picked / entered by hand. -->
+            <v:ClaySurface>
+                <StackPanel>
+                    <DockPanel Margin="0,0,0,8">
+                        <Button DockPanel.Dock="Right" Style="{StaticResource Button.Outline}" Content="Apply now" VerticalAlignment="Top"
+                                Command="{Binding ApplyNowCommand}" Visibility="{Binding CanApplyNow, Converter={StaticResource Bool2Vis}}"
+                                ToolTip="Restarts the connection on the same server with the new DNS" />
+                        <StackPanel>
+                            <TextBlock Text="Which DNS" Style="{StaticResource Text.Section}" />
+                            <TextBlock Text="The resolver IBOX asks outside the tunnel: for VPN server addresses, and for sites that go direct if you turn that on below. Names inside the tunnel always use the encrypted resolver above."
+                                       Style="{StaticResource Text.Hint}" TextWrapping="Wrap" MaxWidth="560" HorizontalAlignment="Left" />
+                        </StackPanel>
+                    </DockPanel>
+                    <Border Style="{StaticResource SegmentHost}" HorizontalAlignment="Left">
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton Style="{StaticResource Segment}" GroupName="DnsChoice" Content="Smart" IsChecked="{Binding IsSmart, Mode=TwoWay}" />
+                            <RadioButton Style="{StaticResource Segment}" GroupName="DnsChoice" Content="Network's own" IsChecked="{Binding IsSystem, Mode=TwoWay}" />
+                            <RadioButton Style="{StaticResource Segment}" GroupName="DnsChoice" Content="Manual" IsChecked="{Binding IsManual, Mode=TwoWay}" />
+                        </StackPanel>
+                    </Border>
+                    <TextBlock Text="{Binding InUseText}" Style="{StaticResource Text.Label}" TextWrapping="Wrap" Margin="0,10,0,0" />
+
+                    <!-- Manual: pick from the list, or enter one -->
+                    <StackPanel Margin="0,12,0,0" Visibility="{Binding IsManual, Converter={StaticResource Bool2Vis}}">
+                        <TextBlock Text="Choose from the list" Style="{StaticResource Text.Label}" Margin="0,0,0,6" />
+                        <ComboBox ItemsSource="{Binding ResolverChoices}" SelectedItem="{Binding Chosen, Mode=TwoWay}" DisplayMemberPath="Label" MinWidth="360" HorizontalAlignment="Left" />
+                    </StackPanel>
+
+                    <Border Style="{StaticResource Separator.Line}" />
+                    <TextBlock Text="Add your own DNS" Style="{StaticResource Text.Label}" Margin="0,0,0,2" />
+                    <TextBlock Text="An IP address, plain or encrypted (DoH). It is added to the list and to the DNS search, and used right away."
+                               Style="{StaticResource Text.Hint}" TextWrapping="Wrap" Margin="0,0,0,8" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="150" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox Text="{Binding NewName, UpdateSourceTrigger=PropertyChanged}" ToolTip="Name, e.g. Office DNS" />
+                        <TextBox Grid.Column="1" Text="{Binding NewAddress, UpdateSourceTrigger=PropertyChanged}" Margin="8,0,0,0" ToolTip="IP address, e.g. 178.22.122.100" />
+                        <CheckBox Grid.Column="2" Style="{StaticResource Toggle}" IsChecked="{Binding NewIsDoh}" Margin="12,0,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="DoH" Style="{StaticResource Text.Label}" />
+                        </CheckBox>
+                        <TextBox Grid.Column="3" Text="{Binding NewHost, UpdateSourceTrigger=PropertyChanged}" Margin="8,0,0,0" ToolTip="DoH host name (optional), e.g. dns.google"
+                                 IsEnabled="{Binding NewIsDoh}" />
+                        <Button Grid.Column="4" Style="{StaticResource Button.Primary}" Content="Add and use" Margin="8,0,0,0" Command="{Binding AddCustomCommand}" />
+                    </Grid>
+                    <TextBlock Text="{Binding EntryError}" Style="{StaticResource Text.Hint}" Foreground="{DynamicResource B.Danger}" TextWrapping="Wrap" Margin="0,6,0,0"
+                               Visibility="{Binding EntryError, Converter={StaticResource Null2Vis}}" />
+                    <ItemsControl ItemsSource="{Binding CustomChoices}" Margin="0,8,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <DockPanel Margin="0,2">
+                                    <Button DockPanel.Dock="Right" Style="{StaticResource Button.Ghost}" Content="Remove" Padding="10,3"
+                                            Command="{Binding DataContext.RemoveCustomCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+                                    <TextBlock Text="{Binding Label}" Style="{StaticResource Text.Label}" VerticalAlignment="Center" />
+                                </DockPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <Border Style="{StaticResource Separator.Line}" />
+                    <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding UseChosenForDirect}">
+                        <StackPanel>
+                            <TextBlock Text="Also use it for sites that go direct" Style="{StaticResource Text.Label}" />
+                            <TextBlock Text="Sites your rules send outside the VPN are looked up with this DNS instead of the network's (only when the Direct resolver below is Local)." Style="{StaticResource Text.Hint}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </CheckBox>
+                </StackPanel>
+            </v:ClaySurface>
+
             <v:ClaySurface>
                 <StackPanel>
                     <DockPanel Margin="0,0,0,8">
@@ -54,18 +127,12 @@
                         </StackPanel>
                         <StackPanel>
                             <TextBlock Text="DNS search" Style="{StaticResource Text.Section}" />
-                            <TextBlock Text="Tests international and Iranian resolvers (plain and encrypted) from this network: speed, and whether they answer honestly or with the filter's block page. The fastest clean one is suggested." Style="{StaticResource Text.Hint}" TextWrapping="Wrap" MaxWidth="560" HorizontalAlignment="Left" />
+                            <TextBlock Text="Tests international and Iranian resolvers (plain and encrypted) from this network: speed, and whether they answer honestly or with the filter's block page. The fastest clean one is used when DNS is set to Smart; your own resolvers are tested too." Style="{StaticResource Text.Hint}" TextWrapping="Wrap" MaxWidth="560" HorizontalAlignment="Left" />
                         </StackPanel>
                     </DockPanel>
                     <TextBlock Text="{Binding BestText}" Style="{StaticResource Text.Label}" Margin="0,0,0,4" />
                     <TextBlock Text="{Binding SearchStatus}" Style="{StaticResource Text.Hint}" TextWrapping="Wrap" Margin="0,0,0,8"
                                Visibility="{Binding SearchStatus, Converter={StaticResource Null2Vis}}" />
-                    <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding AutoPickDns}" Margin="0,0,0,10">
-                        <StackPanel>
-                            <TextBlock Text="Choose automatically on every network" Style="{StaticResource Text.Label}" />
-                            <TextBlock Text="Server addresses are looked up with the best clean resolver found on the network you are on (unless a bootstrap resolver is set by hand below). Searched in the background when the network changes." Style="{StaticResource Text.Hint}" TextWrapping="Wrap" />
-                        </StackPanel>
-                    </CheckBox>
                     <ItemsControl ItemsSource="{Binding Results}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
@@ -94,10 +161,61 @@
                                             </Style>
                                         </TextBlock.Style>
                                     </TextBlock>
-                                    <Button Grid.Column="5" Content="Use for servers" Padding="10,3" Margin="6,0,0,0"
+                                    <Button Grid.Column="5" Content="Use this" Padding="10,3" Margin="6,0,0,0"
                                             Command="{Binding DataContext.UseForServersCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
                                             Visibility="{Binding Good, Converter={StaticResource Bool2Vis}}" />
                                 </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </v:ClaySurface>
+
+            <!-- DNS of each network adapter (Windows settings, changed through the IBOX service) -->
+            <v:ClaySurface Visibility="{Binding HasAdapters, Converter={StaticResource Bool2Vis}}">
+                <StackPanel>
+                    <DockPanel Margin="0,0,0,8">
+                        <Button DockPanel.Dock="Right" Style="{StaticResource Button.Outline}" Content="Refresh" VerticalAlignment="Top" Command="{Binding RefreshAdaptersCommand}" />
+                        <StackPanel>
+                            <TextBlock Text="Network adapters" Style="{StaticResource Text.Section}" />
+                            <TextBlock Text="The DNS servers Windows uses on each adapter when IBOX is off (and for other apps outside TUN). Pick a ready-made pair or type your own; Automatic takes them from the router again. IBOX remembers the original setting so you can restore it."
+                                       Style="{StaticResource Text.Hint}" TextWrapping="Wrap" MaxWidth="560" HorizontalAlignment="Left" />
+                        </StackPanel>
+                    </DockPanel>
+                    <TextBlock Text="{Binding AdaptersStatus}" Style="{StaticResource Text.Hint}" TextWrapping="Wrap"
+                               Visibility="{Binding AdaptersStatus, Converter={StaticResource Null2Vis}}" />
+                    <ItemsControl ItemsSource="{Binding Adapters}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border BorderBrush="{DynamicResource B.Border}" BorderThickness="0,1,0,0" Padding="0,12,0,12">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Title}" Style="{StaticResource Text.Label}" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding Description}" Style="{StaticResource Text.Hint}" />
+                                        <TextBlock Text="{Binding CurrentText}" Style="{StaticResource Text.Hint}" Margin="0,2,0,8" />
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="180" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <ComboBox ItemsSource="{Binding DataContext.AdapterPresets, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                      SelectedItem="{Binding Preset, Mode=TwoWay}" ToolTip="Fill with a ready-made pair" MinWidth="0" />
+                                            <TextBox Grid.Column="1" Text="{Binding Servers, UpdateSourceTrigger=PropertyChanged}" Margin="8,0,0,0"
+                                                     ToolTip="DNS servers, comma separated (IPv4 or IPv6, up to 4)" />
+                                            <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="8,0,0,0">
+                                                <Button Style="{StaticResource Button.Primary}" Content="Set" Padding="14,4"
+                                                        Command="{Binding DataContext.SetAdapterCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+                                                <Button Style="{StaticResource Button.Ghost}" Content="Automatic" Padding="10,4" Margin="6,0,0,0"
+                                                        Command="{Binding DataContext.AutomaticAdapterCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+                                                <Button Style="{StaticResource Button.Ghost}" Content="Restore" Padding="10,4" Margin="6,0,0,0"
+                                                        Command="{Binding DataContext.RestoreAdapterCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
+                                                        Visibility="{Binding CanRestore, Converter={StaticResource Bool2Vis}}" ToolTip="Put back what this adapter had before IBOX changed it" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <TextBlock Text="{Binding Message}" Style="{StaticResource Text.Hint}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                                   Visibility="{Binding Message, Converter={StaticResource Null2Vis}}" />
+                                    </StackPanel>
+                                </Border>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>

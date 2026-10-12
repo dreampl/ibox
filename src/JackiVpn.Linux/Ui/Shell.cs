@@ -372,6 +372,7 @@ public sealed class Shell : Window, INotificationSink
             Ready?.Invoke(this, EventArgs.Empty);
             _ = Task.Run(() => Services.SubscriptionService.RunAutoUpdateLoopAsync(TimeSpan.FromMinutes(1), Lifetime.Token));
             _ = Task.Run(() => Services.SubscriptionService.RunAccountMonitorAsync(Lifetime.Token));
+            Services.SearchDnsIfNeeded();
             if (Services.Settings.Current.Startup.AutoConnect)
             {
                 await Dashboard.ToggleAsync();

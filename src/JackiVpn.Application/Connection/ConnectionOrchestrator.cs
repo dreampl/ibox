@@ -1,5 +1,6 @@
 using System.Net.NetworkInformation;
 using JackiVpn.Application.Background;
+using JackiVpn.Application.Connectivity;
 using JackiVpn.Application.Health;
 using JackiVpn.Application.Notifications;
 using JackiVpn.Application.Smart;
@@ -605,7 +606,13 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
                         await policy.WaitUntilAllowedAsync(BackgroundWork.Heavy, _lifetime.Token).ConfigureAwait(false);
                     }
 
-                    await _d.RuleSets.EnsureAsync(refresh, force: false, _lifetime.Token).ConfigureAwait(false);
+                    var fresh = await _d.RuleSets.EnsureAsync(refresh, force: false, _lifetime.Token).ConfigureAwait(false);
+                    var missingBefore = statuses.Where(s => !s.Available).Select(s => s.Tag).ToHashSet(StringComparer.Ordinal);
+                    if (fresh.Any(r => r.Available && missingBefore.Contains(r.Tag)) && State == ConnectionState.Connected)
+                    {
+                        // Rules using these rule-sets were skipped by the running core: apply them now, not on the next connect.
+                        await ReconnectAsync("rule-sets downloaded", _lifetime.Token, refreshRouting: true).ConfigureAwait(false);
+                    }
                 }
                 catch (Exception ex) when (ex is not OutOfMemoryException)
                 {
@@ -693,11 +700,9 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
         // Fingerprint/ALPN hardening and the measured handshake variant are applied here; the stored
         // profile stays as the user/provider defined it.
         var tuned = await _d.Tuner.PrepareAsync(profile, ct).ConfigureAwait(false);
-        if (settings.Connectivity.AutoPickDns && settings.Dns.Bootstrap.Transport == DnsTransport.Local && _d.BestDns?.Invoke() is { } bestDns)
-        {
-            // Server names are looked up with the fastest clean resolver of this network instead of the system's.
-            settings = settings with { Dns = settings.Dns with { Bootstrap = bestDns } };
-        }
+        // Server names (and Direct sites, when asked) are looked up with the chosen resolver: the fastest clean one of
+        // this network (smart) or the user's own pick, instead of the system's.
+        settings = DnsChoice.ForSession(settings, settings.Connectivity.AutoPickDns ? _d.BestDns?.Invoke() : null);
 
         var result = await session.Backend.StartAsync(new BackendStartRequest
         {
@@ -1220,8 +1225,11 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
         }
     }
 
-    /// <summary>Restarts the session on the same server (a setting that lives in the core configuration changed).</summary>
-    public async Task<bool> ReconnectAsync(string reason, CancellationToken ct)
+    /// <summary>
+    /// Restarts the session on the same server (a setting that lives in the core configuration changed). With
+    /// <paramref name="refreshRouting"/> the rule-sets are prepared again first (rules or rule-sets changed).
+    /// </summary>
+    public async Task<bool> ReconnectAsync(string reason, CancellationToken ct, bool refreshRouting = false)
     {
         await _op.WaitAsync(ct).ConfigureAwait(false);
         try
@@ -1229,6 +1237,22 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
             if (_session is not { Profile: { } current } session || _state.State != ConnectionState.Connected)
             {
                 return false;
+            }
+
+            if (refreshRouting)
+            {
+                try
+                {
+                    session.Routing = await PrepareRuleSetsAsync(_d.Settings(), session.Backend.Mode, ct).ConfigureAwait(false);
+                }
+                catch (ConnectionException ex)
+                {
+                    // The new rules would leak (a VPN rule whose rule-set is missing while unmatched traffic goes
+                    // direct): keep the running, safe configuration and say why.
+                    Log.LogWarning("New routing rules not applied: {Error}", ex.Message);
+                    Publish(st => st with { LastError = "Routing change not applied: " + ex.Message });
+                    return false;
+                }
             }
 
             Log.LogInformation("Reconnecting on the same server: {Reason}.", reason);

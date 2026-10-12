@@ -4,6 +4,7 @@ using System.Linq;
 using JackiVpn.Desktop.Services;
 using JackiVpn.Domain.Settings;
 using JackiVpn.Application.Settings;
+using JackiVpn.Application.Connectivity;
 
 namespace JackiVpn.Desktop.ViewModels;
 
@@ -41,6 +42,74 @@ public sealed class DnsEndpointEditor(Func<DnsServerEndpoint> get, Action<DnsSer
     }
 }
 
+/// <summary>One resolver the user can pick by hand (built-in or entered).</summary>
+public sealed record DnsChoiceItem(string Label, DnsServerEndpoint Endpoint, bool IsCustom, string Name)
+{
+    public override string ToString() => Label;
+}
+
+/// <summary>A ready-made set of servers for an adapter.</summary>
+public sealed record AdapterDnsPreset(string Name, IReadOnlyList<string> Servers)
+{
+    public override string ToString() => Name;
+}
+
+/// <summary>One network adapter and its DNS, editable.</summary>
+public sealed class AdapterDnsRow : CommunityToolkit.Mvvm.ComponentModel.ObservableObject
+{
+    private string _servers;
+    private string? _message;
+    private bool _canRestore;
+    private AdapterDnsPreset? _preset;
+
+    public AdapterDnsRow(Domain.Network.AdapterDns adapter, bool canRestore)
+    {
+        Adapter = adapter;
+        _canRestore = canRestore;
+        _servers = adapter.Automatic ? string.Empty : string.Join(", ", adapter.Servers);
+    }
+
+    public Domain.Network.AdapterDns Adapter { get; }
+
+    public string Title => $"{Adapter.Name} · {Adapter.Kind}" + (Adapter.Up ? string.Empty : " · not connected");
+
+    public string? Description => Adapter.Description;
+
+    public string CurrentText => (Adapter.Automatic ? "Automatic (from the network)" : "Set by hand")
+        + (Adapter.Servers.Count > 0 ? ": " + string.Join(", ", Adapter.Servers) : string.Empty);
+
+    /// <summary>Servers to set, comma separated (empty = automatic).</summary>
+    public string Servers
+    {
+        get => _servers;
+        set => SetProperty(ref _servers, value);
+    }
+
+    public AdapterDnsPreset? Preset
+    {
+        get => _preset;
+        set
+        {
+            if (SetProperty(ref _preset, value) && value is not null)
+            {
+                Servers = string.Join(", ", value.Servers);
+            }
+        }
+    }
+
+    public string? Message
+    {
+        get => _message;
+        set => SetProperty(ref _message, value);
+    }
+
+    public bool CanRestore
+    {
+        get => _canRestore;
+        set => SetProperty(ref _canRestore, value);
+    }
+}
+
 /// <summary>One row of the DNS search results.</summary>
 public sealed record DnsResultRow(string Name, string Kind, string Address, string Speed, string Verdict, bool Good, Application.Connectivity.DnsResult Result);
 
@@ -51,11 +120,55 @@ public sealed class DnsViewModel : SettingsPageViewModel
     private bool _isSearching;
     private string? _searchStatus;
 
-    public DnsViewModel(SettingsStore store, Application.Connectivity.DnsFinder? finder = null, Func<bool>? canProbe = null)
+    private readonly AdapterDnsService? _adapters;
+    private string? _adaptersStatus;
+    private readonly Func<System.Threading.Tasks.Task<bool>>? _applyNow;
+    private readonly Func<bool> _isConnected;
+    private string _newName = string.Empty;
+    private string _newAddress = string.Empty;
+    private bool _newIsDoh;
+    private string _newHost = string.Empty;
+    private string? _entryError;
+    private string _customKey = string.Empty;
+
+    public DnsViewModel(
+        SettingsStore store,
+        Application.Connectivity.DnsFinder? finder = null,
+        Func<bool>? canProbe = null,
+        Func<System.Threading.Tasks.Task<bool>>? applyNow = null,
+        Func<bool>? isConnected = null,
+        AdapterDnsService? adapters = null)
         : base(store)
     {
+        _adapters = adapters;
+        RefreshAdaptersCommand = new CommunityToolkit.Mvvm.Input.AsyncRelayCommand(RefreshAdaptersAsync);
+        SetAdapterCommand = new CommunityToolkit.Mvvm.Input.AsyncRelayCommand<AdapterDnsRow>(r => ChangeAdapterAsync(r, automatic: false));
+        AutomaticAdapterCommand = new CommunityToolkit.Mvvm.Input.AsyncRelayCommand<AdapterDnsRow>(r => ChangeAdapterAsync(r, automatic: true));
+        RestoreAdapterCommand = new CommunityToolkit.Mvvm.Input.AsyncRelayCommand<AdapterDnsRow>(RestoreAdapterAsync);
         _finder = finder;
         _canProbe = canProbe ?? (() => true);
+        _applyNow = applyNow;
+        _isConnected = isConnected ?? (() => false);
+        RebuildChoices();
+        store.Changed += (_, _) => Ui.Post(RebuildChoices);
+        AddCustomCommand = new CommunityToolkit.Mvvm.Input.RelayCommand(AddCustom);
+        RemoveCustomCommand = new CommunityToolkit.Mvvm.Input.RelayCommand<DnsChoiceItem>(i =>
+        {
+            if (i is { IsCustom: true })
+            {
+                Set(s => DnsChoice.RemoveCustom(s, i.Name));
+            }
+        });
+        ApplyNowCommand = new CommunityToolkit.Mvvm.Input.AsyncRelayCommand(async () =>
+        {
+            if (_applyNow is null)
+            {
+                return;
+            }
+
+            SearchStatus = "Applying to the running connection…";
+            SearchStatus = await _applyNow() ? "Applied to the running connection." : "Could not apply now; used from the next connection.";
+        });
         Remote = new DnsEndpointEditor(() => S.Dns.Remote, v => Set(s => s with { Dns = s.Dns with { Remote = v } }));
         Direct = new DnsEndpointEditor(() => S.Dns.Direct, v => Set(s => s with { Dns = s.Dns with { Direct = v } }));
         Bootstrap = new DnsEndpointEditor(() => S.Dns.Bootstrap, v => Set(s => s with { Dns = s.Dns with { Bootstrap = v } }));
@@ -64,13 +177,275 @@ public sealed class DnsViewModel : SettingsPageViewModel
         {
             if (r is not null)
             {
-                Set(s => s with { Dns = s.Dns with { Bootstrap = r.Result.Candidate.ToEndpoint() } });
-                SearchStatus = $"Server names are now looked up with {r.Result.Candidate.Label}.";
+                Set(s => DnsChoice.Use(s, r.Result.Candidate.ToEndpoint()));
+                SearchStatus = $"Now using {r.Result.Candidate.Label}." + AppliesHint;
             }
         });
         if (_finder?.Last is { Count: > 0 } last)
         {
             Fill(last);
+        }
+    }
+
+    // ------------------------------------------------------------------ which DNS (smart / system / manual)
+
+    private string AppliesHint => _isConnected() ? " Press Apply now to use it on this connection." : string.Empty;
+
+    public bool IsSmart
+    {
+        get => DnsChoice.Selection(S) == DnsSelection.Smart;
+        set
+        {
+            if (value)
+            {
+                Set(s => DnsChoice.Select(s, DnsSelection.Smart));
+            }
+        }
+    }
+
+    public bool IsSystem
+    {
+        get => DnsChoice.Selection(S) == DnsSelection.System;
+        set
+        {
+            if (value)
+            {
+                Set(s => DnsChoice.Select(s, DnsSelection.System));
+            }
+        }
+    }
+
+    public bool IsManual
+    {
+        get => DnsChoice.Selection(S) == DnsSelection.Manual;
+        set
+        {
+            if (value && !IsManual)
+            {
+                // Start from the network's best clean resolver when one is known.
+                Set(s => DnsChoice.Select(s, DnsSelection.Manual, _finder?.BestForNetwork()));
+            }
+        }
+    }
+
+    /// <summary>Built-in and entered resolvers, for the manual pick.</summary>
+    public System.Collections.ObjectModel.ObservableCollection<DnsChoiceItem> ResolverChoices { get; } = [];
+
+    public DnsChoiceItem? Chosen
+    {
+        get => IsManual ? ResolverChoices.FirstOrDefault(c => c.Endpoint == S.Dns.Bootstrap) : null;
+        set
+        {
+            if (value is not null && value.Endpoint != S.Dns.Bootstrap)
+            {
+                Set(s => DnsChoice.Use(s, value.Endpoint));
+            }
+        }
+    }
+
+    public System.Collections.Generic.IEnumerable<DnsChoiceItem> CustomChoices => ResolverChoices.Where(c => c.IsCustom);
+
+    public bool HasCustom => S.Dns.Custom.Count > 0;
+
+    public string InUseText
+    {
+        get
+        {
+            var known = _finder?.AllCandidates() ?? Application.Connectivity.DnsFinder.Candidates;
+            return DnsChoice.Selection(S) switch
+            {
+                DnsSelection.Smart => _finder?.BestLabel() is { } best ? "In use: " + best + " (best on this network)" : "In use: the network's own DNS until a search finds a better one.",
+                DnsSelection.System => "In use: the DNS servers of your network adapter.",
+                _ => "In use: " + DnsChoice.Describe(S.Dns.Bootstrap, known),
+            };
+        }
+    }
+
+    public bool UseChosenForDirect
+    {
+        get => S.Dns.UseChosenForDirect;
+        set => Set(s => s with { Dns = s.Dns with { UseChosenForDirect = value } });
+    }
+
+    public bool CanApplyNow => _applyNow is not null && _isConnected();
+
+    public CommunityToolkit.Mvvm.Input.IAsyncRelayCommand ApplyNowCommand { get; }
+
+    public CommunityToolkit.Mvvm.Input.IRelayCommand AddCustomCommand { get; }
+
+    public CommunityToolkit.Mvvm.Input.IRelayCommand<DnsChoiceItem> RemoveCustomCommand { get; }
+
+    public string NewName
+    {
+        get => _newName;
+        set => SetProperty(ref _newName, value);
+    }
+
+    public string NewAddress
+    {
+        get => _newAddress;
+        set => SetProperty(ref _newAddress, value);
+    }
+
+    public bool NewIsDoh
+    {
+        get => _newIsDoh;
+        set => SetProperty(ref _newIsDoh, value);
+    }
+
+    public string NewHost
+    {
+        get => _newHost;
+        set => SetProperty(ref _newHost, value);
+    }
+
+    public string? EntryError
+    {
+        get => _entryError;
+        private set => SetProperty(ref _entryError, value);
+    }
+
+    private void AddCustom()
+    {
+        var resolver = new CustomDnsResolver
+        {
+            Name = string.IsNullOrWhiteSpace(NewName) ? NewAddress.Trim() : NewName.Trim(),
+            Address = NewAddress.Trim(),
+            Transport = NewIsDoh ? DnsTransport.Https : DnsTransport.Udp,
+            Host = NewIsDoh && !string.IsNullOrWhiteSpace(NewHost) ? NewHost.Trim() : null,
+        };
+        var (next, problem) = DnsChoice.AddCustom(S, resolver);
+        if (problem is not null)
+        {
+            EntryError = problem;
+            return;
+        }
+
+        EntryError = null;
+        Set(_ => DnsChoice.Use(next, resolver.ToEndpoint()));
+        NewName = NewAddress = NewHost = string.Empty;
+        NewIsDoh = false;
+        SearchStatus = $"Added and now using {resolver.Name}." + AppliesHint;
+    }
+
+    private void RebuildChoices()
+    {
+        var key = System.Text.Json.JsonSerializer.Serialize(S.Dns.Custom);
+        if (key == _customKey && ResolverChoices.Count > 0)
+        {
+            OnPropertyChanged(nameof(Chosen));
+            return;
+        }
+
+        _customKey = key;
+        ResolverChoices.Clear();
+        foreach (var c in Application.Connectivity.DnsFinder.Candidates)
+        {
+            ResolverChoices.Add(new DnsChoiceItem(c.Label + (c.Iranian ? " (Iran)" : string.Empty), c.ToEndpoint(), false, c.Name));
+        }
+
+        foreach (var r in S.Dns.Custom)
+        {
+            var c = Application.Connectivity.DnsCandidate.From(r);
+            ResolverChoices.Add(new DnsChoiceItem(c.Label + " (yours)", c.ToEndpoint(), true, r.Name));
+        }
+
+        OnPropertyChanged(nameof(CustomChoices));
+        OnPropertyChanged(nameof(Chosen));
+    }
+
+    // ------------------------------------------------------------------ network adapters
+
+    public bool HasAdapters => _adapters is not null;
+
+    public System.Collections.ObjectModel.ObservableCollection<AdapterDnsRow> Adapters { get; } = [];
+
+    public IReadOnlyList<AdapterDnsPreset> AdapterPresets => AdapterDnsPresets.All(S.Dns.Custom).Select(p => new AdapterDnsPreset(p.Name, p.Servers)).ToList();
+
+    public string? AdaptersStatus
+    {
+        get => _adaptersStatus;
+        private set => SetProperty(ref _adaptersStatus, value);
+    }
+
+    public CommunityToolkit.Mvvm.Input.IAsyncRelayCommand RefreshAdaptersCommand { get; }
+
+    public CommunityToolkit.Mvvm.Input.IAsyncRelayCommand<AdapterDnsRow> SetAdapterCommand { get; }
+
+    public CommunityToolkit.Mvvm.Input.IAsyncRelayCommand<AdapterDnsRow> AutomaticAdapterCommand { get; }
+
+    public CommunityToolkit.Mvvm.Input.IAsyncRelayCommand<AdapterDnsRow> RestoreAdapterCommand { get; }
+
+    /// <summary>Reads the adapters (called when the page is shown and by Refresh).</summary>
+    public async System.Threading.Tasks.Task RefreshAdaptersAsync()
+    {
+        if (_adapters is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var list = await _adapters.ListAsync(System.Threading.CancellationToken.None);
+            Adapters.Clear();
+            foreach (var a in list)
+            {
+                Adapters.Add(new AdapterDnsRow(a, _adapters.CanRestore(a.Id)));
+            }
+
+            AdaptersStatus = list.Count == 0 ? "No network adapters found." : null;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            AdaptersStatus = ex.Message;
+        }
+    }
+
+    private async System.Threading.Tasks.Task ChangeAdapterAsync(AdapterDnsRow? row, bool automatic)
+    {
+        if (_adapters is null || row is null)
+        {
+            return;
+        }
+
+        var servers = automatic ? [] : Domain.Network.AdapterDnsChange.Parse(row.Servers);
+        if (!automatic && servers.Count == 0)
+        {
+            row.Message = "Enter at least one server, or choose Automatic.";
+            return;
+        }
+
+        row.Message = "Applying…";
+        try
+        {
+            row.Message = await _adapters.SetAsync(row.Adapter, servers, System.Threading.CancellationToken.None);
+            if (row.Message is null)
+            {
+                await RefreshAdaptersAsync();
+            }
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            row.Message = ex.Message;
+        }
+    }
+
+    private async System.Threading.Tasks.Task RestoreAdapterAsync(AdapterDnsRow? row)
+    {
+        if (_adapters is null || row is null)
+        {
+            return;
+        }
+
+        row.Message = "Restoring…";
+        try
+        {
+            await _adapters.RestoreAsync(row.Adapter, System.Threading.CancellationToken.None);
+            await RefreshAdaptersAsync();
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            row.Message = ex.Message;
         }
     }
 

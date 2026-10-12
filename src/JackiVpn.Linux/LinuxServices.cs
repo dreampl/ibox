@@ -81,9 +81,15 @@ public sealed class LinuxServices : IAsyncDisposable
             // In TUN mode while connected the app's own sockets use the tunnel: probing then would measure the tunnel.
             CanProbeDirectly = () => Orchestrator!.State != Domain.Connection.ConnectionState.Connected || Settings.Current.Connection.Mode != Domain.Connection.ConnectionMode.Tun,
         };
+        DnsFinder = new Application.Connectivity.DnsFinder(Path.Combine(DataDir, "state", "dns-choice.json"), networkKey, _loggerFactory.CreateLogger("JackiVpn.Dns"))
+        {
+            Extra = () => Settings.Current.Dns.Custom.Select(Application.Connectivity.DnsCandidate.From),
+        };
+        AdapterDns = new Application.Connectivity.AdapterDnsService(new LinuxAdapterDns(), Path.Combine(DataDir, "state", "adapter-dns-original.json"), _loggerFactory.CreateLogger("JackiVpn.AdapterDns"));
         Orchestrator = new ConnectionOrchestrator(new OrchestratorDependencies
         {
             NetworkKey = networkKey,
+            BestDns = () => DnsFinder.BestForNetwork(),
             Traffic = () => Traffic?.CurrentPolicy(),
             Limits = () => Traffic?.CurrentLimits() ?? Domain.Usage.TrafficLimits.None,
             Rescue = Rescue,
@@ -111,6 +117,7 @@ public sealed class LinuxServices : IAsyncDisposable
             InternalDomains = () => Workplace.Active?.InternalDomains ?? [],
         };
         Traffic = new Application.Traffic.TrafficController(Orchestrator, settings, Workplace, Usage, _loggerFactory.CreateLogger("JackiVpn.Traffic"));
+        RoutingWatcher = new Application.Routing.RoutingWatcher(Settings, Orchestrator, _loggerFactory.CreateLogger("JackiVpn.Routing"));
         RuleSets = ruleSets;
     }
 
@@ -123,6 +130,15 @@ public sealed class LinuxServices : IAsyncDisposable
     public Application.Usage.UsageMonitor Usage { get; }
 
     public Application.Traffic.TrafficController Traffic { get; }
+
+    /// <summary>Finds the fastest clean resolver of each network (smart DNS).</summary>
+    public Application.Connectivity.DnsFinder DnsFinder { get; }
+
+    /// <summary>DNS servers of the network adapters (NetworkManager).</summary>
+    public Application.Connectivity.AdapterDnsService AdapterDns { get; }
+
+    /// <summary>Applies routing changes to the running connection.</summary>
+    public Application.Routing.RoutingWatcher RoutingWatcher { get; }
 
     public RuleSetManager RuleSets { get; }
 
@@ -166,6 +182,26 @@ public sealed class LinuxServices : IAsyncDisposable
         _ = Task.Run(Workplace.Refresh, CancellationToken.None);
         System.Net.NetworkInformation.NetworkChange.NetworkAddressChanged += (_, _) => _ = Task.Run(Workplace.Refresh, CancellationToken.None);
         Usage.Start();
+    }
+
+    /// <summary>Background DNS search for a network without a fresh result (desktop window only, never through the tunnel).</summary>
+    public void SearchDnsIfNeeded()
+    {
+        if (DnsFinder.NeedsSearch() && Rescue.CanProbeDirectly())
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(4)).ConfigureAwait(false);
+                    await DnsFinder.SearchAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (ex is not OutOfMemoryException)
+                {
+                    Logger.LogDebug("Background DNS search ended: {Error}", ex.Message);
+                }
+            });
+        }
     }
 
     /// <summary>Servers ordered by subscription (manual imports last), as the list shows them.</summary>

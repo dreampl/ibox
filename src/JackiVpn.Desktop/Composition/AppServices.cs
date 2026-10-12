@@ -104,6 +104,7 @@ public sealed class AppServices : IAsyncDisposable
         Updates = new UpdateMonitor(new AppUpdateService(updateLog), () => Settings.Current.Updates, CurrentVersion, "windows", null, updateLog);
 
         Service = new ServiceControl(LoggerFactory.CreateLogger("JackiVpn.ServiceControl"));
+        AdapterDns = new Application.Connectivity.AdapterDnsService(new Services.WindowsAdapterDnsControl(Service), System.IO.Path.Combine(Paths.UserStateDir, "adapter-dns-original.json"), LoggerFactory.CreateLogger("JackiVpn.AdapterDns"));
         var plans = new SessionPlanFactory(Catalog) { FlushDns = static () => JackiVpn.Networking.Adapters.NetworkInspector.FlushDnsCache() };
         var sessionLogger = LoggerFactory.CreateLogger("JackiVpn.Session");
         NetworkMonitor = new NetworkChangeMonitor(LoggerFactory.CreateLogger("JackiVpn.Network"), Domain.ProductInfo.TunInterfaceName);
@@ -116,7 +117,10 @@ public sealed class AppServices : IAsyncDisposable
             // In TUN mode while connected the app's own sockets use the tunnel: probing then would measure the tunnel.
             CanProbeDirectly = () => Orchestrator!.State != ConnectionState.Connected || Settings.Current.Connection.Mode != ConnectionMode.Tun,
         };
-        DnsFinder = new Application.Connectivity.DnsFinder(System.IO.Path.Combine(Paths.UserStateDir, "dns-choice.json"), networkKey, LoggerFactory.CreateLogger("JackiVpn.Dns"));
+        DnsFinder = new Application.Connectivity.DnsFinder(System.IO.Path.Combine(Paths.UserStateDir, "dns-choice.json"), networkKey, LoggerFactory.CreateLogger("JackiVpn.Dns"))
+        {
+            Extra = () => Settings.Current.Dns.Custom.Select(Application.Connectivity.DnsCandidate.From),
+        };
         Background = new Application.Background.BackgroundPolicy(new Services.WindowsDeviceConditions(), UserBusy, LoggerFactory.CreateLogger("JackiVpn.Background"));
         SubscriptionService.Background = Background;
         Updates.WaitForUpkeep = ct => Background.WaitUntilAllowedAsync(Application.Background.BackgroundWork.Upkeep, ct);
@@ -165,6 +169,7 @@ public sealed class AppServices : IAsyncDisposable
             Pace = Background.Stretch,
         };
         Traffic = new Application.Traffic.TrafficController(Orchestrator, settings, Workplace, Usage, LoggerFactory.CreateLogger("JackiVpn.Traffic"));
+        RoutingWatcher = new Application.Routing.RoutingWatcher(Settings, Orchestrator, LoggerFactory.CreateLogger("JackiVpn.Routing"));
     }
 
     public Application.Connectivity.DnsFinder DnsFinder { get; }
@@ -214,6 +219,9 @@ public sealed class AppServices : IAsyncDisposable
     public Application.Usage.UsageMonitor Usage { get; }
     public Application.Traffic.TrafficController Traffic { get; }
 
+    /// <summary>Applies routing changes to the running connection.</summary>
+    public Application.Routing.RoutingWatcher RoutingWatcher { get; }
+
     public AppPaths Paths { get; }
     public LogBuffer LogBuffer { get; }
     public LoggingOptions LoggingOptions { get; }
@@ -256,6 +264,9 @@ public sealed class AppServices : IAsyncDisposable
     public ProfileService ProfileService { get; }
     public RuleSetManager RuleSets { get; }
     public ServiceControl Service { get; }
+
+    /// <summary>DNS servers of the network adapters (changed through the service).</summary>
+    public Application.Connectivity.AdapterDnsService AdapterDns { get; }
     public NetworkChangeMonitor NetworkMonitor { get; }
     public ConnectionOrchestrator Orchestrator { get; }
     public CancellationToken Lifetime => _lifetime.Token;
