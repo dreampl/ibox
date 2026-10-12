@@ -582,6 +582,8 @@ public sealed class Shell : Window, INotificationSink
             _ = Task.Run(() => Services.SubscriptionService.RunAccountMonitorAsync(Lifetime.Token));
             Services.SearchDnsIfNeeded();
             Services.Settings.Changed += (_, st) => Dispatcher.UIThread.Post(() => SyncNotch(st.Ui.Notch));
+            Services.Settings.Changed += (_, _) => Services.Agent.Sync();
+            Services.Agent.Sync();
             Services.Orchestrator.StatusChanged += (_, st) => Dispatcher.UIThread.Post(() => _notch?.Update(st));
             Services.NowPlaying.Changed += (_, item) => Dispatcher.UIThread.Post(() => _notch?.SetNowPlaying(item));
             SyncNotch(Services.Settings.Current.Ui.Notch);

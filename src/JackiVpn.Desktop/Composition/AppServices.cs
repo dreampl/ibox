@@ -171,6 +171,21 @@ public sealed class AppServices : IAsyncDisposable
         };
         Traffic = new Application.Traffic.TrafficController(Orchestrator, settings, Workplace, Usage, LoggerFactory.CreateLogger("JackiVpn.Traffic"));
         RoutingWatcher = new Application.Routing.RoutingWatcher(Settings, Orchestrator, LoggerFactory.CreateLogger("JackiVpn.Routing"));
+        Agent = new Application.Agent.AgentPipeServer(
+            new Application.Agent.AgentController(new Application.Agent.AgentDependencies
+            {
+                Settings = Settings,
+                Orchestrator = Orchestrator,
+                Profiles = Profiles,
+                Health = Health.Snapshot,
+                CountryOf = fp => Insights.Get(fp)?.Exit?.CountryCode,
+                DnsFinder = DnsFinder,
+                SpeedTest = SpeedTest,
+                Logger = LoggerFactory.CreateLogger("JackiVpn.Agent"),
+            }),
+            () => Settings.Current.Agent,
+            LoggerFactory.CreateLogger("JackiVpn.Agent"));
+        Settings.Changed += (_, _) => Agent.Sync();
     }
 
     public Application.Connectivity.DnsFinder DnsFinder { get; }
@@ -222,6 +237,9 @@ public sealed class AppServices : IAsyncDisposable
 
     /// <summary>Applies routing changes to the running connection.</summary>
     public Application.Routing.RoutingWatcher RoutingWatcher { get; }
+
+    /// <summary>Control by the command line and AI agents (MCP), when the user turns it on.</summary>
+    public Application.Agent.AgentPipeServer Agent { get; }
 
     public AppPaths Paths { get; }
     public LogBuffer LogBuffer { get; }
@@ -346,6 +364,7 @@ public sealed class AppServices : IAsyncDisposable
         try
         {
             await Accounts.SaveActiveAsync(CancellationToken.None).ConfigureAwait(false);
+            await Agent.DisposeAsync().ConfigureAwait(false);
             await Orchestrator.DisposeAsync().ConfigureAwait(false);
         }
         finally

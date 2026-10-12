@@ -119,6 +119,20 @@ public sealed class LinuxServices : IAsyncDisposable
         };
         Traffic = new Application.Traffic.TrafficController(Orchestrator, settings, Workplace, Usage, _loggerFactory.CreateLogger("JackiVpn.Traffic"));
         RoutingWatcher = new Application.Routing.RoutingWatcher(Settings, Orchestrator, _loggerFactory.CreateLogger("JackiVpn.Routing"));
+        Agent = new Application.Agent.AgentPipeServer(
+            new Application.Agent.AgentController(new Application.Agent.AgentDependencies
+            {
+                Settings = Settings,
+                Orchestrator = Orchestrator,
+                Profiles = Profiles,
+                Health = Health.Snapshot,
+                CountryOf = fp => Insights.Get(fp)?.Exit?.CountryCode,
+                DnsFinder = DnsFinder,
+                SpeedTest = SpeedTest,
+                Logger = _loggerFactory.CreateLogger("JackiVpn.Agent"),
+            }),
+            () => Settings.Current.Agent,
+            _loggerFactory.CreateLogger("JackiVpn.Agent"));
         RuleSets = ruleSets;
     }
 
@@ -140,6 +154,9 @@ public sealed class LinuxServices : IAsyncDisposable
 
     /// <summary>Applies routing changes to the running connection.</summary>
     public Application.Routing.RoutingWatcher RoutingWatcher { get; }
+
+    /// <summary>Control by the command line and AI agents (MCP), when the user turns it on (desktop window only).</summary>
+    public Application.Agent.AgentPipeServer Agent { get; }
 
     public RuleSetManager RuleSets { get; }
 
@@ -225,6 +242,7 @@ public sealed class LinuxServices : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await Accounts.SaveActiveAsync(CancellationToken.None).ConfigureAwait(false);
+        await Agent.DisposeAsync().ConfigureAwait(false);
         await Usage.DisposeAsync().ConfigureAwait(false);
         await Orchestrator.DisposeAsync().ConfigureAwait(false);
         _loggerFactory.Dispose();

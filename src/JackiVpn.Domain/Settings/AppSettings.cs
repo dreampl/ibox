@@ -628,4 +628,18 @@ public sealed record AppSettings
     public TrafficControlSettings Traffic { get; init; } = new();
     public WorkplaceSettings Workplace { get; init; } = new();
     public ConnectivitySettings Connectivity { get; init; } = new();
+
+    /// <summary>Control by the command line and AI agents (MCP). Off by default.</summary>
+    public AgentSettings Agent { get; init; } = new();
+}
+
+/// <summary>
+/// The local control channel for the command line and AI agents (MCP). Only the same OS user can reach it. Reading
+/// (status, servers, rules) needs <see cref="Enabled"/>; changing anything also needs <see cref="AllowChanges"/>.
+/// </summary>
+public sealed record AgentSettings
+{
+    public bool Enabled { get; init; }
+
+    public bool AllowChanges { get; init; }
 }

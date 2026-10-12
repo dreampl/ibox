@@ -58,7 +58,7 @@ try {
 
     if (Test-Path $Output) { Remove-Item -Recurse -Force $Output }
     $sc = if ($SelfContained) { 'true' } else { 'false' }
-    foreach ($project in 'src\JackiVpn.Desktop\JackiVpn.Desktop.csproj', 'src\JackiVpn.Service\JackiVpn.Service.csproj') {
+    foreach ($project in 'src\JackiVpn.Desktop\JackiVpn.Desktop.csproj', 'src\JackiVpn.Service\JackiVpn.Service.csproj', 'src\JackiVpn.AgentCli\JackiVpn.AgentCli.csproj') {
         Write-Step "Publishing $project"
         Invoke-Dotnet publish $project -c $Configuration -r win-x64 --self-contained $sc -o $Output --nologo
     }

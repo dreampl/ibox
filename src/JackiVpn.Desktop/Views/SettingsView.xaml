@@ -150,6 +150,29 @@
                     </TextBlock>
                 </StackPanel>
             </v:ClaySurface>
+
+            <!-- AI agents: the local control channel and its MCP server (ibox-ctl). -->
+            <v:ClaySurface>
+                <StackPanel>
+                    <TextBlock Text="AI agents (MCP) &amp; command line" Style="{StaticResource Text.Section}" />
+                    <TextBlock Text="Lets an AI assistant (Claude, any MCP client) or scripts on this computer see IBOX's status, servers and rules through ibox-ctl. Only programs running as you can reach it; nothing is opened to the network."
+                               Style="{StaticResource Text.Hint}" TextWrapping="Wrap" Margin="0,0,0,12" />
+                    <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding AgentEnabled}" Margin="0,0,0,10">
+                        <TextBlock Text="Allow agent control" Style="{StaticResource Text.Label}" />
+                    </CheckBox>
+                    <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding AgentAllowChanges}" IsEnabled="{Binding AgentEnabled}" Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock Text="Allow changes" Style="{StaticResource Text.Label}" />
+                            <TextBlock Text="Connect, disconnect, switch server and mode, add or remove rules, change DNS. Off = read only." Style="{StaticResource Text.Hint}" />
+                        </StackPanel>
+                    </CheckBox>
+                    <TextBlock Text="Add to your MCP client's configuration:" Style="{StaticResource Text.Label}" Margin="0,0,0,6" />
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Content="Copy" VerticalAlignment="Top" Margin="8,0,0,0" Command="{Binding CopyAgentConfigCommand}" />
+                        <TextBox Text="{Binding AgentConfig, Mode=OneWay}" IsReadOnly="True" Style="{StaticResource TextBox.Mono}" TextWrapping="Wrap" />
+                    </DockPanel>
+                </StackPanel>
+            </v:ClaySurface>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

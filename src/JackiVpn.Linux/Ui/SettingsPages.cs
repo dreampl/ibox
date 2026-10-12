@@ -725,6 +725,10 @@ public sealed class AdvancedPage(Shell shell) : OptionsPage(shell)
 
 public sealed class SettingsPage(Shell shell) : OptionsPage(shell)
 {
+    /// <summary>The MCP server entry for this install (the jackivpn binary itself, "mcp").</summary>
+    private static string AgentConfig() =>
+        "{\n  \"mcpServers\": {\n    \"ibox\": {\n      \"command\": " + System.Text.Json.JsonSerializer.Serialize(Environment.ProcessPath ?? "jackivpn") + ",\n      \"args\": [\"mcp\"]\n    }\n  }\n}";
+
     public override string Title => "Settings";
 
     public override string Glyph => Icons.Settings;
@@ -741,6 +745,11 @@ public sealed class SettingsPage(Shell shell) : OptionsPage(shell)
             Row("Live ping", null, Toggle(Cur.Ui.Notch.ShowPing, v => S.Settings.Update(x => x with { Ui = x.Ui with { Notch = x.Ui.Notch with { ShowPing = v } } }))),
             Row("Server name", null, Toggle(Cur.Ui.Notch.ShowServer, v => S.Settings.Update(x => x with { Ui = x.Ui with { Notch = x.Ui.Notch with { ShowServer = v } } }))),
             Row("Now playing", "Music or video from your players (MPRIS, needs playerctl), with play/pause and skip.", Toggle(Cur.Ui.Notch.ShowNowPlaying, v => S.Settings.Update(x => x with { Ui = x.Ui with { Notch = x.Ui.Notch with { ShowNowPlaying = v } } })))),
+        Section("AI agents (MCP) & command line", "Lets an AI assistant (Claude, any MCP client) or scripts on this computer see the status, servers and rules through jackivpn ctl / jackivpn mcp. Only programs running as you can reach it; nothing is opened to the network.",
+            Row("Allow agent control", null, Toggle(Cur.Agent.Enabled, v => S.Settings.Update(x => x with { Agent = x.Agent with { Enabled = v, AllowChanges = v && x.Agent.AllowChanges } }))),
+            Row("Allow changes", "Connect, disconnect, switch server and mode, add or remove rules, change DNS. Off = read only.", Toggle(Cur.Agent.AllowChanges, v => S.Settings.Update(x => x with { Agent = x.Agent with { AllowChanges = v } }))),
+            Row("MCP client configuration", null, Ghost("Copy", () => _ = TopLevel.GetTopLevel(this)?.Clipboard?.SetTextAsync(AgentConfig()))),
+            new TextBox { Text = AgentConfig(), IsReadOnly = true, FontFamily = new FontFamily("monospace"), FontSize = 12, TextWrapping = TextWrapping.Wrap }),
         Section("Startup", null,
             Row("Connect automatically on start", "Uses smart selection or your default server, as configured.", Toggle(Cur.Startup.AutoConnect, v => Set(x => x with { Startup = x.Startup with { AutoConnect = v } })))),
         Section("Notifications", null,

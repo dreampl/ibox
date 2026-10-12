@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- ibox-ctl: the command line and MCP server for a running IBOX (talks to it over the local control pipe). -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>JackiVpn.AgentCli</RootNamespace>
+    <AssemblyName>ibox-ctl</AssemblyName>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\JackiVpn.Agent\JackiVpn.Agent.csproj" />
+  </ItemGroup>
+</Project>

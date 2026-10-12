@@ -112,6 +112,7 @@ public partial class App : System.Windows.Application
         _services = new AppServices(_tray);
         await _services.Settings.LoadAsync(CancellationToken.None);
         await _services.Accounts.InitializeAsync(CancellationToken.None);
+        _services.Agent.Sync();
 
         // First run (or settings from before presets were materialized): write the selected preset's rules
         // into the editable rule list. A user who removed every rule has Preset = Custom and is left alone.
