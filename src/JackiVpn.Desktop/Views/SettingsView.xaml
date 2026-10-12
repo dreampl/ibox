@@ -4,10 +4,9 @@
              xmlns:v="clr-namespace:JackiVpn.Desktop.Views">
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="32,26,32,26" v:Motion.StaggerChildren="True">
-            <TextBlock Text="Settings" Style="{StaticResource Text.PageTitle}" />
             <TextBlock Text="Appearance, startup, notifications and logging." Style="{StaticResource Text.PageSubtitle}" />
 
-            <Border Style="{StaticResource Card}">
+            <v:ClaySurface>
                 <StackPanel>
                     <TextBlock Text="Appearance" Style="{StaticResource Text.Section}" />
                     <Grid Style="{StaticResource Row}">
@@ -31,9 +30,9 @@
                         </StackPanel>
                     </CheckBox>
                 </StackPanel>
-            </Border>
+            </v:ClaySurface>
 
-            <Border Style="{StaticResource Card}">
+            <v:ClaySurface>
                 <StackPanel>
                     <TextBlock Text="Notch" Style="{StaticResource Text.Section}" />
                     <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding NotchEnabled}" Margin="0,0,0,12">
@@ -77,9 +76,9 @@
                         </CheckBox>
                     </StackPanel>
                 </StackPanel>
-            </Border>
+            </v:ClaySurface>
 
-            <Border Style="{StaticResource Card}">
+            <v:ClaySurface>
                 <StackPanel>
                     <TextBlock Text="Startup" Style="{StaticResource Text.Section}" />
                     <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding StartWithWindows}" Margin="0,0,0,12">
@@ -95,9 +94,9 @@
                         </StackPanel>
                     </CheckBox>
                 </StackPanel>
-            </Border>
+            </v:ClaySurface>
 
-            <Border Style="{StaticResource Card}">
+            <v:ClaySurface>
                 <StackPanel>
                     <TextBlock Text="Notifications" Style="{StaticResource Text.Section}" />
                     <ItemsControl ItemsSource="{Binding Notifications}">
@@ -119,9 +118,9 @@
                         <TextBlock Text="Warn when subscription traffic reaches (%)" Style="{StaticResource Text.Label}" />
                     </DockPanel>
                 </StackPanel>
-            </Border>
+            </v:ClaySurface>
 
-            <Border Style="{StaticResource Card}">
+            <v:ClaySurface>
                 <StackPanel>
                     <TextBlock Text="Logging &amp; privacy" Style="{StaticResource Text.Section}" />
                     <Grid Style="{StaticResource Row}">
@@ -149,7 +148,7 @@
                         <Run Text="Data folder: " /><Run Text="{Binding DataFolder, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" />
                     </TextBlock>
                 </StackPanel>
-            </Border>
+            </v:ClaySurface>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

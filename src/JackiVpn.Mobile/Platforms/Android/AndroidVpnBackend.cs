@@ -156,11 +156,11 @@ public sealed class AndroidVpnBackend(
             _port = null;
         }
 
-        if (_runner is not null)
+        // Taken atomically: a graceful stop and a cancel's kill may run at the same time.
+        if (Interlocked.Exchange(ref _runner, null) is { } runner)
         {
-            _runner.CoreExited -= OnCoreExited;
-            await _runner.DisposeAsync().ConfigureAwait(false);
-            _runner = null;
+            runner.CoreExited -= OnCoreExited;
+            await runner.DisposeAsync().ConfigureAwait(false);
         }
     }
 

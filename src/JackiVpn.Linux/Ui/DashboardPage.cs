@@ -63,7 +63,9 @@ public sealed class ConnectButton : Grid
         _halo.Fill = new RadialGradientBrush { GradientStops = { new GradientStop(Color.FromArgb(connected ? (byte)90 : (byte)50, a.R, a.G, a.B), 0.55), new GradientStop(Colors.Transparent, 1) } };
         _caption.Text = connected
             ? activity switch { ActivityProfile.Gaming => "GAMING", ActivityProfile.Streaming => "STREAMING", _ => "CONNECTED" }
-            : busy ? "CONNECTING…" : "CONNECT";
+            : state == ConnectionState.Disconnecting ? "STOPPING…"
+            : busy ? "CANCEL" // a click now cancels; the status line says what is in progress
+            : "CONNECT";
         _caption.Foreground = B(connected ? a : Text2);
         // While connecting a "connecting" thinking orb takes the place of the power glyph.
         _power.IsVisible = !busy;
@@ -217,7 +219,14 @@ public sealed class DashboardPage(Shell shell) : Page(shell)
         _ = _button.Pop();
         await Guard(async () =>
         {
-            if (!ConnectionStateRules.IsIdle(S.Orchestrator.State))
+            var state = S.Orchestrator.State;
+            if (state == ConnectionState.Disconnecting)
+            {
+                return;
+            }
+
+            // While connecting this cancels.
+            if (!ConnectionStateRules.IsIdle(state))
             {
                 await S.Orchestrator.DisconnectAsync();
                 return;

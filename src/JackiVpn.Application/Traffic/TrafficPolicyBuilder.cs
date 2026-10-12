@@ -109,13 +109,22 @@ public static class TrafficPolicyBuilder
             Shaping = smart,
             DomainClasses = classes,
             ShapeBackground = smart && ctx.ProcessAware,
+            // Calls rank right after the game: never routed through the relay, so never slowed.
             PriorityApps = smart && ctx.ProcessAware
-                ? t.PriorityApps.Concat(TrafficCatalog.GameCompanions).Concat(TrafficCatalog.GameExecutables).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+                ? t.PriorityApps.Concat(TrafficCatalog.GameCompanions).Concat(TrafficCatalog.GameExecutables).Concat(TrafficCatalog.CallApps).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
                 : [],
             LimitedApps = limited,
+            MediaApps = smart && ctx.ProcessAware ? Category(TrafficCatalog.MediaPlayers, t, limited) : [],
+            DownloadApps = smart && ctx.ProcessAware ? Category(TrafficCatalog.DownloadApps, t, limited) : [],
             TrackProcesses = ctx.ProcessAware && s.Usage.Enabled,
         };
     }
+
+    /// <summary>A built-in category, minus apps the user placed themselves (their own limit or priority wins).</summary>
+    private static List<string> Category(IEnumerable<string> apps, TrafficControlSettings t, IReadOnlyList<string> limited) =>
+        apps.Where(a => !t.PriorityApps.Contains(a, StringComparer.OrdinalIgnoreCase) && !limited.Contains(a, StringComparer.OrdinalIgnoreCase))
+            .OrderBy(a => a, StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
     /// <summary>Update families held back in this mode.</summary>
     public static IReadOnlyList<UpdateGroup> BlockedGroups(AppSettings s, TrafficMode mode, WorkplaceProfile? workplace)
@@ -159,12 +168,23 @@ public static class TrafficPolicyBuilder
         };
         classes[ShapeClasses.Background] = background;
 
+        // The order under contention: game > calls (never relayed) > browsing ("bg") > media players > downloads and
+        // updates. Normal and Eco leave everything at full speed; Gaming, Streaming and a company's Work limit give
+        // each lower class less than the one above it.
+        var shaping = mode is TrafficMode.Gaming or TrafficMode.Streaming || !background.IsUnlimited;
+        classes[ShapeClasses.Media] = mode switch
+        {
+            TrafficMode.Gaming => Fraction(background, 2),
+            TrafficMode.Streaming => ShapeRate.Unlimited, // the stream is what the user is watching
+            _ => background,
+        };
+        var lowest = shaping ? Fraction(background, 4) : ShapeRate.Unlimited;
+        classes[ShapeClasses.Downloads] = lowest;
+
         var blocked = BlockedGroups(s, mode, work);
         foreach (var g in Enum.GetValues<UpdateGroup>())
         {
-            classes[ShapeClasses.Update(g)] = blocked.Contains(g)
-                ? ShapeRate.Blocked
-                : mode is TrafficMode.Gaming or TrafficMode.Streaming ? background : ShapeRate.Unlimited;
+            classes[ShapeClasses.Update(g)] = blocked.Contains(g) ? ShapeRate.Blocked : lowest;
         }
 
         classes[ShapeClasses.Telemetry] = mode is TrafficMode.Eco or TrafficMode.Work ? ShapeRate.Blocked : ShapeRate.Unlimited;
@@ -210,6 +230,12 @@ public static class TrafficPolicyBuilder
 
     private static ShapeRate Rate(int downKbps) =>
         downKbps <= 0 ? ShapeRate.Unlimited : ShapeRate.FromKbps(downKbps, Math.Max(512, downKbps / 3));
+
+    /// <summary>A share of a limit (never below 256/128 kbit/s, so a lower class still trickles).</summary>
+    private static ShapeRate Fraction(ShapeRate rate, int divisor) =>
+        rate.IsUnlimited || rate.Block
+            ? rate
+            : new ShapeRate(Math.Max(32 * 1024, rate.DownBytesPerSecond / divisor), Math.Max(16 * 1024, rate.UpBytesPerSecond / divisor));
 
     /// <summary>
     /// The install folder of a game: inside a game library the game's own folder (so its launcher, anti-cheat and

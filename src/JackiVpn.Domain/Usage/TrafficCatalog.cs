@@ -96,6 +96,32 @@ public static class TrafficCatalog
         "chrome", "firefox", "brave", "vlc", "mpv", "obs", "spotify",
     };
 
+    /// <summary>
+    /// Calls and real-time voice/video (second only to the game): never slowed in any mode, so a call during a game
+    /// or a stream stays clear.
+    /// </summary>
+    public static IReadOnlySet<string> CallApps { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "discord.exe", "teams.exe", "ms-teams.exe", "msteams.exe", "zoom.exe", "cpthost.exe", "skype.exe", "skypeapp.exe", "whatsapp.exe", "whatsapp.root.exe",
+        "telegram.exe", "signal.exe", "slack.exe", "webex.exe", "ciscocollabhost.exe", "viber.exe", "mumble.exe", "teamspeak.exe", "ts3client_win64.exe",
+        "element.exe", "facetime", "zoom", "discord", "telegram-desktop", "signal-desktop", "slack", "teams-for-linux", "mumble",
+    };
+
+    /// <summary>Media players that are not browsers (below browsing: a background film never slows a page load in a game).</summary>
+    public static IReadOnlySet<string> MediaPlayers { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "vlc.exe", "mpc-hc64.exe", "mpc-be64.exe", "potplayermini64.exe", "mpv.exe", "wmplayer.exe", "video.ui.exe", "stremio.exe", "kodi.exe", "plex.exe",
+        "spotify.exe", "applemusic.exe", "itunes.exe", "netflix.exe", "vlc", "mpv", "spotify", "kodi", "stremio",
+    };
+
+    /// <summary>Download managers and torrent clients: the lowest class (with automatic updates).</summary>
+    public static IReadOnlySet<string> DownloadApps { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "idman.exe", "fdm.exe", "qbittorrent.exe", "utorrent.exe", "bittorrent.exe", "transmission-qt.exe", "deluge.exe", "tixati.exe", "aria2c.exe",
+        "motrix.exe", "jdownloader2.exe", "eagleget.exe", "xdm-app.exe", "persepolis.exe", "biglybt.exe", "vuze.exe",
+        "qbittorrent", "transmission-gtk", "transmission-daemon", "deluge", "aria2c", "motrix", "persepolis", "xdman",
+    };
+
     /// <summary>Other VPN/proxy clients (their own traffic is the carrier of other apps' traffic).</summary>
     public static IReadOnlyList<string> VpnAppMarkers { get; } =
     [

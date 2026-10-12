@@ -303,6 +303,12 @@ public sealed class SubscriptionService
             .ToArray();
     }
 
+    /// <summary>When background upkeep may run (power saver, user busy); null = always.</summary>
+    public Background.BackgroundPolicy? Background { get; set; }
+
+    private Task WaitForUpkeepAsync(CancellationToken ct) =>
+        Background?.WaitUntilAllowedAsync(JackiVpn.Application.Background.BackgroundWork.Upkeep, ct) ?? Task.CompletedTask;
+
     /// <summary>Background loop: refreshes due subscriptions (failures back off to the next interval).</summary>
     public async Task RunAutoUpdateLoopAsync(TimeSpan tick, CancellationToken ct)
     {
@@ -310,7 +316,14 @@ public sealed class SubscriptionService
         {
             try
             {
-                foreach (var s in await DueForUpdateAsync(ct).ConfigureAwait(false))
+                var due = await DueForUpdateAsync(ct).ConfigureAwait(false);
+                if (due.Count > 0)
+                {
+                    // All due subscriptions in one batch, once power saving and the user's own traffic allow it.
+                    await WaitForUpkeepAsync(ct).ConfigureAwait(false);
+                }
+
+                foreach (var s in due)
                 {
                     await RefreshAsync(s.Id, ct).ConfigureAwait(false);
                 }
@@ -454,12 +467,19 @@ public sealed class SubscriptionService
         {
             try
             {
-                foreach (var s in (await _subscriptions.GetAllAsync(ct).ConfigureAwait(false)).Where(s => s.Enabled && s.Provider == SubscriptionProviderKind.PasarGuard))
+                var accounts = (await _subscriptions.GetAllAsync(ct).ConfigureAwait(false)).Where(s => s.Enabled && s.Provider == SubscriptionProviderKind.PasarGuard).ToList();
+                if (accounts.Count > 0)
+                {
+                    await WaitForUpkeepAsync(ct).ConfigureAwait(false);
+                }
+
+                foreach (var s in accounts)
                 {
                     await CheckAccountAsync(s.Id, ct).ConfigureAwait(false);
                 }
 
-                await Task.Delay(AccountCheckInterval, _time, ct).ConfigureAwait(false);
+                // Every 10 minutes on screen; less often while hidden (×4) or saving power (×6).
+                await Task.Delay(Background?.Stretch(AccountCheckInterval) ?? AccountCheckInterval, _time, ct).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {

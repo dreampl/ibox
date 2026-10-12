@@ -56,6 +56,9 @@ public sealed class UpdateMonitor(AppUpdateService service, Func<UpdateSettings>
         return Available;
     }
 
+    /// <summary>Waits until the app's background upkeep may run (power saver, user busy); null = run at once.</summary>
+    public Func<CancellationToken, Task>? WaitForUpkeep { get; set; }
+
     public async Task RunAsync(CancellationToken ct)
     {
         try
@@ -65,6 +68,11 @@ public sealed class UpdateMonitor(AppUpdateService service, Func<UpdateSettings>
             {
                 if (settings().AutoCheck)
                 {
+                    if (WaitForUpkeep is { } wait)
+                    {
+                        await wait(ct).ConfigureAwait(false);
+                    }
+
                     await CheckNowAsync(ct).ConfigureAwait(false);
                 }
 

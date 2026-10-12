@@ -65,7 +65,6 @@ public sealed class EyeMarkView : Viewbox
     private readonly SolidColorBrush _pupilBrush = new(SleepPupil);
     private readonly DropShadowEffect _glow = new() { Color = Blue, BlurRadius = 14, ShadowDepth = 0, Opacity = 0 };
     private readonly OrbView _orb;
-    private bool _subscribed;
     private double _last;
     private double _lastDraw;
 
@@ -103,24 +102,22 @@ public sealed class EyeMarkView : Viewbox
             Children = { _frame, _pupil, _orb },
         };
         Eye = new EyeMotion();
+        _clock = new ViewClock(this, IdleInterval, Tick);
         Loaded += (_, _) =>
         {
             ApplyState(animate: false);
-            Subscribe();
-        };
-        Unloaded += (_, _) => Unsubscribe();
-        IsVisibleChanged += (_, _) =>
-        {
-            if (IsVisible)
-            {
-                Subscribe();
-            }
-            else
-            {
-                Unsubscribe();
-            }
+            _last = Clock.Elapsed.TotalSeconds;
+            Draw();
         };
     }
+
+    /// <summary>
+    /// Tick spacing while nothing moves: the sleeping breath (half a pixel over seconds) and noticing the pointer or
+    /// the next blink need no more; real motion (glances, blinks, following the pointer) is drawn every frame.
+    /// </summary>
+    private static readonly TimeSpan IdleInterval = TimeSpan.FromMilliseconds(125);
+
+    private readonly ViewClock _clock;
 
     public EyeMotion Eye { get; }
 
@@ -161,46 +158,44 @@ public sealed class EyeMarkView : Viewbox
         if (awake && animate)
         {
             Eye.Poke();
+            _clock.Wake();
         }
     }
 
-    private void Subscribe()
-    {
-        if (!_subscribed && IsLoaded && IsVisible && !Motion.Reduced)
-        {
-            _subscribed = true;
-            _last = Clock.Elapsed.TotalSeconds;
-            CompositionTarget.Rendering += OnFrame;
-        }
+    /// <summary>The motion moved (a poke from outside): draw every frame until it settles.</summary>
+    public void Wake() => _clock.Wake();
 
-        Draw();
-    }
-
-    private void Unsubscribe()
-    {
-        if (_subscribed)
-        {
-            _subscribed = false;
-            CompositionTarget.Rendering -= OnFrame;
-        }
-    }
-
-    private void OnFrame(object? sender, EventArgs e)
+    /// <summary>One step; returns whether the eye is visibly moving.</summary>
+    private bool Tick()
     {
         var now = Clock.Elapsed.TotalSeconds;
-        // ~60 fps while something moves, ~15 fps otherwise (sleeping breath, waiting for the next glance).
-        var interval = Eye.IsMoving ? 1 / 62.0 : 1 / 15.0;
-        if (now - _lastDraw < interval)
+        if (Eye.IsMoving && now - _lastDraw < 1 / 62.0)
         {
-            return;
+            return true; // high-refresh monitors: at most ~60 steps per second
         }
 
         BeforeFrame?.Invoke(this);
-        Eye.Step(now - _last);
+
+        // Real time in small steps (the springs need them); after a long pause, continue instead of jumping.
+        var dt = Math.Min(now - _last, 0.5);
+        while (dt > 0)
+        {
+            var step = Math.Min(dt, 0.05);
+            Eye.Step(step);
+            dt -= step;
+        }
+
         _last = now;
         _lastDraw = now;
         Draw();
+
+        // Idle tick rate: asleep or resting, the breath and the rare blink need 4 ticks a second; awake, 8 (to
+        // notice the pointer and the next glance in time).
+        _clock.IdleInterval = State != EyeState.Awake || Eye.Resting ? SlowIdleInterval : IdleInterval;
+        return Eye.IsMoving;
     }
+
+    private static readonly TimeSpan SlowIdleInterval = TimeSpan.FromMilliseconds(250);
 
     private void Draw()
     {

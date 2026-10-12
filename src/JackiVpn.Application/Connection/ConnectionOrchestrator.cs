@@ -1,4 +1,5 @@
 using System.Net.NetworkInformation;
+using JackiVpn.Application.Background;
 using JackiVpn.Application.Health;
 using JackiVpn.Application.Notifications;
 using JackiVpn.Application.Smart;
@@ -81,6 +82,18 @@ public sealed record OrchestratorDependencies
 
     /// <summary>How long Disconnect waits for a running operation to yield before forcing the tunnel down.</summary>
     public TimeSpan DisconnectGateTimeout { get; init; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>When the app's own work may run (power saver, metered network, hidden, user busy); null = always.</summary>
+    public BackgroundPolicy? Background { get; init; }
+
+    /// <summary>Keep measuring the live ping while the app is hidden (something on screen still shows it, e.g. the notch).</summary>
+    public Func<bool> PingWhileHidden { get; init; } = static () => false;
+
+    /// <summary>Cancel while connecting: how long the cancelled operation may take to unwind before Disconnect forces it.</summary>
+    public TimeSpan CancelGateTimeout { get; init; } = TimeSpan.FromSeconds(1.6);
+
+    /// <summary>Cancel while connecting: how long a graceful backend stop may take before the backend is killed.</summary>
+    public TimeSpan CancelStopTimeout { get; init; } = TimeSpan.FromSeconds(1);
 }
 
 /// <summary>
@@ -214,6 +227,7 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
         var ownBackend = backend is null;
         backend ??= _d.BackendFactory(mode);
         Volatile.Write(ref _startingBackend, backend);
+        Session? started = null;
         try
         {
             var pool = await BuildPoolAsync(request, settings, ct).ConfigureAwait(false);
@@ -249,6 +263,7 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
 
             _state.Transition(ConnectionState.Connecting, "starting tunnel");
             var session = new Session(generation, backend, pool.Profiles, smart, pool.OwnedIds) { TestedCount = tested };
+            started = session;
             AttachEvents(session);
             var errors = new List<string>();
             foreach (var candidate in candidates)
@@ -262,8 +277,9 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
                     await OnConnectedAsync(session, routing.Warnings, settings, isSwitch: false).ConfigureAwait(false);
                     return true;
                 }
-                catch (Exception ex) when (IsStartFailure(ex))
+                catch (Exception ex) when (IsStartFailure(ex) && !ct.IsCancellationRequested)
                 {
+                    // (A failure caused by the user's cancel is not the server's fault and is not recorded.)
                     var error = SecretRedactor.Redact(ex.Message);
                     errors.Add($"{candidate.DisplayName}: {error}");
                     Log.LogWarning("Connecting to {Profile} failed: {Error}", candidate.DisplayName, error);
@@ -283,12 +299,14 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
                         await OnConnectedAsync(session, routing.Warnings, settings, isSwitch: false).ConfigureAwait(false);
                         return true;
                     }
-                    catch (Exception ex) when (IsStartFailure(ex))
+                    catch (Exception ex) when (IsStartFailure(ex) && !ct.IsCancellationRequested)
                     {
                         errors.Add($"{candidate.DisplayName}: {SecretRedactor.Redact(ex.Message)}");
                     }
                 }
             }
+
+            ct.ThrowIfCancellationRequested();
 
             DetachEvents(session);
             _session = session; // keeps the backend reachable so Disconnect can release a holding kill switch
@@ -297,15 +315,24 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
             await FailAsync(session.LastError).ConfigureAwait(false);
             return false;
         }
-        catch (OperationCanceledException)
+        catch (Exception ex) when (ex is OperationCanceledException || ct.IsCancellationRequested)
         {
-            // Disconnect (or shutdown) while connecting: unwind cleanly.
-            await SafeStopAsync(backend).ConfigureAwait(false);
-            await backend.DisposeAsync().ConfigureAwait(false);
+            // Cancel (or shutdown) while connecting: whatever was interrupted (pool test, rescue, core start, data
+            // check, or a state change the cancel already overtook) — stop what started, kill it if it hangs.
+            Log.LogInformation("Connect cancelled; stopping what it started.");
+            if (started is not null)
+            {
+                started.Watchdog.Cancel();
+                DetachEvents(started);
+            }
+
+            _stopNotConfirmed = false;
+            await StopOrKillAsync(backend).ConfigureAwait(false);
+            await DisposeQuietlyAsync(backend).ConfigureAwait(false);
             _session = null;
             _state.TryTransition(ConnectionState.Disconnecting, "cancelled", out _);
             _state.TryTransition(ConnectionState.Disconnected, "cancelled", out _);
-            Publish(_ => new ConnectionStatus());
+            Publish(_ => _stopNotConfirmed ? new ConnectionStatus { LastError = StopNotConfirmedMessage } : new ConnectionStatus());
             return false;
         }
         catch (Exception ex) when (IsStartFailure(ex))
@@ -570,8 +597,14 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
             {
                 try
                 {
-                    // Give the tunnel a moment so the refresh goes through it when it is up.
+                    // Give the tunnel a moment so the refresh goes through it when it is up; megabytes of rule-sets
+                    // wait for a moment that does not cost the user (shown, not metered, not busy, no power saver).
                     await Task.Delay(TimeSpan.FromSeconds(8), _lifetime.Token).ConfigureAwait(false);
+                    if (_d.Background is { } policy)
+                    {
+                        await policy.WaitUntilAllowedAsync(BackgroundWork.Heavy, _lifetime.Token).ConfigureAwait(false);
+                    }
+
                     await _d.RuleSets.EnsureAsync(refresh, force: false, _lifetime.Token).ConfigureAwait(false);
                 }
                 catch (Exception ex) when (ex is not OutOfMemoryException)
@@ -745,6 +778,8 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
             ExitCountryName = known?.CountryName,
             ExitCity = known?.City,
             ExitIsp = known?.Isp,
+            ExitLatitude = known?.Latitude,
+            ExitLongitude = known?.Longitude,
             SelectionReason = SelectionReason(session, snapshot),
             LocalProxyPort = start.LocalProxyPort,
             Warnings = warnings,
@@ -789,7 +824,8 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
         {
             try
             {
-                if (_session == session && _state.State == ConnectionState.Connected && !_background)
+                var hidden = _background && !_d.PingWhileHidden();
+                if (_session == session && _state.State == ConnectionState.Connected && !hidden)
                 {
                     var ms = await _d.LiveProbe.PingAsync(session.Backend.Mode, session.Start?.LocalProxyPort, _d.Settings().Probe, ct).ConfigureAwait(false);
                     failures = ms is null ? failures + 1 : 0;
@@ -808,7 +844,9 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
                     }
                 }
 
-                await Task.Delay(PingInterval, _d.Time, ct).ConfigureAwait(false);
+                // Hidden (only a small indicator shows the ping) or saving power: measure less often.
+                var every = _background || _d.Background?.PowerSaver == true ? PingInterval * 2 : PingInterval;
+                await Task.Delay(every, _d.Time, ct).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -846,6 +884,8 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
             ExitCountryName = exit.CountryName,
             ExitCity = exit.City,
             ExitIsp = exit.Isp,
+            ExitLatitude = exit.Latitude,
+            ExitLongitude = exit.Longitude,
         });
         Log.LogInformation("Exit location: {Country} ({Code}){City}.", exit.CountryName ?? "unknown", exit.CountryCode ?? "??", exit.City is null ? string.Empty : ", " + exit.City);
     }
@@ -948,18 +988,49 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
 
     // ------------------------------------------------------------------ disconnect
 
+    /// <summary>States in which an operation (connect, retry, failover, switch) is in flight and a stop means "cancel".</summary>
+    private static bool IsInFlight(ConnectionState s) =>
+        s is ConnectionState.Preparing or ConnectionState.Testing or ConnectionState.Connecting or ConnectionState.Reconnecting or ConnectionState.SwitchingServer;
+
+    /// <summary>
+    /// Disconnects, or cancels a connect/reconnect/switch in progress. A cancel aborts every step at once (pool
+    /// tests, rescue, core start, retries, tuner), stops what started, kills it if it hangs, and reports
+    /// Disconnected within about two seconds even if some step ignores the cancellation.
+    /// </summary>
     public async Task DisconnectAsync(CancellationToken ct = default)
     {
-        Volatile.Read(ref _connectCts)?.Cancel();
+        var connecting = Volatile.Read(ref _connectCts);
+        connecting?.Cancel();
         _session?.Watchdog.Cancel();
-        if (!await _op.WaitAsync(_d.DisconnectGateTimeout, ct).ConfigureAwait(false))
+        var cancelling = connecting is not null || IsInFlight(_state.State);
+        if (cancelling)
+        {
+            // The button says "stopping" at once, whatever the operation is still doing.
+            Log.LogInformation("Cancel requested during {State}.", _state.State);
+            _state.TryTransition(ConnectionState.Disconnecting, "cancelled by user", out _);
+        }
+
+        var gateTimeout = cancelling ? _d.CancelGateTimeout : _d.DisconnectGateTimeout;
+        if (!await _op.WaitAsync(gateTimeout, ct).ConfigureAwait(false))
         {
             // Every operation observes the cancellation above, so this is a backstop: never let a stuck
             // operation keep the tunnel (and possibly a blocking kill switch) up after the user said stop.
-            Log.LogError("Disconnect: an operation did not yield within {Timeout}s; forcing the tunnel down first.", _d.DisconnectGateTimeout.TotalSeconds);
-            if ((_session?.Backend ?? Volatile.Read(ref _startingBackend)) is { } stuck)
+            Log.LogError("Disconnect: an operation did not yield within {Timeout}s; forcing the tunnel down first.", gateTimeout.TotalSeconds);
+            var stuckSession = _session;
+            if ((stuckSession?.Backend ?? Volatile.Read(ref _startingBackend)) is { } stuck)
             {
-                await SafeStopAsync(stuck).ConfigureAwait(false);
+                _stopNotConfirmed = false;
+                await StopOrKillAsync(stuck).ConfigureAwait(false);
+            }
+
+            if (cancelling)
+            {
+                // The tunnel is down: say so now. The cancelled operation still cleans up after itself when it
+                // unwinds; a session it leaves behind is detached by the next connect.
+                _state.TryTransition(ConnectionState.Disconnecting, "forced", out _);
+                _state.TryTransition(ConnectionState.Disconnected, "forced", out _);
+                Publish(_ => _stopNotConfirmed ? new ConnectionStatus { LastError = StopNotConfirmedMessage } : new ConnectionStatus());
+                return;
             }
 
             Publish(s => s with { LastError = "Disconnecting… (forced the tunnel down; finishing up)" });
@@ -983,7 +1054,7 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
             _state.TryTransition(ConnectionState.Disconnecting, "user disconnect", out _);
             var wasConnected = session.History is not null;
             _stopNotConfirmed = false;
-            await DetachSessionAsync(session, stopBackend: true, ConnectionOutcome.Disconnected, null).ConfigureAwait(false);
+            await DetachSessionAsync(session, stopBackend: true, ConnectionOutcome.Disconnected, null, cancelled: cancelling).ConfigureAwait(false);
             _state.TryTransition(ConnectionState.Disconnected, "disconnected", out _);
             Publish(_ => _stopNotConfirmed ? new ConnectionStatus { LastError = StopNotConfirmedMessage } : new ConnectionStatus());
             if (wasConnected)
@@ -997,16 +1068,27 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
         }
     }
 
-    /// <summary>Ends a session's bookkeeping; optionally stops its backend (releases proxy / kill switch).</summary>
-    private async Task DetachSessionAsync(Session session, bool stopBackend, ConnectionOutcome outcome, string? error)
+    /// <summary>
+    /// Ends a session's bookkeeping; optionally stops its backend (releases proxy / kill switch). A cancelled
+    /// reconnect or switch is stopped with the short grace period and then killed.
+    /// </summary>
+    private async Task DetachSessionAsync(Session session, bool stopBackend, ConnectionOutcome outcome, string? error, bool cancelled = false)
     {
         session.Watchdog.Cancel();
         DetachEvents(session);
         await CloseHistoryAsync(session, outcome, error).ConfigureAwait(false);
         if (stopBackend)
         {
-            await SafeStopAsync(session.Backend).ConfigureAwait(false);
-            await session.Backend.DisposeAsync().ConfigureAwait(false);
+            if (cancelled)
+            {
+                await StopOrKillAsync(session.Backend).ConfigureAwait(false);
+                await DisposeQuietlyAsync(session.Backend).ConfigureAwait(false);
+            }
+            else
+            {
+                await SafeStopAsync(session.Backend).ConfigureAwait(false);
+                await session.Backend.DisposeAsync().ConfigureAwait(false);
+            }
         }
 
         if (_session == session)
@@ -1052,6 +1134,57 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
             Log.LogWarning("Stopping the {Mode} backend failed: {Error}", backend.Mode, SecretRedactor.Redact(ex.Message));
             _stopNotConfirmed = true;
             return false;
+        }
+    }
+
+    /// <summary>Upper bound of a hard kill (process kill, kill-switch release): it never waits for the session.</summary>
+    private static readonly TimeSpan KillTimeout = TimeSpan.FromSeconds(1.5);
+
+    /// <summary>
+    /// Cancel: a graceful stop gets <see cref="OrchestratorDependencies.CancelStopTimeout"/>; if it hangs, the
+    /// backend is killed (cores killed, kill switch lifted, system proxy restored) while the graceful stop keeps
+    /// finishing its cleanup (routes, DNS) in the background.
+    /// </summary>
+    private async Task<bool> StopOrKillAsync(IConnectionBackend backend)
+    {
+        var stop = SafeStopAsync(backend);
+        if (await Task.WhenAny(stop, Task.Delay(_d.CancelStopTimeout)).ConfigureAwait(false) == stop)
+        {
+            if (await stop.ConfigureAwait(false))
+            {
+                return true;
+            }
+        }
+        else
+        {
+            Log.LogWarning("The {Mode} backend did not stop within {Timeout} ms; killing it.", backend.Mode, _d.CancelStopTimeout.TotalMilliseconds);
+        }
+
+        try
+        {
+            using var timeout = new CancellationTokenSource(KillTimeout);
+            await backend.KillAsync(timeout.Token).WaitAsync(KillTimeout).ConfigureAwait(false);
+            _stopNotConfirmed = false;
+            return true;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            Log.LogWarning("Killing the {Mode} backend failed: {Error}", backend.Mode, SecretRedactor.Redact(ex.Message));
+            _stopNotConfirmed = true;
+            return false;
+        }
+    }
+
+    /// <summary>Disposes a backend without letting a slow or failing dispose hold up a cancel.</summary>
+    private async Task DisposeQuietlyAsync(IConnectionBackend backend)
+    {
+        try
+        {
+            await backend.DisposeAsync().AsTask().WaitAsync(KillTimeout).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            Log.LogDebug("Backend dispose did not finish: {Error}", ex.Message);
         }
     }
 
@@ -1139,6 +1272,10 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
         }
 
         await CloseHistoryAsync(session, previousOutcome, null).ConfigureAwait(false);
+
+        // Disconnect cancels the session's watchdog token: a switch in progress stops at once instead of finishing first.
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, session.Watchdog.Token);
+        ct = linked.Token;
         try
         {
             await StartOnAsync(session, target, session.Routing ?? new PreparedRouting(new Dictionary<string, string>(), [], []), settings, ct).ConfigureAwait(false);
@@ -1146,6 +1283,11 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
             RecordSwitch();
             await OnConnectedAsync(session, session.Routing?.Warnings ?? [], settings, isSwitch: true).ConfigureAwait(false);
             return true;
+        }
+        catch (Exception) when (ct.IsCancellationRequested)
+        {
+            // Cancelled (Disconnect or shutdown): DisconnectAsync tears the session down.
+            return false;
         }
         catch (Exception ex) when (IsStartFailure(ex))
         {
@@ -1265,7 +1407,7 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
                     Log.LogInformation("Reconnected to {Profile} after {Attempt} attempt(s).", preferProfile.DisplayName, attempt);
                     return true;
                 }
-                catch (Exception ex) when (IsStartFailure(ex))
+                catch (Exception ex) when (IsStartFailure(ex) && !ct.IsCancellationRequested)
                 {
                     lastError = SecretRedactor.Redact(ex.Message);
                     await RecordFailureAsync(preferProfile, lastError, CancellationToken.None).ConfigureAwait(false);
@@ -1292,7 +1434,7 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
                         _d.Notifications.Notify(NotificationCategory.AutomaticFailover, "Switched server", $"{preferProfile.DisplayName} stopped working; now using {candidate.DisplayName}.");
                         return true;
                     }
-                    catch (Exception ex) when (IsStartFailure(ex))
+                    catch (Exception ex) when (IsStartFailure(ex) && !ct.IsCancellationRequested)
                     {
                         lastError = SecretRedactor.Redact(ex.Message);
                         await RecordFailureAsync(candidate, lastError, CancellationToken.None).ConfigureAwait(false);
@@ -1301,9 +1443,14 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
                 }
             }
         }
-        catch (OperationCanceledException)
+        catch (Exception ex) when (ex is OperationCanceledException || ct.IsCancellationRequested)
         {
-            // Disconnect requested during recovery; DisconnectAsync finishes the teardown.
+            // Disconnect requested during recovery (possibly overtaking a state change); DisconnectAsync finishes the teardown.
+            return false;
+        }
+
+        if (ct.IsCancellationRequested)
+        {
             return false;
         }
 
@@ -1378,8 +1525,10 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
             var settings = _d.Settings();
             try
             {
+                // The live connection is always checked, just less often while hidden (×4) or saving power (×6).
                 var interval = settings.Smart.Failover.HealthCheckInterval;
-                await Task.Delay(_background ? interval * 4 : interval, _d.Time, ct).ConfigureAwait(false);
+                var wait = _d.Background?.PowerSaver == true ? interval * 6 : _background ? interval * 4 : interval;
+                await Task.Delay(wait, _d.Time, ct).ConfigureAwait(false);
                 if (_session != session || _state.State != ConnectionState.Connected || session.Profile is not { } current)
                 {
                     continue;
@@ -1512,7 +1661,12 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
         }
     }
 
-    private bool QuietForOptionalWork => _background || ActivityRules.IsQuiet(EffectiveActivity);
+    /// <summary>
+    /// No optional work (pool re-tests, tuning) now: hidden, in a game or stream, on power saver or a metered network,
+    /// or while the user's own traffic is busy.
+    /// </summary>
+    private bool QuietForOptionalWork =>
+        _background || ActivityRules.IsQuiet(EffectiveActivity) || _d.Background?.Allows(BackgroundWork.Heavy) == false;
 
     /// <summary>Platform detectors (foreground game, full-screen video, broadcasting app) report here.</summary>
     public void ReportActivity(ActivityProfile detected)

@@ -4,12 +4,11 @@
              xmlns:v="clr-namespace:JackiVpn.Desktop.Views">
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="32,26,32,26" v:Motion.StaggerChildren="True">
-            <TextBlock Text="Network" Style="{StaticResource Text.PageTitle}" />
             <TextBlock Text="Connection mode, leak protection and repair tools. Every change to Windows is journaled and undone on disconnect or after a crash."
                        Style="{StaticResource Text.PageSubtitle}" />
 
             <!-- Service -->
-            <Border Style="{StaticResource Card}">
+            <v:ClaySurface>
                 <StackPanel>
                     <DockPanel>
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
@@ -27,10 +26,10 @@
                     </DockPanel>
                     <TextBlock Text="Installing asks for administrator permission once. The app itself never runs as administrator." Style="{StaticResource Text.Hint}" Margin="0,8,0,0" />
                 </StackPanel>
-            </Border>
+            </v:ClaySurface>
 
             <!-- Mode -->
-            <Border Style="{StaticResource Card}">
+            <v:ClaySurface>
                 <StackPanel>
                     <TextBlock Text="Connection mode" Style="{StaticResource Text.Section}" />
                     <Border Style="{StaticResource SegmentHost}">
@@ -102,10 +101,10 @@
                         <TextBox Grid.Column="1" Text="{Binding MaxReconnect}" VerticalAlignment="Top" />
                     </Grid>
                 </StackPanel>
-            </Border>
+            </v:ClaySurface>
 
             <!-- Kill switch -->
-            <Border Style="{StaticResource Card}">
+            <v:ClaySurface>
                 <StackPanel>
                     <TextBlock Text="Kill switch" Style="{StaticResource Text.Section}" />
                     <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding KillSwitch}" Margin="0,0,0,12">
@@ -121,10 +120,10 @@
                         </StackPanel>
                     </CheckBox>
                 </StackPanel>
-            </Border>
+            </v:ClaySurface>
 
             <!-- System proxy -->
-            <Border Style="{StaticResource Card}">
+            <v:ClaySurface>
                 <StackPanel>
                     <TextBlock Text="System proxy mode" Style="{StaticResource Text.Section}" />
                     <Grid Style="{StaticResource Row}">
@@ -153,10 +152,10 @@
                         </StackPanel>
                     </CheckBox>
                 </StackPanel>
-            </Border>
+            </v:ClaySurface>
 
             <!-- Repair -->
-            <Border Style="{StaticResource Card}">
+            <v:ClaySurface>
                 <StackPanel>
                     <DockPanel>
                         <Button DockPanel.Dock="Right" Content="Repair network" Command="{Binding RepairNetworkCommand}" VerticalAlignment="Top"
@@ -169,7 +168,7 @@
                     <TextBox Text="{Binding RepairOutput, Mode=OneWay}" Style="{StaticResource TextBox.Mono}" IsReadOnly="True" TextWrapping="Wrap" Margin="0,12,0,0"
                              Visibility="{Binding RepairOutput, Converter={StaticResource Null2Vis}}" />
                 </StackPanel>
-            </Border>
+            </v:ClaySurface>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

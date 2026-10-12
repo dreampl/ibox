@@ -180,6 +180,14 @@ public sealed partial class ServersViewModel : ObservableObject
         });
         services.Orchestrator.StatusChanged += (_, st) => Ui.Post(() =>
         {
+            // The status arrives every second (traffic): walk the list only when the active server changed.
+            var active = st.State == ConnectionState.Connected ? st.ProfileId : null;
+            if (active == _shownActive)
+            {
+                return;
+            }
+
+            _shownActive = active;
             foreach (var i in Items)
             {
                 i.IsActive = st.State == ConnectionState.Connected && i.Id == st.ProfileId;
@@ -196,6 +204,8 @@ public sealed partial class ServersViewModel : ObservableObject
     }
 
     public ObservableCollection<ServerItem> Items { get; } = [];
+
+    private string? _shownActive;
 
     public ObservableCollection<string> Groups { get; } = ["All"];
 

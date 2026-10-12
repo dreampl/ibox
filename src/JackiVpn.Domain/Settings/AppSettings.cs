@@ -53,8 +53,16 @@ public enum Ipv6Mode
 public enum AppTheme
 {
     Dark = 0,
+
+    /// <summary>Legacy palette; shown as Dark.</summary>
     Black,
+
+    /// <summary>Legacy palette; shown as Dark.</summary>
     Blue,
+    Light,
+
+    /// <summary>Follows the Windows app theme (light or dark), live.</summary>
+    System,
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<AppLogLevel>))]
@@ -320,7 +328,7 @@ public sealed record StartupSettings
 
 public sealed record UiSettings
 {
-    public AppTheme Theme { get; init; } = AppTheme.Dark;
+    public AppTheme Theme { get; init; } = AppTheme.System;
     public bool CloseToTray { get; init; } = true;
 
     /// <summary>Force reduced motion regardless of the Windows setting.</summary>

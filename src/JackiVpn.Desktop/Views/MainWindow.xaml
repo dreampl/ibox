@@ -3,9 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:JackiVpn.Desktop.ViewModels"
         xmlns:v="clr-namespace:JackiVpn.Desktop.Views"
-        Title="IBOX" Width="1220" Height="820" MinWidth="960" MinHeight="640"
+        Title="IBOX" Width="1320" Height="880" MinWidth="1024" MinHeight="700"
         WindowStartupLocation="CenterScreen"
-        Background="{DynamicResource B.Window}" Foreground="{DynamicResource B.Text}"
+        Background="{DynamicResource B.WindowFill}" Foreground="{DynamicResource B.Text}"
         FontFamily="{StaticResource UiFont}" FontSize="13"
         UseLayoutRounding="True" TextOptions.TextFormattingMode="Ideal"
         Icon="pack://application:,,,/JackiVpn;component/Assets/jacki.ico">
@@ -26,79 +26,141 @@
 
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="236" />
+            <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
         <!-- Ambient accent glow behind the content area -->
         <Rectangle Grid.Column="1" Fill="{DynamicResource B.WindowGlow}" IsHitTestVisible="False" />
 
-        <!-- Sidebar -->
-        <Border Background="{DynamicResource B.Sidebar}" BorderBrush="{DynamicResource B.Border}" BorderThickness="0,0,1,0">
-            <DockPanel Margin="14,20,14,14">
-                <StackPanel DockPanel.Dock="Top" Margin="12,4,0,26">
-                    <!-- IBOX wordmark (vector, same geometry as assets/brand/ibox-wordmark.svg). -->
-                    <Viewbox Height="22" HorizontalAlignment="Left" Stretch="Uniform" AutomationProperties.Name="IBOX">
-                        <Canvas Width="515" Height="127">
-                            <Path Fill="{DynamicResource B.Text}" Data="M1,0H13V127H1Z M19,0H29V127H19Z M38,0H45V127H38Z M62,0H68V127H62Z" />
-                            <Path Fill="{DynamicResource B.Text}" Data="F0 M96 0H176Q190 0 190 14V50H204Q218 50 218 64V97Q218 127 188 127H96ZM123 27H163V50H123ZM123 73H191V100H123Z" />
-                            <Path Fill="{DynamicResource B.Text}" Data="M272 0H368V127H250Q242 127 242 119V30H269V100H341V27H272Z" />
-                            <Path Fill="{DynamicResource B.Text}" Data="F1 M416 0H448L514 127H482Z M376 127L479 0H511L408 127Z" />
-                            <Rectangle Canvas.Left="309" Canvas.Top="53" Width="22" Height="22" Fill="#FF3D9BFF" />
-                        </Canvas>
-                    </Viewbox>
-                    <TextBlock Text="Secure · Smart · Fast" Style="{StaticResource Text.Caption}" Margin="0,8,0,0" />
-                </StackPanel>
+        <!-- Icon rail: logo, page tiles (selected = blue with a soft glow), profile at the bottom. -->
+        <DockPanel Width="112">
+            <Viewbox DockPanel.Dock="Top" Width="78" Margin="0,26,0,18" Stretch="Uniform" HorizontalAlignment="Center" AutomationProperties.Name="IBOX">
+                <!-- IBOX wordmark (vector, same geometry as assets/brand/ibox-wordmark.svg). -->
+                <Canvas Width="515" Height="127">
+                    <Path Fill="{DynamicResource B.Text}" Data="M1,0H13V127H1Z M19,0H29V127H19Z M38,0H45V127H38Z M62,0H68V127H62Z" />
+                    <Path Fill="{DynamicResource B.Text}" Data="F0 M96 0H176Q190 0 190 14V50H204Q218 50 218 64V97Q218 127 188 127H96ZM123 27H163V50H123ZM123 73H191V100H123Z" />
+                    <Path Fill="{DynamicResource B.Text}" Data="M272 0H368V127H250Q242 127 242 119V30H269V100H341V27H272Z" />
+                    <Path Fill="{DynamicResource B.Text}" Data="F1 M416 0H448L514 127H482Z M376 127L479 0H511L408 127Z" />
+                    <Rectangle Canvas.Left="309" Canvas.Top="53" Width="22" Height="22" Fill="#FF3D9BFF" />
+                </Canvas>
+            </Viewbox>
+            <v:ClaySurface CornerRadius="28" Padding="0,16,0,12" Margin="16,0,16,18">
+                <DockPanel>
+                    <!-- Profile (local profiles: phase 4) -->
+                    <Button DockPanel.Dock="Bottom" Style="{StaticResource Button.Ghost}" HorizontalAlignment="Center" Margin="0,8,0,0" Padding="6,6"
+                            ToolTip="Profile" AutomationProperties.Name="Profile" Command="{Binding OpenProfilesCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <Border Width="34" Height="34" CornerRadius="17" Background="{DynamicResource B.TileFill}" BorderBrush="{DynamicResource B.Border}" BorderThickness="1">
+                                <TextBlock Style="{StaticResource Icon}" Text="&#xE77B;" FontSize="16" Foreground="{DynamicResource B.TextSecondary}" />
+                            </Border>
+                            <TextBlock Style="{StaticResource Icon}" Text="&#xE70D;" FontSize="9" Margin="6,0,0,0" Foreground="{DynamicResource B.TextMuted}" />
+                        </StackPanel>
+                    </Button>
+                    <ScrollViewer VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+                        <ListBox x:Name="Nav" ItemsSource="{Binding Pages}" SelectedItem="{Binding Selected}" Background="Transparent" BorderThickness="0"
+                                 ItemContainerStyle="{StaticResource RailItem}" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 ScrollViewer.VerticalScrollBarVisibility="Disabled" AutomationProperties.Name="Navigation" HorizontalAlignment="Center">
+                            <ListBox.Template>
+                                <ControlTemplate TargetType="ListBox">
+                                    <ItemsPresenter />
+                                </ControlTemplate>
+                            </ListBox.Template>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Glyph}" Style="{StaticResource Icon}" FontSize="18" />
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </ScrollViewer>
+                </DockPanel>
+            </v:ClaySurface>
+        </DockPanel>
 
-                <!-- Connection status card -->
-                <Border DockPanel.Dock="Bottom" Background="{DynamicResource B.Card}" BorderBrush="{DynamicResource B.Border}" BorderThickness="1"
-                        CornerRadius="10" Padding="12,10" Margin="0,12,0,0">
-                    <StackPanel Orientation="Horizontal">
-                        <Grid Width="12" Height="12" Margin="0,0,10,0" VerticalAlignment="Center">
-                            <Ellipse x:Name="StatusHalo" Fill="{DynamicResource B.TextMuted}" Opacity="0">
-                                <Ellipse.Effect><BlurEffect Radius="6" /></Ellipse.Effect>
-                            </Ellipse>
-                            <Ellipse x:Name="StatusDot" Width="8" Height="8" Fill="{DynamicResource B.TextMuted}" />
-                        </Grid>
-                        <TextBlock Text="{Binding StatusLine}" Style="{StaticResource Text.Caption}" FontSize="12" TextTrimming="CharacterEllipsis" MaxWidth="165"
-                                   v:Motion.FadeOnChange="True" />
-                    </StackPanel>
-                </Border>
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
 
-                <Grid>
-                    <!-- Selection highlight that glides to the selected item -->
-                    <Canvas IsHitTestVisible="False" ClipToBounds="False">
-                        <Border x:Name="NavHighlight" Width="208" Height="38" CornerRadius="9" Background="{DynamicResource B.Card}"
-                                BorderBrush="{DynamicResource B.Border}" BorderThickness="1" Opacity="0">
-                            <Border.RenderTransform>
-                                <TranslateTransform x:Name="NavHighlightY" />
-                            </Border.RenderTransform>
-                            <Border Width="3" Height="18" CornerRadius="2" HorizontalAlignment="Left" Margin="-1,0,0,0" Background="{DynamicResource B.AccentGradient}" />
+            <!-- Top bar: page title with the protection line; status pill, notifications, light/dark. -->
+            <DockPanel Margin="20,24,30,6">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
+                    <Border Style="{StaticResource Pill}" Margin="0,0,12,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Grid Width="12" Height="12" Margin="0,0,10,0" VerticalAlignment="Center">
+                                <Ellipse x:Name="StatusHalo" Fill="{DynamicResource B.TextMuted}" Opacity="0">
+                                    <Ellipse.Effect><BlurEffect Radius="6" /></Ellipse.Effect>
+                                </Ellipse>
+                                <Ellipse x:Name="StatusDot" Width="9" Height="9" Fill="{DynamicResource B.TextMuted}" />
+                            </Grid>
+                            <TextBlock Text="{Binding PillText}" FontSize="13.5" FontWeight="SemiBold" VerticalAlignment="Center" v:Motion.FadeOnChange="True" />
+                        </StackPanel>
+                    </Border>
+                    <Grid Margin="0,0,12,0">
+                        <Button x:Name="BellButton" Style="{StaticResource Button.Round}" Content="&#xEA8F;" Command="{Binding ToggleNoticesCommand}"
+                                ToolTip="Notifications" AutomationProperties.Name="Notifications" />
+                        <Border Background="{DynamicResource B.Danger}" CornerRadius="8" MinWidth="16" Height="16" Padding="4,0" HorizontalAlignment="Right"
+                                VerticalAlignment="Top" Margin="0,-2,-2,0" IsHitTestVisible="False"
+                                Visibility="{Binding UnreadNotices, Converter={StaticResource Count2Vis}}">
+                            <TextBlock Text="{Binding UnreadNotices}" FontSize="10" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
-                    </Canvas>
-                    <ListBox x:Name="Nav" ItemsSource="{Binding Pages}" SelectedItem="{Binding Selected}" Background="Transparent" BorderThickness="0"
-                             ItemContainerStyle="{StaticResource NavItem}" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                             ScrollViewer.VerticalScrollBarVisibility="Disabled" AutomationProperties.Name="Navigation">
-                        <ListBox.Template>
-                            <ControlTemplate TargetType="ListBox">
-                                <ItemsPresenter />
-                            </ControlTemplate>
-                        </ListBox.Template>
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <StackPanel Orientation="Horizontal" Height="20">
-                                    <TextBlock Text="{Binding Glyph}" Style="{StaticResource Icon}" Width="22" FontSize="15" />
-                                    <TextBlock Text="{Binding Title}" Margin="10,0,0,0" FontSize="13.5" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-                </Grid>
+                        <Popup IsOpen="{Binding NoticesOpen, Mode=TwoWay}" PlacementTarget="{Binding ElementName=BellButton}" Placement="Bottom"
+                               HorizontalOffset="-300" VerticalOffset="10" StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade">
+                            <Border Width="360" MaxHeight="440" Margin="12" Background="{DynamicResource B.Card}" BorderBrush="{DynamicResource B.Border}" BorderThickness="1"
+                                    CornerRadius="18" Padding="16,14" Effect="{DynamicResource E.SoftShadow}">
+                                <DockPanel>
+                                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+                                        <Button DockPanel.Dock="Right" Style="{StaticResource Button.Ghost}" Content="Clear" Command="{Binding ClearNoticesCommand}" />
+                                        <TextBlock Text="Notifications" Style="{StaticResource Text.Section}" Margin="0" VerticalAlignment="Center" />
+                                    </DockPanel>
+                                    <TextBlock DockPanel.Dock="Top" Text="Nothing new." Style="{StaticResource Text.Hint}"
+                                               Visibility="{Binding Notices.Count, Converter={StaticResource ZeroToVis}}" />
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                        <ItemsControl ItemsSource="{Binding Notices}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="{x:Type vm:ToastItem}">
+                                                    <DockPanel Margin="0,0,0,12">
+                                                        <Border x:Name="Tile" DockPanel.Dock="Left" Width="30" Height="30" CornerRadius="10" Margin="0,0,12,0" VerticalAlignment="Top"
+                                                                Background="{DynamicResource B.AccentSoft}">
+                                                            <TextBlock x:Name="Glyph" Style="{StaticResource Icon}" Text="&#xE946;" FontSize="13" Foreground="{DynamicResource B.Accent}" />
+                                                        </Border>
+                                                        <TextBlock DockPanel.Dock="Right" Text="{Binding Time}" Style="{StaticResource Text.Caption}" VerticalAlignment="Top" Margin="8,2,0,0" />
+                                                        <StackPanel>
+                                                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                            <TextBlock Text="{Binding Message}" Style="{StaticResource Text.Hint}" Foreground="{DynamicResource B.TextSecondary}" />
+                                                        </StackPanel>
+                                                    </DockPanel>
+                                                    <DataTemplate.Triggers>
+                                                        <DataTrigger Binding="{Binding IsWarning}" Value="True">
+                                                            <Setter TargetName="Tile" Property="Background" Value="{DynamicResource B.WarningSoft}" />
+                                                            <Setter TargetName="Glyph" Property="Foreground" Value="{DynamicResource B.Warning}" />
+                                                            <Setter TargetName="Glyph" Property="Text" Value="&#xE7BA;" />
+                                                        </DataTrigger>
+                                                    </DataTemplate.Triggers>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </DockPanel>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                    <Button Style="{StaticResource Button.Round}" Content="{Binding ThemeGlyph}" Command="{Binding ToggleThemeCommand}"
+                            ToolTip="Light / dark" AutomationProperties.Name="Light or dark theme" />
+                </StackPanel>
+                <StackPanel Margin="12,0,0,0">
+                    <TextBlock Text="{Binding Selected.Title}" FontSize="30" FontWeight="SemiBold" v:Motion.FadeOnChange="True" />
+                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                        <Ellipse x:Name="TaglineDot" Width="9" Height="9" Margin="1,0,9,0" Fill="{DynamicResource B.TextMuted}" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding Tagline}" FontSize="14" Foreground="{DynamicResource B.TextSecondary}" v:Motion.FadeOnChange="True" />
+                    </StackPanel>
+                </StackPanel>
             </DockPanel>
-        </Border>
 
-        <!-- Page host -->
-        <ContentControl x:Name="PageHost" Grid.Column="1" Content="{Binding Selected.Page}" Focusable="False" />
+            <!-- Page host -->
+            <ContentControl x:Name="PageHost" Grid.Row="1" Content="{Binding Selected.Page}" Focusable="False" />
+        </Grid>
 
         <!-- Update banner: slides in from the top when a new version is available. -->
         <Border Grid.Column="1" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,14,0,0" Padding="16,10" CornerRadius="14"

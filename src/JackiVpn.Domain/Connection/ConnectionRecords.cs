@@ -61,6 +61,11 @@ public sealed record ConnectionStatus
 
     public string? ExitCountryName { get; init; }
     public string? ExitCity { get; init; }
+
+    /// <summary>Where the exit is (city level, when the geo lookup is on), for the dashboard map.</summary>
+    public double? ExitLatitude { get; init; }
+
+    public double? ExitLongitude { get; init; }
     public string? ExitIsp { get; init; }
 
     /// <summary>Live round-trip through the tunnel on a kept-alive connection (like a ping), in ms.</summary>

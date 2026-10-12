@@ -91,9 +91,20 @@ public sealed partial class TrayService : INotificationSink, IDisposable
         _settingNotch = false;
     }
 
+    private (ConnectionState, string?)? _shown;
+
     public void Update(ConnectionStatus status)
     {
         ArgumentNullException.ThrowIfNull(status);
+
+        // The status arrives every second (traffic counters); the tray icon changes only with the state or server
+        // (each change is a call into Explorer).
+        if (_shown == (status.State, status.ProfileName))
+        {
+            return;
+        }
+
+        _shown = (status.State, status.ProfileName);
         _icon.Icon = status.State switch
         {
             ConnectionState.Connected => _connected,
@@ -105,7 +116,14 @@ public sealed partial class TrayService : INotificationSink, IDisposable
             ? $"{Domain.ProductInfo.DisplayName}: {name}"
             : $"{Domain.ProductInfo.DisplayName}: {status.State}";
         _icon.Text = text.Length > 63 ? text[..62] + "…" : text;
-        _connectItem.Text = ConnectionStateRules.IsIdle(status.State) ? "Connect" : "Disconnect";
+        _connectItem.Text = status.State switch
+        {
+            ConnectionState.Disconnected or ConnectionState.Faulted => "Connect",
+            ConnectionState.Connected => "Disconnect",
+            ConnectionState.Disconnecting => "Stopping…",
+            _ => "Cancel connecting",
+        };
+        _connectItem.Enabled = status.State != ConnectionState.Disconnecting;
     }
 
     public void Show(AppNotification notification)

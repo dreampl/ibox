@@ -23,11 +23,10 @@
     </UserControl.Resources>
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="32,26,32,26" v:Motion.StaggerChildren="True">
-            <TextBlock Text="DNS" Style="{StaticResource Text.PageTitle}" />
             <TextBlock Text="How domain names are resolved while connected. The default keeps every lookup encrypted and inside the tunnel."
                        Style="{StaticResource Text.PageSubtitle}" />
 
-            <Border Style="{StaticResource Card}">
+            <v:ClaySurface>
                 <StackPanel>
                     <Grid Style="{StaticResource Row}">
                         <Grid.ColumnDefinitions>
@@ -44,9 +43,9 @@
                         <TextBlock Text="This mode can reveal the sites you visit to your ISP or network (DNS leak)." TextWrapping="Wrap" />
                     </Border>
                 </StackPanel>
-            </Border>
+            </v:ClaySurface>
 
-            <Border Style="{StaticResource Card}">
+            <v:ClaySurface>
                 <StackPanel>
                     <DockPanel Margin="0,0,0,8">
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
@@ -103,9 +102,9 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </StackPanel>
-            </Border>
+            </v:ClaySurface>
 
-            <Border Style="{StaticResource Card}">
+            <v:ClaySurface>
                 <StackPanel>
                     <TextBlock Text="Resolvers" Style="{StaticResource Text.Section}" />
                     <TextBlock Text="Remote (through the VPN)" Style="{StaticResource Text.Label}" Margin="0,0,0,6" />
@@ -116,9 +115,9 @@
                     <ContentControl Content="{Binding Bootstrap}" ContentTemplate="{StaticResource EndpointEditor}" Focusable="False" />
                     <TextBlock Text="Transport Local = the resolvers configured in Windows. Columns: transport, server, port, DoH path, TLS name." Style="{StaticResource Text.Hint}" Margin="0,10,0,0" />
                 </StackPanel>
-            </Border>
+            </v:ClaySurface>
 
-            <Border Style="{StaticResource Card}">
+            <v:ClaySurface>
                 <StackPanel>
                     <TextBlock Text="Options" Style="{StaticResource Text.Section}" />
                     <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding Cache}" Margin="0,0,0,12">
@@ -140,7 +139,7 @@
                         <TextBox Grid.Column="2" Text="{Binding FakeIpV6}" ToolTip="Fake IP IPv6 range" />
                     </Grid>
                 </StackPanel>
-            </Border>
+            </v:ClaySurface>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

@@ -93,7 +93,7 @@ public partial class App : System.Windows.Application
             args.SetObserved();
         };
 
-        ThemeManager.Apply(AppTheme.Dark);
+        ThemeManager.Apply(AppTheme.System);
         try
         {
             await StartAsync(e.Args.Contains(StartupManager.MinimizedArgument, StringComparer.OrdinalIgnoreCase));
@@ -148,6 +148,10 @@ public partial class App : System.Windows.Application
         _window = new MainWindow(_vm) { CloseToTray = () => _services.Settings.Current.Ui.CloseToTray };
         MainWindow = _window;
         _window.Closed += (_, _) => _ = ExitAsync();
+        _window.OnScreenChanged += (_, shown) => OnMainWindowOnScreen(shown);
+        ThemeManager.Changed += (_, _) => _vm?.RefreshTheme();
+        _services.Orchestrator.StatusChanged += (_, _) => Dispatcher.BeginInvoke(UpdateEfficiencyMode);
+        OnMainWindowOnScreen(false); // until the window is shown (it may start in the tray)
 
         _tray.OpenRequested += (_, _) => ShowWindow();
         _tray.ToggleRequested += (_, _) => _vm.Dashboard.ToggleCommand.Execute(null);
@@ -191,6 +195,65 @@ public partial class App : System.Windows.Application
             {
                 await _services.Orchestrator.ConnectAsync(new ConnectRequest(), _services.Lifetime);
             }
+        }
+    }
+
+    private bool _efficiencyMode;
+    private CancellationTokenSource? _hiddenCts;
+
+    /// <summary>
+    /// The window left or came back to the screen: live polling (ping, usage, clocks) slows down or stops, optional
+    /// work waits, and after a while hidden the memory the UI no longer needs is given back.
+    /// </summary>
+    private void OnMainWindowOnScreen(bool shown)
+    {
+        if (_services is null)
+        {
+            return;
+        }
+
+        _services.Background.Hidden = !shown;
+        _services.Orchestrator.SetBackground(!shown);
+        _vm?.SetOnScreen(shown);
+        UpdateEfficiencyMode();
+        _hiddenCts?.Cancel();
+        _hiddenCts = null;
+        if (!shown)
+        {
+            var cts = _hiddenCts = new CancellationTokenSource();
+            _ = Task.Delay(TimeSpan.FromSeconds(15), cts.Token).ContinueWith(
+                _ =>
+                {
+                    // One full compacting collection: pages, images and caches of the hidden UI go back to Windows.
+                    System.Runtime.GCSettings.LargeObjectHeapCompactionMode = System.Runtime.GCLargeObjectHeapCompactionMode.CompactOnce;
+                    GC.Collect(2, GCCollectionMode.Aggressive, blocking: true, compacting: true);
+                },
+                cts.Token,
+                TaskContinuationOptions.OnlyOnRanToCompletion,
+                TaskScheduler.Default);
+        }
+    }
+
+    /// <summary>
+    /// Windows efficiency mode for this process while it is hidden — except while the in-app traffic relay carries
+    /// the user's traffic (System Proxy mode), which must never be slowed.
+    /// </summary>
+    private void UpdateEfficiencyMode()
+    {
+        if (_services is null)
+        {
+            return;
+        }
+
+        var status = _services.Orchestrator.Status;
+        var relayInApp = !Domain.Connection.ConnectionStateRules.IsIdle(status.State) && _services.Settings.Current.Connection.Mode == Domain.Connection.ConnectionMode.SystemProxy;
+        var on = _services.Background.Hidden && !relayInApp;
+        if (on != _efficiencyMode)
+        {
+            _efficiencyMode = on;
+            using var self = System.Diagnostics.Process.GetCurrentProcess();
+            JackiVpn.Cores.Hosting.ProcessTuning.SetEfficiencyMode(self, on, _services.Logger);
+            _services.Logger.LogDebug("Efficiency mode {State}.", on ? "on" : "off");
         }
     }
 

@@ -13,7 +13,6 @@
                     <Button Content="From file…" Command="{Binding ImportFileCommand}" />
                 </StackPanel>
                 <StackPanel>
-                    <TextBlock Text="Servers" Style="{StaticResource Text.PageTitle}" />
                     <TextBlock Text="{Binding Summary}" Style="{StaticResource Text.PageSubtitle}" />
                 </StackPanel>
             </DockPanel>

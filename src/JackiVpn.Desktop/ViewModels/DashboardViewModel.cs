@@ -88,6 +88,62 @@ public sealed partial class DashboardViewModel : ObservableObject
     [ObservableProperty] private string _speedLoadedPing = "—";
     [ObservableProperty] private string _speedNote = "Measures through the VPN when connected (speed.cloudflare.com, 4 streams).";
 
+    // Map, location button and server card
+    [ObservableProperty] private double? _exitLatitude;
+    [ObservableProperty] private double? _exitLongitude;
+    [ObservableProperty] private string? _city;
+    [ObservableProperty] private string? _serverFlag;
+    [ObservableProperty] private string _serverTitle = "Smart connect";
+    [ObservableProperty] private string _serverSubtitle = "Best server picked when you connect";
+    [ObservableProperty] private string _serverProtocol = "Auto";
+    [ObservableProperty] private string? _planStatus;
+    [ObservableProperty] private string _planQuota = "—";
+    [ObservableProperty] private bool _planOk = true;
+    private string? _selectedName;
+    private string? _selectedCountry;
+    private string? _selectedProtocol;
+
+    /// <summary>"TUN" or "Proxy" (server card tile).</summary>
+    public string ModeTile => IsTunMode ? "TUN" : "Proxy";
+
+    /// <summary>What the tunnel covers (server card tile).</summary>
+    public string CoverageTile => IsTunMode ? "All apps" : "Proxy apps";
+
+    /// <summary>The location button: the exit when connected, the chosen server's last known exit otherwise.</summary>
+    public string LocationTitle => IsConnected ? CountryName ?? ServerName : _selectedCountry is { } cc ? Application.Connection.HttpLiveProbe.CountryName(cc) ?? cc : "Choose location";
+
+    public string LocationSubtitle => IsConnected ? City ?? LocationDetail ?? PublicIp ?? "Locating…" : _selectedName ?? "Smart: fastest server";
+
+    public string? LocationFlag => IsConnected ? CountryCode : _selectedCountry;
+
+    [RelayCommand]
+    private void OpenSubscriptions() => _main.Navigate(_main.Subscriptions);
+
+    /// <summary>Server card and location button follow the connection or the selection.</summary>
+    private void RefreshServerCard()
+    {
+        if (IsConnected)
+        {
+            ServerFlag = CountryCode;
+            ServerTitle = CountryName ?? ServerName;
+            ServerSubtitle = string.Join(" · ", new[] { City, ServerName }.Where(x => !string.IsNullOrWhiteSpace(x)));
+            ServerProtocol = Protocol;
+        }
+        else
+        {
+            ServerFlag = _selectedCountry;
+            ServerTitle = _selectedName ?? "Smart connect";
+            ServerSubtitle = _selectedName is null ? "Best server picked when you connect" : "Selected server";
+            ServerProtocol = _selectedProtocol ?? "Auto";
+        }
+
+        OnPropertyChanged(nameof(LocationTitle));
+        OnPropertyChanged(nameof(LocationSubtitle));
+        OnPropertyChanged(nameof(LocationFlag));
+        OnPropertyChanged(nameof(ModeTile));
+        OnPropertyChanged(nameof(CoverageTile));
+    }
+
     public DashboardViewModel(AppServices services, IDialogService dialogs, MainViewModel main)
     {
         _s = services;
@@ -95,10 +151,21 @@ public sealed partial class DashboardViewModel : ObservableObject
         _main = main;
         _clock = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _clock.Tick += (_, _) => Duration = _since is { } t ? Format.Clock(DateTimeOffset.UtcNow - t) : "00:00";
-        var proxyTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
-        proxyTimer.Tick += (_, _) => _ = CheckSystemProxyAsync();
-        proxyTimer.Start();
-        services.Orchestrator.StatusChanged += (_, st) => Ui.Post(() => Apply(st));
+        _proxyTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+        _proxyTimer.Tick += (_, _) => _ = CheckSystemProxyAsync();
+        _proxyTimer.Start();
+        services.Orchestrator.StatusChanged += (_, st) => Ui.Post(() =>
+        {
+            // Hidden: only real state changes are applied; the per-second traffic ticks wait for the window.
+            if (!_onScreen && st.State == State)
+            {
+                _pending = st;
+                return;
+            }
+
+            _pending = null;
+            Apply(st);
+        });
         services.Settings.Changed += (_, _) => Ui.Post(() =>
         {
             OnPropertyChanged(nameof(SmartMode));
@@ -115,6 +182,42 @@ public sealed partial class DashboardViewModel : ObservableObject
                 Mode = Domain.Visuals.ModePalette.Of(Activity, _s.Traffic.Mode);
             }
         });
+    }
+
+    private readonly DispatcherTimer _proxyTimer;
+    private bool _onScreen = true;
+    private ConnectionStatus? _pending;
+
+    /// <summary>The window is on screen or not: the clock, the proxy check and live numbers pause while hidden.</summary>
+    public void SetOnScreen(bool shown)
+    {
+        if (_onScreen == shown)
+        {
+            return;
+        }
+
+        _onScreen = shown;
+        if (shown)
+        {
+            _proxyTimer.Start();
+            if (_pending is { } st)
+            {
+                _pending = null;
+                Apply(st);
+            }
+
+            if (_since is not null)
+            {
+                _clock.Start();
+            }
+
+            _ = CheckSystemProxyAsync();
+        }
+        else
+        {
+            _proxyTimer.Stop();
+            _clock.Stop();
+        }
     }
 
     public ObservableCollection<string> Warnings { get; } = [];
@@ -220,10 +323,20 @@ public sealed partial class DashboardViewModel : ObservableObject
         _main.ShowToast("Proxy turned off", "Restart apps that were already open (e.g. Claude) so they reconnect.");
     }
 
-    [RelayCommand]
+    /// <summary>
+    /// Connect, disconnect, or — while connecting — cancel. Runs concurrently with itself: the click that cancels
+    /// arrives while the connect it cancels is still awaiting.
+    /// </summary>
+    [RelayCommand(AllowConcurrentExecutions = true)]
     private async Task ToggleAsync()
     {
-        if (!ConnectionStateRules.IsIdle(_s.Orchestrator.State))
+        var state = _s.Orchestrator.State;
+        if (state == ConnectionState.Disconnecting)
+        {
+            return;
+        }
+
+        if (!ConnectionStateRules.IsIdle(state))
         {
             await _s.Orchestrator.DisconnectAsync();
             return;
@@ -397,6 +510,9 @@ public sealed partial class DashboardViewModel : ObservableObject
             CountryName = st.ExitCountryName ?? (st.PublicIp is null ? (_s.Settings.Current.Probe.CheckPublicIp ? "Locating…" : null) : "Unknown country");
             LocationDetail = string.Join(" · ", new[] { st.ExitCity, st.ExitIsp }.Where(x => !string.IsNullOrWhiteSpace(x)));
             PublicIp = st.PublicIp;
+            City = st.ExitCity;
+            ExitLatitude = st.ExitLatitude;
+            ExitLongitude = st.ExitLongitude;
             LatencyText = st.LatencyMs is { } ms ? $"{ms:0} ms" + (st.JitterMs is { } j && j >= 1 ? $" ±{j:0}" : string.Empty) : "…";
             LatencyTip = "Round trip through the VPN on a kept-alive connection (median of the last 3, like ping)"
                 + (st.JitterMs is { } jt ? $". Jitter {jt:0} ms." : ".");
@@ -418,7 +534,10 @@ public sealed partial class DashboardViewModel : ObservableObject
                 _ => 2,
             };
             _since = st.ConnectedSinceUtc;
-            _clock.Start();
+            if (_onScreen)
+            {
+                _clock.Start();
+            }
             if (!wasConnected)
             {
                 Array.Clear(_down);
@@ -441,6 +560,8 @@ public sealed partial class DashboardViewModel : ObservableObject
             CountryName = null;
             LocationDetail = null;
             PublicIp = null;
+            City = null;
+            ExitLatitude = ExitLongitude = null;
             ServerName = Protocol = CoreText = ModeText = "—";
         }
 
@@ -463,11 +584,17 @@ public sealed partial class DashboardViewModel : ObservableObject
             UploadSpeed = DownloadSpeed = "0 B/s";
         }
 
-        Warnings.Clear();
-        foreach (var w in st.Warnings)
+        // The status arrives every second: rebuild the warning list only when it changed.
+        if (!Warnings.SequenceEqual(st.Warnings))
         {
-            Warnings.Add(w);
+            Warnings.Clear();
+            foreach (var w in st.Warnings)
+            {
+                Warnings.Add(w);
+            }
         }
+
+        RefreshServerCard();
     }
 
     private static void Push(double[] buffer, double value)
@@ -482,11 +609,19 @@ public sealed partial class DashboardViewModel : ObservableObject
         if (c.SmartMode)
         {
             SelectionText = "Smart: picks the fastest working server";
+            _selectedName = null;
+            _selectedCountry = null;
+            _selectedProtocol = null;
+            RefreshServerCard();
             return;
         }
 
         var p = c.SelectedProfileId is { } id ? await _s.Profiles.GetAsync(id, _s.Lifetime) : null;
         SelectionText = p is null ? "No server selected — choose one on the Servers page" : "Selected: " + p.DisplayName;
+        _selectedName = p?.DisplayName;
+        _selectedCountry = p is null ? null : _s.Insights.Get(p.Fingerprint)?.Exit?.CountryCode;
+        _selectedProtocol = p is null ? null : Names.Protocol(p.Protocol.ToString());
+        RefreshServerCard();
     }
 
     private async Task RefreshPlanAsync()
@@ -506,9 +641,16 @@ public sealed partial class DashboardViewModel : ObservableObject
             ? $"{Format.Bytes(m.UsedBytes)} used · Unlimited"
             : $"{Format.Bytes(m.UsedBytes)} of {Format.Bytes(m.TotalBytes)}";
         PlanExpiry = m.IsUnlimitedExpiry == true ? "Never expires" : m.ExpireUtc is { } e ? $"Expires {Format.When(e)} ({Format.Duration(m.TimeRemaining(DateTimeOffset.UtcNow))})" : "Expiry unknown";
-        if (sub.Metadata.ComputeStatus(DateTimeOffset.UtcNow) is SubscriptionStatus.Expired or SubscriptionStatus.Limited)
+        var status = sub.Metadata.ComputeStatus(DateTimeOffset.UtcNow);
+        if (status is SubscriptionStatus.Expired or SubscriptionStatus.Limited)
         {
-            PlanExpiry += " · " + sub.Metadata.ComputeStatus(DateTimeOffset.UtcNow);
+            PlanExpiry += " · " + status;
         }
+
+        PlanOk = status is not (SubscriptionStatus.Expired or SubscriptionStatus.Limited);
+        PlanStatus = PlanOk ? "Active" : status.ToString();
+        PlanQuota = m.IsUnlimitedTraffic == true ? "Unlimited"
+            : m.TotalBytes is { } total && m.UsedBytes is { } used ? $"{Format.Bytes(Math.Max(0, total - used))} left"
+            : "Quota unknown";
     }
 }

@@ -22,9 +22,28 @@ public partial class MainWindow : Window
         DataContext = vm;
         SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(this);
         vm.PropertyChanged += OnVmChanged;
-        Nav.SelectionChanged += (_, _) => MoveNavHighlight(animate: true);
-        Nav.SizeChanged += (_, _) => MoveNavHighlight(animate: false);
-        Loaded += (_, _) => Dispatcher.BeginInvoke(() => MoveNavHighlight(animate: false), DispatcherPriority.Loaded);
+
+        StateChanged += (_, _) => UpdateOnScreen();
+        IsVisibleChanged += (_, _) => UpdateOnScreen();
+    }
+
+    /// <summary>The window is on screen (not minimized, not hidden in the tray).</summary>
+    public bool OnScreen { get; private set; }
+
+    /// <summary>Raised when <see cref="OnScreen"/> changes: decorations, live polling and optional work follow it.</summary>
+    public event EventHandler<bool>? OnScreenChanged;
+
+    private void UpdateOnScreen()
+    {
+        var shown = IsVisible && WindowState != WindowState.Minimized;
+        if (shown == OnScreen)
+        {
+            return;
+        }
+
+        OnScreen = shown;
+        Motion.SetMainWindowShown(shown);
+        OnScreenChanged?.Invoke(this, shown);
     }
 
     /// <summary>Set by the app: when true, closing hides to the tray instead of exiting.</summary>
@@ -45,6 +64,7 @@ public partial class MainWindow : Window
             };
             StatusDot.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, key);
             StatusHalo.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, key);
+            TaglineDot.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, key);
             if (_vm.State == ConnectionState.Disconnected)
             {
                 Motion.FadeTo(StatusHalo, 0);
@@ -64,31 +84,6 @@ public partial class MainWindow : Window
             PageHost.BeginAnimation(OpacityProperty, fade);
             t.BeginAnimation(TranslateTransform.YProperty, slide);
         }
-    }
-
-    /// <summary>The highlight glides to the selected item with a slight overshoot.</summary>
-    private void MoveNavHighlight(bool animate)
-    {
-        if (Nav.SelectedItem is null || Nav.ItemContainerGenerator.ContainerFromItem(Nav.SelectedItem) is not ListBoxItem item || !item.IsLoaded)
-        {
-            return;
-        }
-
-        var y = item.TranslatePoint(new Point(0, 0), Nav).Y;
-        NavHighlight.Width = Math.Max(0, Nav.ActualWidth);
-        NavHighlight.Height = item.ActualHeight;
-        if (NavHighlight.Opacity == 0 || !animate || Motion.Reduced)
-        {
-            NavHighlightY.BeginAnimation(TranslateTransform.YProperty, null);
-            NavHighlightY.Y = y;
-            NavHighlight.Opacity = 1;
-            return;
-        }
-
-        NavHighlightY.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(y, TimeSpan.FromMilliseconds(320))
-        {
-            EasingFunction = new BackEase { Amplitude = 0.35, EasingMode = EasingMode.EaseOut },
-        });
     }
 
     protected override void OnClosing(CancelEventArgs e)

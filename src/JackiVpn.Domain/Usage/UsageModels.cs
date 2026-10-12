@@ -271,6 +271,12 @@ public static class ShapeClasses
     public const string Background = "bg";
     public const string Telemetry = "tel";
 
+    /// <summary>Non-browser media players (below browsing).</summary>
+    public const string Media = "media";
+
+    /// <summary>Download managers and torrent clients (the lowest).</summary>
+    public const string Downloads = "dl";
+
     public static string App(int index) => "app" + index.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     public static string Update(UpdateGroup group) => "u-" + group.ToString().ToLowerInvariant();
@@ -307,6 +313,12 @@ public sealed record TrafficPolicy
 
     /// <summary>Apps with their own limit (class "app{index}").</summary>
     public IReadOnlyList<string> LimitedApps { get; init; } = [];
+
+    /// <summary>Media players that are not browsers (class "media", below browsing in Gaming mode).</summary>
+    public IReadOnlyList<string> MediaApps { get; init; } = [];
+
+    /// <summary>Download managers and torrent clients (class "dl", the lowest, with updates).</summary>
+    public IReadOnlyList<string> DownloadApps { get; init; } = [];
 
     /// <summary>Ask the core to look up the owning process of every connection (per-app usage).</summary>
     public bool TrackProcesses { get; init; }

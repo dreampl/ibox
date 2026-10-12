@@ -15,14 +15,13 @@
                     </StackPanel>
                 </Button>
                 <StackPanel>
-                    <TextBlock Text="Subscriptions" Style="{StaticResource Text.PageTitle}" />
                     <TextBlock Text="PasarGuard panels are detected automatically. Subscription links are stored encrypted and never shown or logged in full."
                                Style="{StaticResource Text.PageSubtitle}" />
                 </StackPanel>
             </DockPanel>
 
             <!-- Add -->
-            <Border Style="{StaticResource Card}">
+            <v:ClaySurface>
                 <StackPanel>
                     <DockPanel>
                         <v:OrbView DockPanel.Dock="Right" State="Weaving" Width="24" Height="24" IsRunning="{Binding IsBusy}" Visibility="{Binding IsBusy, Converter={StaticResource Bool2Vis}}" />
@@ -44,12 +43,12 @@
                     <TextBlock Text="{Binding Message}" Style="{StaticResource Text.Hint}" Foreground="{DynamicResource B.TextSecondary}" Margin="0,8,0,0"
                                Visibility="{Binding Message, Converter={StaticResource Null2Vis}}" />
                 </StackPanel>
-            </Border>
+            </v:ClaySurface>
 
             <ItemsControl ItemsSource="{Binding Items}" Tag="{Binding}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate DataType="{x:Type vm:SubscriptionItem}">
-                        <Border Style="{StaticResource Card}">
+                        <v:ClaySurface>
                             <StackPanel>
                                 <DockPanel>
                                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
@@ -171,7 +170,7 @@
                                     </StackPanel>
                                 </DockPanel>
                             </StackPanel>
-                        </Border>
+                        </v:ClaySurface>
                         <DataTemplate.Triggers>
                             <DataTrigger Binding="{Binding DeviceProblem}" Value="True">
                                 <Setter TargetName="DeviceLine" Property="Foreground" Value="{DynamicResource B.Danger}" />

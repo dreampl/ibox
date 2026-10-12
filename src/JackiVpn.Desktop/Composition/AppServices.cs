@@ -72,7 +72,7 @@ public sealed class AppServices : IAsyncDisposable
         ICoreEngine? xray = Catalog.IsInstalled(CoreKind.Xray) ? Xray : null;
 
         UserJournal = new NetworkStateJournal(Paths.UserJournalPath);
-        WinInet = new WinInetProxyApi();
+        WinInet = Sandboxed ? new SandboxProxyApi() : new WinInetProxyApi();
         SystemProxy = new SystemProxyManager(WinInet, UserJournal, LoggerFactory.CreateLogger("JackiVpn.SystemProxy"));
         var recoveryLogger = LoggerFactory.CreateLogger("JackiVpn.Recovery");
         UserRecovery = new RecoveryCoordinator(
@@ -117,8 +117,14 @@ public sealed class AppServices : IAsyncDisposable
             CanProbeDirectly = () => Orchestrator!.State != ConnectionState.Connected || Settings.Current.Connection.Mode != ConnectionMode.Tun,
         };
         DnsFinder = new Application.Connectivity.DnsFinder(System.IO.Path.Combine(Paths.UserStateDir, "dns-choice.json"), networkKey, LoggerFactory.CreateLogger("JackiVpn.Dns"));
+        Background = new Application.Background.BackgroundPolicy(new Services.WindowsDeviceConditions(), UserBusy, LoggerFactory.CreateLogger("JackiVpn.Background"));
+        SubscriptionService.Background = Background;
+        Updates.WaitForUpkeep = ct => Background.WaitUntilAllowedAsync(Application.Background.BackgroundWork.Upkeep, ct);
         Orchestrator = new ConnectionOrchestrator(new OrchestratorDependencies
         {
+            Background = Background,
+            // The notch shows the live ping while the window is hidden.
+            PingWhileHidden = () => Settings.Current.Ui.Notch is { Enabled: true, ShowPing: true },
             NetworkKey = networkKey,
             BestDns = () => DnsFinder.BestForNetwork(),
             Traffic = () => Traffic?.CurrentPolicy(),
@@ -137,7 +143,8 @@ public sealed class AppServices : IAsyncDisposable
             Disconnects = Disconnects,
             NetworkMonitor = NetworkMonitor,
             Logger = LoggerFactory.CreateLogger("JackiVpn.Connection"),
-            BackendFactory = mode => mode == ConnectionMode.Tun
+            // The sandbox never uses TUN (it would change this PC's network): it runs the proxy backend instead.
+            BackendFactory = mode => mode == ConnectionMode.Tun && !Sandboxed
                 ? new ServiceTunnelBackend(Service.ConnectNewClientAsync, sessionLogger, SystemProxy)
                 : new LocalProxyBackend(
                     plans,
@@ -145,7 +152,7 @@ public sealed class AppServices : IAsyncDisposable
                     xray,
                     () => new SupervisorRunner(new CoreSupervisor(Catalog, SingBox, xray, Paths.UserCoreWorkDir, sessionLogger, UserJournal)),
                     SystemProxy,
-                    () => Service.ConnectedClient,
+                    () => Sandboxed ? null : Service.ConnectedClient,
                     sessionLogger),
         });
 
@@ -154,11 +161,32 @@ public sealed class AppServices : IAsyncDisposable
         {
             WorkplaceDailyCapMb = () => Workplace.Active?.Rules.DailyCapMb ?? 0,
             InternalDomains = () => Workplace.Active?.InternalDomains ?? [],
+            // Every 2 s on screen; every 8 s hidden, 12 s on power saver (totals stay exact, only the live view is coarser).
+            Pace = Background.Stretch,
         };
         Traffic = new Application.Traffic.TrafficController(Orchestrator, settings, Workplace, Usage, LoggerFactory.CreateLogger("JackiVpn.Traffic"));
     }
 
     public Application.Connectivity.DnsFinder DnsFinder { get; }
+
+    /// <summary>When the app's own work may run: power saver, metered network, hidden window, the user's own traffic.</summary>
+    public Application.Background.BackgroundPolicy Background { get; }
+
+    /// <summary>Download rate (bytes/s) above which the user's own traffic needs the line (device-wide adapters).</summary>
+    public const long DeviceBusyBytesPerSecond = 512 * 1024;
+
+    /// <summary>A game or stream is on, or the user's traffic is heavy: maintenance waits.</summary>
+    private bool UserBusy()
+    {
+        var status = Orchestrator.Status;
+        if (status.State == ConnectionState.Connected
+            && (Domain.Connection.ActivityRules.IsQuiet(status.Activity) || (status.Traffic?.DownloadBytesPerSecond ?? 0) > ConnectionOrchestrator.BusyBytesPerSecond))
+        {
+            return true;
+        }
+
+        return Usage.DownPerSecond > DeviceBusyBytesPerSecond;
+    }
 
     /// <summary>Background DNS search for a network without a fresh result (not while the tunnel carries our own traffic).</summary>
     public void SearchDnsIfNeeded()
@@ -170,6 +198,7 @@ public sealed class AppServices : IAsyncDisposable
                 try
                 {
                     await Task.Delay(TimeSpan.FromSeconds(3), Lifetime).ConfigureAwait(false);
+                    await Background.WaitUntilAllowedAsync(Application.Background.BackgroundWork.Upkeep, Lifetime).ConfigureAwait(false);
                     await DnsFinder.SearchAsync(Lifetime).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
@@ -200,7 +229,19 @@ public sealed class AppServices : IAsyncDisposable
     public SingBoxCoreEngine SingBox { get; }
     public XrayCoreEngine Xray { get; }
     public NetworkStateJournal UserJournal { get; }
-    public WinInetProxyApi WinInet { get; }
+
+    /// <summary>
+    /// Developer sandbox (Debug builds with a separate data root and JACKIVPN_SANDBOX=1): the Windows proxy is an
+    /// in-memory stand-in and TUN is refused, so a test copy can connect and cancel without touching this PC's network.
+    /// </summary>
+    public static bool Sandboxed { get; } =
+#if DEBUG
+        Environment.GetEnvironmentVariable("JACKIVPN_SANDBOX") == "1" && !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("JACKIVPN_DATA_ROOT"));
+#else
+        false;
+#endif
+
+    public IWinInetProxyApi WinInet { get; }
     public SystemProxyManager SystemProxy { get; }
     public RecoveryCoordinator UserRecovery { get; }
     public NotificationService Notifications { get; }
@@ -230,8 +271,10 @@ public sealed class AppServices : IAsyncDisposable
     {
         NetworkMonitor.Start();
         Orchestrator.NetworkChanged += (_, _) => _ = SubscriptionService.RefreshAfterNetworkChangeAsync(_lifetime.Token);
+        Microsoft.Win32.SystemEvents.PowerModeChanged += (_, _) => Background.Refresh();
         NetworkMonitor.Changed += (_, _) =>
         {
+            Background.Refresh();
             _ = Task.Run(Workplace.Refresh);
             // Network key is known after the workplace refresh; give it a moment, then look for the best DNS here.
             _ = Task.Delay(TimeSpan.FromSeconds(2)).ContinueWith(_ => SearchDnsIfNeeded(), TaskScheduler.Default);

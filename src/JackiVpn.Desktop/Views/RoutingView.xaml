@@ -11,14 +11,13 @@
                     <Button Content="Export…" Command="{Binding ExportCommand}" />
                 </StackPanel>
                 <StackPanel>
-                    <TextBlock Text="Routing" Style="{StaticResource Text.PageTitle}" />
                     <TextBlock Text="Rules are checked top to bottom; the first match wins. Destination conditions in one rule match if any matches; other conditions must all match."
                                Style="{StaticResource Text.PageSubtitle}" />
                 </StackPanel>
             </DockPanel>
 
             <!-- Presets & defaults -->
-            <Border Style="{StaticResource Card}">
+            <v:ClaySurface>
                 <StackPanel>
                     <TextBlock Text="Preset" Style="{StaticResource Text.Section}" />
                     <ItemsControl ItemsSource="{Binding Presets}" Tag="{Binding}">
@@ -63,10 +62,10 @@
                         </StackPanel>
                     </CheckBox>
                 </StackPanel>
-            </Border>
+            </v:ClaySurface>
 
             <!-- Rules -->
-            <Border Style="{StaticResource Card}">
+            <v:ClaySurface>
                 <StackPanel>
                     <DockPanel Margin="0,0,0,10">
                         <Button DockPanel.Dock="Right" Style="{StaticResource Button.Primary}" Content="Add rule" Command="{Binding AddRuleCommand}" />
@@ -112,10 +111,10 @@
                     <TextBlock Text="No rules: everything follows the unmatched-traffic action." Style="{StaticResource Text.Hint}"
                                Visibility="{Binding Rules.Count, Converter={StaticResource ZeroToVis}}" />
                 </StackPanel>
-            </Border>
+            </v:ClaySurface>
 
             <!-- Rule-sets -->
-            <Border Style="{StaticResource Card}">
+            <v:ClaySurface>
                 <StackPanel>
                     <DockPanel Margin="0,0,0,10">
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
@@ -147,7 +146,7 @@
                     </ItemsControl>
                     <TextBlock Text="{Binding Message}" Style="{StaticResource Text.Hint}" Visibility="{Binding Message, Converter={StaticResource Null2Vis}}" />
                 </StackPanel>
-            </Border>
+            </v:ClaySurface>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

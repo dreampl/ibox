@@ -130,14 +130,26 @@ public sealed class LocalProxyBackend : IConnectionBackend
         await StopRunnerAsync().ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Cancel escalation: the proxy goes back to what it was and the cores are killed at once; the WinHTTP restore
+    /// of a graceful stop still running in parallel finishes on its own.
+    /// </summary>
+    public async Task KillAsync(CancellationToken ct)
+    {
+        _trafficCts?.Cancel();
+        _proxy.Restore();
+        await StopRunnerAsync().ConfigureAwait(false);
+    }
+
     private async Task StopRunnerAsync()
     {
         _trafficCts?.Cancel();
-        if (_runner is not null)
+
+        // Taken atomically: a graceful stop and a kill may run at the same time.
+        if (Interlocked.Exchange(ref _runner, null) is { } runner)
         {
-            _runner.CoreExited -= OnCoreExited;
-            await _runner.DisposeAsync().ConfigureAwait(false);
-            _runner = null;
+            runner.CoreExited -= OnCoreExited;
+            await runner.DisposeAsync().ConfigureAwait(false);
         }
     }
 
@@ -293,6 +305,26 @@ public sealed class ServiceTunnelBackend(Func<CancellationToken, Task<IpcClient>
         catch (ServiceUnavailableException ex)
         {
             logger.LogWarning("Service unavailable while stopping the tunnel: {Error}", ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Cancel escalation: the service kills the cores and lifts the kill switch without waiting for the session,
+    /// then finishes the normal teardown (routes, adapter, DNS) by itself.
+    /// </summary>
+    public async Task KillAsync(CancellationToken ct)
+    {
+        RestoreSystemProxy();
+        var client = _client is { IsConnected: true } c ? c : await EnsureClientAsync(ct).ConfigureAwait(false);
+        try
+        {
+            await client.SendAsync(IpcMethods.KillTunnel, null, ct).ConfigureAwait(false);
+        }
+        catch (IpcRemoteException ex)
+        {
+            // A service from an older version has no hard stop: its own stop timeout force-stops instead.
+            logger.LogWarning("The service could not kill the tunnel: {Error}", ex.Message);
+            await client.SendAsync(IpcMethods.StopTunnel, null, ct).ConfigureAwait(false);
         }
     }
 

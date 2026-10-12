@@ -20,6 +20,8 @@ public sealed partial class ToastItem : ObservableObject
     public required string Title { get; init; }
     public required string Message { get; init; }
     public bool IsWarning { get; init; }
+    public DateTime At { get; init; } = DateTime.Now;
+    public string Time => At.ToString("HH:mm", System.Globalization.CultureInfo.CurrentCulture);
 }
 
 public sealed partial class MainViewModel : ObservableObject
@@ -78,6 +80,14 @@ public sealed partial class MainViewModel : ObservableObject
                 ConnectionState.Faulted => "Connection problem",
                 _ => s.State.ToString(),
             };
+            (Tagline, PillText) = s.State switch
+            {
+                ConnectionState.Connected => ("Secure • Fast • Stable", "VPN Connected"),
+                ConnectionState.Faulted => ("Connection problem — open the dashboard", "VPN Error"),
+                ConnectionState.Disconnected => ("Not protected", "VPN Off"),
+                ConnectionState.Disconnecting => ("Disconnecting…", "Stopping…"),
+                _ => ("Connecting…", "Connecting…"),
+            };
         });
     }
 
@@ -111,6 +121,9 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>The main window is on screen or not (minimized / tray): pages pause their live updates.</summary>
+    public void SetOnScreen(bool shown) => Dashboard.SetOnScreen(shown);
+
     public async Task InitializeAsync()
     {
         await Servers.LoadAsync();
@@ -119,6 +132,53 @@ public sealed partial class MainViewModel : ObservableObject
         await Network.RefreshServiceAsync();
         Ecosystem.Start();
     }
+
+    [ObservableProperty]
+    private string _tagline = "Not protected";
+
+    [ObservableProperty]
+    private string _pillText = "VPN Off";
+
+    [ObservableProperty]
+    private int _unreadNotices;
+
+    [ObservableProperty]
+    private bool _noticesOpen;
+
+    /// <summary>Recent notifications (newest first), shown under the bell.</summary>
+    public ObservableCollection<ToastItem> Notices { get; } = [];
+
+    partial void OnNoticesOpenChanged(bool value)
+    {
+        if (value)
+        {
+            UnreadNotices = 0;
+        }
+    }
+
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    private void ToggleNotices() => NoticesOpen = !NoticesOpen;
+
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    private void ClearNotices()
+    {
+        Notices.Clear();
+        UnreadNotices = 0;
+    }
+
+    /// <summary>The top bar's light/dark switch (leaves "System" for the shown opposite).</summary>
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    private void ToggleTheme()
+    {
+        var next = Services.ThemeManager.IsLight ? AppTheme.Dark : AppTheme.Light;
+        _services.Settings.Update(x => x with { Ui = x.Ui with { Theme = next } });
+        OnPropertyChanged(nameof(ThemeGlyph));
+    }
+
+    /// <summary>Sun on the dark theme (switch to light), moon on the light theme.</summary>
+    public string ThemeGlyph => Services.ThemeManager.IsLight ? ((char)0xE708).ToString() : ((char)0xE706).ToString();
+
+    public void RefreshTheme() => OnPropertyChanged(nameof(ThemeGlyph));
 
     public void ShowToast(string title, string message, bool warning = false) =>
         ShowToast(new AppNotification(warning ? NotificationCategory.ConnectionFailed : NotificationCategory.Connected, title, message));
@@ -132,6 +192,17 @@ public sealed partial class MainViewModel : ObservableObject
             IsWarning = n.Category is NotificationCategory.ConnectionFailed or NotificationCategory.CoreCrashed
                 or NotificationCategory.KillSwitchActivated or NotificationCategory.SubscriptionExpired or NotificationCategory.TrafficAlmostFinished,
         };
+        Notices.Insert(0, item);
+        while (Notices.Count > 30)
+        {
+            Notices.RemoveAt(Notices.Count - 1);
+        }
+
+        if (!NoticesOpen)
+        {
+            UnreadNotices++;
+        }
+
         Toasts.Add(item);
         while (Toasts.Count > 4)
         {

@@ -25,6 +25,7 @@ internal static class Strings
         ["St_TestingDetail"] = ("Testing speed and reliability", "سنجش سرعت و پایداری"),
         ["St_Connecting"] = ("Connecting…", "در حال اتصال…"),
         ["St_ConnectingDetail"] = ("Starting the tunnel", "راه‌اندازی تونل"),
+        ["St_TapToCancel"] = ("tap to cancel", "برای لغو بزنید"),
         ["St_On"] = ("Connected", "متصل"),
         ["St_OnDetail"] = ("Your traffic is protected", "ترافیک شما محافظت می‌شود"),
         ["St_ProxyOnly"] = ("Proxy only: apps set to 127.0.0.1:{0} are protected", "فقط پروکسی: برنامه‌هایی که روی 127.0.0.1:{0} تنظیم شده‌اند محافظت می‌شوند"),

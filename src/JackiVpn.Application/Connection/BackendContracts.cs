@@ -44,6 +44,12 @@ public interface IConnectionBackend : IAsyncDisposable
 
     Task StopAsync(CancellationToken ct);
 
+    /// <summary>
+    /// Hard stop for when <see cref="StopAsync"/> hangs (a cancelled connect must be down within seconds): kills the
+    /// core processes and lifts the kill switch at once. May run while a graceful stop is still in progress.
+    /// </summary>
+    Task KillAsync(CancellationToken ct) => StopAsync(ct);
+
     /// <summary>True while traffic is being blocked by this backend's kill switch (session failed, filters up).</summary>
     Task<bool> IsKillSwitchHoldingAsync(CancellationToken ct);
 
