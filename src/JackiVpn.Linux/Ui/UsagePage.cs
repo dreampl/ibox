@@ -333,8 +333,30 @@ public sealed class UsagePage(Shell shell) : OptionsPage(shell)
 
         foreach (var p in Cur.Workplace.Profiles)
         {
-            var remove = Ghost("Remove", () => _ = RemoveWorkplaceAsync(p));
-            _workplace.Children.Add(Line(new StackPanel { Children = { T(p.Name, 13, FontWeight.SemiBold), Hint(p.PolicyKeySha256 is { } k ? $"Signed company policy · key {k[..12]}…" : $"{p.InternalDomains.Count} internal name(s) · {p.InternalCidrs.Count} subnet(s)") } }, remove));
+            var actions = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 6,
+                Children = { Ghost("Dual VPN…", () => _ = EditDualVpnAsync(p)), Ghost("Remove", () => _ = RemoveWorkplaceAsync(p)) },
+            };
+            if (p.DualVpn is { Route: WorkRoute.Server, ServerId: { } sid } && !_serverNames.ContainsKey(sid) && !_namesLoaded)
+            {
+                _namesLoaded = true;
+                _ = LoadServerNamesAsync();
+            }
+
+            var dual = Hint(JackiVpn.Application.Workplace.DualVpn.Describe(p, id => _serverNames.GetValueOrDefault(id)));
+            if (p.DualVpn.IsOn)
+            {
+                dual.Foreground = B(Accent);
+            }
+
+            _workplace.Children.Add(Line(new StackPanel { Children = { T(p.Name, 13, FontWeight.SemiBold), Hint(p.PolicyKeySha256 is { } k ? $"Signed company policy · key {k[..12]}…" : $"{p.InternalDomains.Count} internal name(s) · {p.InternalCidrs.Count} subnet(s)"), dual } }, actions));
+        }
+
+        if (Cur.Workplace.Profiles.Any(p => p.DualVpn.IsOn))
+        {
+            _workplace.Children.Add(Hint("Dual VPN works away from the office in Work mode: the company's names and subnets take the work VPN, everything else this connection."));
         }
 
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
@@ -345,6 +367,111 @@ public sealed class UsagePage(Shell shell) : OptionsPage(shell)
 
         buttons.Children.Add(Ghost("Import company policy…", () => _ = ImportPolicyAsync()));
         _workplace.Children.Add(buttons);
+    }
+
+    private Dictionary<string, string> _serverNames = new(StringComparer.Ordinal);
+    private bool _namesLoaded;
+
+    private async Task LoadServerNamesAsync()
+    {
+        var servers = await S.Profiles.GetAllAsync(Shell.Lifetime.Token);
+        _serverNames = servers.ToDictionary(x => x.Id, x => x.DisplayName, StringComparer.Ordinal);
+        Dispatcher.UIThread.Post(RenderWorkplace);
+    }
+
+    /// <summary>Dual VPN for one workplace: the route for company traffic, and its names, subnets and resolvers.</summary>
+    private async Task EditDualVpnAsync(WorkplaceProfile profile)
+    {
+        var servers = (await S.Profiles.GetAllAsync(Shell.Lifetime.Token)).OrderBy(x => x.DisplayName, StringComparer.CurrentCultureIgnoreCase).ToList();
+        _serverNames = servers.ToDictionary(x => x.Id, x => x.DisplayName, StringComparer.Ordinal);
+        var adapters = JackiVpn.Application.Workplace.DualVpn.Adapters().ToList();
+        if (profile.DualVpn.Interface is { } chosen && !adapters.Contains(chosen))
+        {
+            adapters.Insert(0, chosen);
+        }
+
+        var dialog = new Window
+        {
+            Title = "Dual VPN",
+            SizeToContent = SizeToContent.WidthAndHeight,
+            CanResize = false,
+            Background = B(Look.P.Window),
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+        };
+        var route = new ComboBox { Width = 420, ItemsSource = new[] { "Off — company traffic goes direct", "A saved server (the company's config)", "The company's VPN app (its network adapter)" }, SelectedIndex = (int)profile.DualVpn.Route };
+        var server = new ComboBox { Width = 420, ItemsSource = servers.Select(x => x.DisplayName).ToList(), SelectedIndex = servers.FindIndex(x => x.Id == profile.DualVpn.ServerId) };
+        var adapter = new ComboBox { Width = 420, ItemsSource = adapters, SelectedIndex = profile.DualVpn.Interface is { } i ? adapters.IndexOf(i) : (adapters.Count > 0 ? 0 : -1) };
+        var signed = profile.PolicyKeySha256 is not null;
+        TextBox Box(IReadOnlyList<string> values, string placeholder) => new()
+        {
+            Text = string.Join(", ", values), Width = 420, HorizontalAlignment = HorizontalAlignment.Left, PlaceholderText = placeholder, IsEnabled = !signed, TextWrapping = TextWrapping.Wrap, AcceptsReturn = false,
+        };
+        var domains = Box(profile.InternalDomains, "corp.example.com, intranet.example.com");
+        var cidrs = Box(profile.InternalCidrs, "10.20.0.0/16, 192.168.50.0/24");
+        var dns = Box(profile.InternalDns, "10.20.0.53 (optional)");
+        var serverRow = new StackPanel { Spacing = 6, Children = { Caption("Server"), server } };
+        var adapterRow = new StackPanel { Spacing = 6, Children = { Caption("Adapter"), adapter, new TextBlock { Text = "Connect the company's VPN app first; its adapter shows up here. That app keeps reaching its own server directly.", FontSize = 11.5, Foreground = B(Muted), TextWrapping = TextWrapping.Wrap, MaxWidth = 420 } } };
+        void Show()
+        {
+            serverRow.IsVisible = route.SelectedIndex == (int)WorkRoute.Server;
+            adapterRow.IsVisible = route.SelectedIndex == (int)WorkRoute.Adapter;
+        }
+
+        route.SelectionChanged += (_, _) => Show();
+        Show();
+        var error = new TextBlock { Foreground = B(Danger), FontSize = 12, TextWrapping = TextWrapping.Wrap, MaxWidth = 420, IsVisible = false };
+        var save = Primary("Save", async () =>
+        {
+            var dual = new DualVpnSettings
+            {
+                Route = (WorkRoute)Math.Max(0, route.SelectedIndex),
+                ServerId = server.SelectedIndex >= 0 ? servers[server.SelectedIndex].Id : null,
+                Interface = adapter.SelectedItem as string,
+            };
+            var (edited, problem) = JackiVpn.Application.Workplace.DualVpn.Apply(profile, dual, domains.Text, cidrs.Text, dns.Text);
+            if (edited is null)
+            {
+                error.Text = problem;
+                error.IsVisible = true;
+                return;
+            }
+
+            S.Settings.Update(x => x with { Workplace = x.Workplace with { Profiles = x.Workplace.Profiles.Select(p => p.Id == edited.Id ? edited : p).ToArray() } });
+            dialog.Close();
+            await Guard(() => S.Traffic.SettingsChangedAsync());
+            RenderWorkplace();
+        });
+        dialog.Content = new StackPanel
+        {
+            Margin = new Thickness(22),
+            Spacing = 10,
+            Children =
+            {
+                T("Dual VPN · " + profile.Name, 17, FontWeight.SemiBold),
+                new TextBlock { Text = "Away from the office, in Work mode, the company's names and subnets take the work VPN; everything else keeps this connection.", FontSize = 11.5, Foreground = B(Muted), TextWrapping = TextWrapping.Wrap, MaxWidth = 420, HorizontalAlignment = HorizontalAlignment.Left },
+                Caption("Company traffic goes through"),
+                route,
+                serverRow,
+                adapterRow,
+                Caption("Internal names"),
+                domains,
+                Caption("Internal subnets"),
+                cidrs,
+                Caption("Company DNS"),
+                dns,
+                Hint(signed ? "Names and subnets come from the signed company policy." : "Separate entries with commas."),
+                error,
+                new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right, Children = { Ghost("Cancel", () => dialog.Close()), save } },
+            },
+        };
+        if (TopLevel.GetTopLevel(this) is Window owner)
+        {
+            await dialog.ShowDialog(owner);
+        }
+        else
+        {
+            dialog.Show();
+        }
     }
 
     private async Task MarkWorkplaceAsync()

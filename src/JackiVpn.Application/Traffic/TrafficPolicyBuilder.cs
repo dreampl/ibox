@@ -9,6 +9,9 @@ public sealed record TrafficContext
     public TrafficMode Mode { get; init; } = TrafficMode.Normal;
     public WorkplaceProfile? Workplace { get; init; }
 
+    /// <summary>The workplace applies from elsewhere (Work mode with Dual VPN), not from its own network.</summary>
+    public bool Away { get; init; }
+
     /// <summary>The core can tell which program owns a connection (Windows/Linux; not Android).</summary>
     public bool ProcessAware { get; init; } = true;
 
@@ -106,6 +109,11 @@ public static class TrafficPolicyBuilder
             InternalDomains = work?.InternalDomains ?? [],
             InternalCidrs = (work?.InternalCidrs ?? []).Where(Domain.Common.NetText.IsCidr).ToList(),
             InternalDns = (work?.InternalDns ?? []).Where(Domain.Common.NetText.IsIpLiteral).ToList(),
+            // On site the company network is right there; the second VPN is only for the way from elsewhere.
+            // Android runs one VPN app at a time, so only a work server there.
+            WorkRoute = WorkRouteOf(work, ctx),
+            WorkServerId = WorkRouteOf(work, ctx) == WorkRoute.Server ? work!.DualVpn.ServerId : null,
+            WorkInterface = WorkRouteOf(work, ctx) == WorkRoute.Adapter ? work!.DualVpn.Interface!.Trim() : null,
             Shaping = smart,
             DomainClasses = classes,
             ShapeBackground = smart && ctx.ProcessAware,
@@ -119,6 +127,10 @@ public static class TrafficPolicyBuilder
             TrackProcesses = ctx.ProcessAware && s.Usage.Enabled,
         };
     }
+
+    private static WorkRoute WorkRouteOf(WorkplaceProfile? work, TrafficContext ctx) => work is { DualVpn.IsOn: true } && ctx.Away
+        ? work.DualVpn.Route == WorkRoute.Adapter && !ctx.ProcessAware ? WorkRoute.Off : work.DualVpn.Route
+        : WorkRoute.Off;
 
     /// <summary>A built-in category, minus apps the user placed themselves (their own limit or priority wins).</summary>
     private static List<string> Category(IEnumerable<string> apps, TrafficControlSettings t, IReadOnlyList<string> limited) =>

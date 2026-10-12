@@ -105,6 +105,7 @@ public static class SingBoxConfigBuilder
 
         outbounds.Add(new JsonObject { ["type"] = "direct", ["tag"] = DirectTag });
         var traffic = plan.Traffic ?? new TrafficPolicy();
+        var work = AddWorkRoute(traffic, caps, outbounds, endpoints, secrets, notes);
         var shaperEndpoint = plan.Shaper;
         var shapeClasses = shaperEndpoint is not null && traffic.Shaping ? ShapeClassesOf(traffic) : [];
         if (shapeClasses.Count > 0)
@@ -164,8 +165,12 @@ public static class SingBoxConfigBuilder
                 exclude.AddRange(["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16", "fc00::/7", "fe80::/10"]);
             }
 
-            // Workplace subnets never enter the TUN (file shares, RDP and intranet keep their own path).
-            exclude.AddRange(traffic.InternalCidrs.Where(NetText.IsCidr));
+            // Workplace subnets never enter the TUN (file shares, RDP and intranet keep their own path, or the
+            // company VPN app's routes) — unless a work server inside this tunnel carries them.
+            if (work.Route != WorkRoute.Server)
+            {
+                exclude.AddRange(traffic.InternalCidrs.Where(NetText.IsCidr));
+            }
 
             if (exclude.Count > 0)
             {
@@ -224,6 +229,12 @@ public static class SingBoxConfigBuilder
             });
         }
 
+        if (plan.Kind == SessionKind.Tun && work.Route == WorkRoute.Adapter)
+        {
+            // The company VPN app reaches its own server on the normal network, not through this tunnel.
+            routeRules.Add(new JsonObject { ["process_path_regex"] = SingBoxOutboundBuilder.Array(WorkVpnApps.Select(AppPattern).OfType<string>()), ["outbound"] = DirectTag });
+        }
+
         routeRules.Add(new JsonObject { ["protocol"] = "dns", ["action"] = "hijack-dns" });
         if (plan.CapturesAllTraffic)
         {
@@ -233,12 +244,12 @@ public static class SingBoxConfigBuilder
         AddBlockRules(routeRules, traffic);
         if (Clean(traffic.InternalDomains) is { Count: > 0 } internalDomains)
         {
-            routeRules.Add(new JsonObject { ["domain_suffix"] = SingBoxOutboundBuilder.Array(internalDomains), ["outbound"] = DirectTag });
+            routeRules.Add(new JsonObject { ["domain_suffix"] = SingBoxOutboundBuilder.Array(internalDomains), ["outbound"] = work.Tag });
         }
 
         if (traffic.InternalCidrs.Select(NetText.NormalizeCidr).OfType<string>().Distinct().ToList() is { Count: > 0 } internalCidrs)
         {
-            routeRules.Add(new JsonObject { ["ip_cidr"] = SingBoxOutboundBuilder.Array(internalCidrs), ["outbound"] = DirectTag });
+            routeRules.Add(new JsonObject { ["ip_cidr"] = SingBoxOutboundBuilder.Array(internalCidrs), ["outbound"] = work.Tag });
         }
 
         if (plan.Routing.Final != RuleActionType.Direct)
@@ -317,7 +328,7 @@ public static class SingBoxConfigBuilder
             route["find_process"] = true;
         }
 
-        var dnsSection = BuildDns(plan, ipv6, ruleSetsUsed, directProcesses, traffic);
+        var dnsSection = BuildDns(plan, ipv6, ruleSetsUsed, directProcesses, traffic, work);
         if (ruleSetsUsed.Count > 0)
         {
             route["rule_set"] = new JsonArray(ruleSetsUsed.OrderBy(t => t, StringComparer.Ordinal).Select(tag => (JsonNode?)new JsonObject
@@ -383,7 +394,7 @@ public static class SingBoxConfigBuilder
         }
     }
 
-    private static JsonObject BuildDns(CoreSessionPlan plan, bool ipv6, HashSet<string> ruleSetsUsed, IReadOnlyList<string> directProcesses, TrafficPolicy traffic)
+    private static JsonObject BuildDns(CoreSessionPlan plan, bool ipv6, HashSet<string> ruleSetsUsed, IReadOnlyList<string> directProcesses, TrafficPolicy traffic, WorkPath work)
     {
         var dns = plan.Dns;
         var servers = new JsonArray();
@@ -427,7 +438,25 @@ public static class SingBoxConfigBuilder
             var internalServer = DnsDirect;
             if (traffic.InternalDns.FirstOrDefault(NetText.IsIpLiteral) is { } companyDns)
             {
-                servers.Add(new JsonObject { ["type"] = "udp", ["tag"] = DnsInternal, ["server"] = NetText.TrimBrackets(companyDns) });
+                var company = new JsonObject { ["type"] = "udp", ["tag"] = DnsInternal, ["server"] = NetText.TrimBrackets(companyDns) };
+                if (work.Route == WorkRoute.Server)
+                {
+                    // Over the work VPN: TCP, which every protocol carries (UDP may not be).
+                    company["type"] = "tcp";
+                    company["detour"] = WorkTag;
+                }
+                else if (work.Route == WorkRoute.Adapter)
+                {
+                    company["bind_interface"] = work.Interface;
+                }
+
+                servers.Add(company);
+                internalServer = DnsInternal;
+            }
+            else if (work.Route == WorkRoute.Server)
+            {
+                // No company resolver given: ask the tunnel's resolver, through the work server (its view of names).
+                servers.Add(DnsServer(dns.Remote.Transport == DnsTransport.Local ? DnsServerEndpoint.CloudflareDoh : dns.Remote, DnsInternal, detour: WorkTag));
                 internalServer = DnsInternal;
             }
             else if (dns.Mode is not (DnsMode.System or DnsMode.Local) && dns.Direct.Transport != DnsTransport.Local)
@@ -803,6 +832,49 @@ public static class SingBoxConfigBuilder
 
     public const string BackInboundTag = "jv-back";
     public const string DnsInternal = "dns-internal";
+
+    /// <summary>Dual VPN: the outbound that carries company traffic.</summary>
+    public const string WorkTag = "work";
+
+    /// <summary>Company VPN apps whose own server connection must not loop into this tunnel (Dual VPN, adapter).</summary>
+    public static readonly string[] WorkVpnApps =
+    [
+        "openvpn.exe", "openvpn", "openvpn-gui.exe", "OpenVPNConnect.exe", "ovpnagent.exe", "openconnect", "openconnect.exe",
+        "vpnagent.exe", "vpnui.exe", "csc_ui.exe", "acwebhelper.exe", "FortiClient.exe", "FortiSSLVPNdaemon.exe", "FortiTray.exe",
+        "openfortivpn", "PanGPS.exe", "PanGPA.exe", "PanGPS", "wireguard.exe", "wg-quick", "SonicWallConnect.exe", "SWGVC.exe",
+        "nm-openvpn-service", "nm-openconnect-service", "charon", "ipsec", "strongswan", "xl2tpd", "pppd", "pulsesecure",
+        "Pulse.exe", "dsAccessService.exe", "Zscaler.exe", "ZSATunnel.exe", "f5fpclientW.exe", "CheckPointVPN.exe", "TracSrvWrapper.exe",
+    ];
+
+    /// <summary>How internal names and subnets leave this session.</summary>
+    private sealed record WorkPath(WorkRoute Route, string Tag, string? Interface);
+
+    private static WorkPath AddWorkRoute(TrafficPolicy traffic, CoreCapabilities caps, JsonArray outbounds, JsonArray endpoints, List<string> secrets, List<string> notes)
+    {
+        switch (traffic.WorkRoute)
+        {
+            case WorkRoute.Server when traffic.WorkServer is { } server:
+                try
+                {
+                    var built = SingBoxOutboundBuilder.Build(server, WorkTag, caps, muxEnabled: false, secrets, notes);
+                    (built.IsEndpoint ? endpoints : outbounds).Add(built.Node);
+                    notes.Add($"Dual VPN: company traffic goes through {server.DisplayName}.");
+                    return new WorkPath(WorkRoute.Server, WorkTag, null);
+                }
+                catch (Exception ex) when (ex is NotSupportedException or ArgumentException or InvalidOperationException)
+                {
+                    notes.Add($"Dual VPN: the work server cannot be used ({ex.Message}); company traffic goes direct.");
+                    break;
+                }
+
+            case WorkRoute.Adapter when Domain.Network.AdapterNames.IsValid(traffic.WorkInterface):
+                outbounds.Add(new JsonObject { ["type"] = "direct", ["tag"] = WorkTag, ["bind_interface"] = traffic.WorkInterface });
+                notes.Add($"Dual VPN: company traffic goes through the adapter {traffic.WorkInterface}.");
+                return new WorkPath(WorkRoute.Adapter, WorkTag, traffic.WorkInterface);
+        }
+
+        return new WorkPath(WorkRoute.Off, DirectTag, null);
+    }
 
     public static string ShapeTag(string shapeClass) => "jv-shape-" + shapeClass;
 

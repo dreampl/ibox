@@ -526,6 +526,28 @@ public sealed class TunnelSessionManager : IAsyncDisposable
         {
             throw new TunnelRequestException("Invalid workplace address in the traffic policy.");
         }
+
+        switch (traffic.WorkRoute)
+        {
+            case Domain.Usage.WorkRoute.Off:
+                break;
+            case Domain.Usage.WorkRoute.Server:
+                if (traffic.WorkServer is not { } work || !ProfileValidator.Validate(work).IsValid)
+                {
+                    throw new TunnelRequestException("Invalid work server in the traffic policy.");
+                }
+
+                break;
+            case Domain.Usage.WorkRoute.Adapter:
+                if (!Domain.Network.AdapterNames.IsValid(traffic.WorkInterface))
+                {
+                    throw new TunnelRequestException("Invalid work adapter in the traffic policy.");
+                }
+
+                break;
+            default:
+                throw new TunnelRequestException("Invalid work route in the traffic policy.");
+        }
     }
 
     /// <summary>The privileged boundary: reject anything not well-formed before it reaches a core running as SYSTEM.</summary>

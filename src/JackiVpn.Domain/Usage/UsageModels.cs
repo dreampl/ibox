@@ -224,6 +224,42 @@ public sealed record WorkplaceProfile
 
     public DateTimeOffset? PolicyIssuedUtc { get; init; }
     public DateTimeOffset? PolicyExpiresUtc { get; init; }
+
+    /// <summary>Away from the workplace, in Work mode: company traffic takes the work VPN, the rest the normal one.</summary>
+    public DualVpnSettings DualVpn { get; init; } = new();
+}
+
+/// <summary>How company traffic reaches the company while another VPN carries everything else.</summary>
+[System.Text.Json.Serialization.JsonConverter(typeof(System.Text.Json.Serialization.JsonStringEnumConverter<WorkRoute>))]
+public enum WorkRoute
+{
+    /// <summary>No second VPN: internal names and subnets go direct.</summary>
+    Off = 0,
+
+    /// <summary>A saved server (the company's own VLESS/WireGuard/… config) carries company traffic.</summary>
+    Server,
+
+    /// <summary>The company's own VPN app (OpenVPN, AnyConnect, FortiClient…) is connected: use its network adapter.</summary>
+    Adapter,
+}
+
+/// <summary>Dual VPN: company traffic over the work VPN while the normal VPN carries everything else.</summary>
+public sealed record DualVpnSettings
+{
+    public WorkRoute Route { get; init; }
+
+    /// <summary>The saved server that carries company traffic (<see cref="WorkRoute.Server"/>).</summary>
+    public string? ServerId { get; init; }
+
+    /// <summary>The network adapter of the company's VPN app (<see cref="WorkRoute.Adapter"/>).</summary>
+    public string? Interface { get; init; }
+
+    public bool IsOn => Route switch
+    {
+        WorkRoute.Server => !string.IsNullOrWhiteSpace(ServerId),
+        WorkRoute.Adapter => !string.IsNullOrWhiteSpace(Interface),
+        _ => false,
+    };
 }
 
 public sealed record WorkplaceSettings
@@ -299,6 +335,17 @@ public sealed record TrafficPolicy
 
     public IReadOnlyList<string> InternalCidrs { get; init; } = [];
     public IReadOnlyList<string> InternalDns { get; init; } = [];
+
+    /// <summary>Dual VPN: how <see cref="InternalDomains"/> / <see cref="InternalCidrs"/> are carried (Off = direct).</summary>
+    public WorkRoute WorkRoute { get; init; }
+
+    /// <summary>The saved server for <see cref="WorkRoute.Server"/> (its id; the session start fills <see cref="WorkServer"/>).</summary>
+    public string? WorkServerId { get; init; }
+
+    public Profiles.ProxyProfile? WorkServer { get; init; }
+
+    /// <summary>The company VPN app's network adapter for <see cref="WorkRoute.Adapter"/>.</summary>
+    public string? WorkInterface { get; init; }
 
     /// <summary>Connections of the classes below pass the in-app relay (limits change at run time).</summary>
     public bool Shaping { get; init; }

@@ -695,6 +695,24 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
 
     // ------------------------------------------------------------------ session start
 
+    /// <summary>Dual VPN: the saved work server travels with the policy (dropped, with a warning, if it is gone).</summary>
+    private async Task<Domain.Usage.TrafficPolicy?> WithWorkServerAsync(Domain.Usage.TrafficPolicy? traffic, ProxyProfile main, CancellationToken ct)
+    {
+        if (traffic is not { WorkRoute: Domain.Usage.WorkRoute.Server, WorkServerId: { } id })
+        {
+            return traffic;
+        }
+
+        var work = await _d.Profiles.GetAsync(id, ct).ConfigureAwait(false);
+        if (work is null || work.Id == main.Id)
+        {
+            Log.LogWarning("Dual VPN: the work server {Reason}; company traffic goes direct.", work is null ? "no longer exists" : "is the server this connection uses");
+            return traffic with { WorkRoute = Domain.Usage.WorkRoute.Off, WorkServerId = null };
+        }
+
+        return traffic with { WorkServer = work };
+    }
+
     private async Task StartOnAsync(Session session, ProxyProfile profile, PreparedRouting routing, AppSettings settings, CancellationToken ct)
     {
         // Fingerprint/ALPN hardening and the measured handshake variant are applied here; the stored
@@ -703,6 +721,7 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
         // Server names (and Direct sites, when asked) are looked up with the chosen resolver: the fastest clean one of
         // this network (smart) or the user's own pick, instead of the system's.
         settings = DnsChoice.ForSession(settings, settings.Connectivity.AutoPickDns ? _d.BestDns?.Invoke() : null);
+        var traffic = await WithWorkServerAsync(_d.Traffic(), profile, ct).ConfigureAwait(false);
 
         var result = await session.Backend.StartAsync(new BackendStartRequest
         {
@@ -712,7 +731,7 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
             MuxEnabled = tuned.MuxEnabled,
             RuleSetPaths = routing.Paths,
             RuleSetPayloads = routing.Payloads,
-            Traffic = _d.Traffic(),
+            Traffic = traffic,
             Limits = _d.Limits(),
         }, ct).ConfigureAwait(false);
 
