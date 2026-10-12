@@ -182,6 +182,9 @@ public static class Look
 
             app.Resources["TextControlForeground"] = text;
             app.Resources["ComboBoxForeground"] = text;
+            app.Resources["FlyoutPresenterBackground"] = new SolidColorBrush(next.Card);
+            app.Resources["FlyoutBorderThemeBrush"] = border;
+            app.Resources["MenuFlyoutPresenterBackground"] = new SolidColorBrush(next.Card);
             app.Resources["ControlCornerRadius"] = new Avalonia.CornerRadius(12);
             app.Resources["OverlayCornerRadius"] = new Avalonia.CornerRadius(14);
         }

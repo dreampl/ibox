@@ -152,6 +152,19 @@ public sealed class Shell : Window, INotificationSink
             Navigate(_pages[Math.Max(0, index)]);
         };
         Services.Orchestrator.StatusChanged += (_, st) => Dispatcher.UIThread.Post(() => ShowStatus(st));
+        Services.Accounts.Changed += (_, _) => Dispatcher.UIThread.Post(() =>
+        {
+            // Another profile (or a new name/avatar): its settings and avatar everywhere.
+            foreach (var page in _pages)
+            {
+                page.Reset();
+            }
+
+            var index = _current is { } shown ? Array.IndexOf(_pages, shown) : 0;
+            _pages = CreatePages();
+            BuildChrome();
+            Navigate(_pages[Math.Max(0, index)]);
+        });
         Services.Settings.Changed += (_, s) => Dispatcher.UIThread.Post(() =>
         {
             if (s.Ui.Theme != Look.Choice)
@@ -219,15 +232,11 @@ public sealed class Shell : Window, INotificationSink
             {
                 Orientation = Orientation.Horizontal,
                 Spacing = 6,
-                Children =
-                {
-                    new Border { Width = 36, Height = 36, CornerRadius = new CornerRadius(18), Background = B(TileBg), BorderBrush = B(Ui.Border), BorderThickness = new Thickness(1), Child = Icon(Icons.User, 17, Text2, 1.8) },
-                    Icon(Icons.Chevron, 10, Muted, 2),
-                },
+                Children = { ProfilesUi.Avatar(Services.Accounts, Services.Accounts.Active, 36), Icon(Icons.Chevron, 10, Muted, 2) },
             },
         };
-        ToolTip.SetTip(profile, "Profile");
-        profile.Click += (_, _) => ProfileRequested?.Invoke(this, EventArgs.Empty);
+        ToolTip.SetTip(profile, Services.Accounts.Active is { } who ? "Profile: " + who.Name : "Profile");
+        profile.Click += (_, _) => ProfilesUi.ShowPicker(this, profile);
         var railDock = new DockPanel();
         DockPanel.SetDock(profile, Dock.Bottom);
         railDock.Children.Add(profile);
@@ -296,9 +305,6 @@ public sealed class Shell : Window, INotificationSink
         Content = root;
         ShowStatus(Services.Orchestrator.Status);
     }
-
-    /// <summary>The profile button at the bottom of the rail.</summary>
-    public event EventHandler? ProfileRequested;
 
     public void Navigate(Page page)
     {
@@ -540,7 +546,8 @@ public sealed class Shell : Window, INotificationSink
             await Services.InitializeAsync(Lifetime.Token);
             Look.Apply(Services.Settings.Current.Ui.Theme);
             IsReady = true;
-            (_host.Content as Page)?.Show();
+            BuildChrome(); // the active profile's avatar is known now
+            Navigate(_current ?? _pages[0]);
             Ready?.Invoke(this, EventArgs.Empty);
             _ = Task.Run(() => Services.SubscriptionService.RunAutoUpdateLoopAsync(TimeSpan.FromMinutes(1), Lifetime.Token));
             _ = Task.Run(() => Services.SubscriptionService.RunAccountMonitorAsync(Lifetime.Token));

@@ -65,6 +65,7 @@ public sealed class AppServices : IAsyncDisposable
         ConnectionHistory = new SqliteConnectionHistoryRepository(Database);
         Settings = new SettingsStore(new SqliteSettingsRepository(Database), LoggerFactory.CreateLogger("JackiVpn.Settings"));
         Func<AppSettings> settings = () => Settings.Current;
+        Accounts = new Application.Accounts.LocalAccountService(System.IO.Path.Combine(Paths.UserDataRoot, "profiles"), protector, Settings, LoggerFactory.CreateLogger("JackiVpn.Profiles"));
 
         Catalog = new CoreBinaryCatalog(Paths.CoresDir);
         SingBox = new SingBoxCoreEngine(Catalog, LoggerFactory.CreateLogger<SingBoxCoreEngine>());
@@ -265,6 +266,9 @@ public sealed class AppServices : IAsyncDisposable
     public RuleSetManager RuleSets { get; }
     public ServiceControl Service { get; }
 
+    /// <summary>Local profiles: each person's own (encrypted) settings.</summary>
+    public Application.Accounts.LocalAccountService Accounts { get; }
+
     /// <summary>DNS servers of the network adapters (changed through the service).</summary>
     public Application.Connectivity.AdapterDnsService AdapterDns { get; }
     public NetworkChangeMonitor NetworkMonitor { get; }
@@ -341,6 +345,7 @@ public sealed class AppServices : IAsyncDisposable
     {
         try
         {
+            await Accounts.SaveActiveAsync(CancellationToken.None).ConfigureAwait(false);
             await Orchestrator.DisposeAsync().ConfigureAwait(false);
         }
         finally

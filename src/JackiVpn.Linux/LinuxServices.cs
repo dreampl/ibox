@@ -48,6 +48,7 @@ public sealed class LinuxServices : IAsyncDisposable
         var healthHistory = new SqliteHealthHistoryRepository(database);
         Settings = new SettingsStore(new SqliteSettingsRepository(database), _loggerFactory.CreateLogger("JackiVpn.Settings"));
         Func<AppSettings> settings = () => Settings.Current;
+        Accounts = new Application.Accounts.LocalAccountService(Path.Combine(DataDir, "profiles"), protector, Settings, _loggerFactory.CreateLogger("JackiVpn.Profiles"));
 
         var coresDir = Path.Combine(AppContext.BaseDirectory, "cores");
         var catalog = new CoreBinaryCatalog(coresDir, Path.Combine(coresDir, "manifest.json"));
@@ -163,6 +164,9 @@ public sealed class LinuxServices : IAsyncDisposable
 
     public SettingsStore Settings { get; }
 
+    /// <summary>Local profiles: each person's own (encrypted) settings.</summary>
+    public Application.Accounts.LocalAccountService Accounts { get; }
+
     public HealthCheckService Health { get; }
 
     public SubscriptionService SubscriptionService { get; }
@@ -174,6 +178,7 @@ public sealed class LinuxServices : IAsyncDisposable
     public async Task InitializeAsync(CancellationToken ct)
     {
         await Settings.LoadAsync(ct).ConfigureAwait(false);
+        await Accounts.InitializeAsync(ct).ConfigureAwait(false);
         if (Settings.Current.Routing is { Rules.Count: 0, Preset: Domain.Routing.RoutingPreset.Rule or Domain.Routing.RoutingPreset.IranFriendly } routing)
         {
             var preset = RoutingPresets.Build(routing.Preset);
@@ -216,6 +221,7 @@ public sealed class LinuxServices : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        await Accounts.SaveActiveAsync(CancellationToken.None).ConfigureAwait(false);
         await Usage.DisposeAsync().ConfigureAwait(false);
         await Orchestrator.DisposeAsync().ConfigureAwait(false);
         _loggerFactory.Dispose();
