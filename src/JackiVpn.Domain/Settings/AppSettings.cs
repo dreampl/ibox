@@ -455,6 +455,9 @@ public sealed record NotchSettings
     public bool ShowCountry { get; init; }
     public bool ShowDuration { get; init; }
 
+    /// <summary>What is playing (music, video) with play/pause, next and previous.</summary>
+    public bool ShowNowPlaying { get; init; } = true;
+
     /// <summary>Horizontal position on the top edge, 0 = left … 1 = right.</summary>
     public double Position { get; init; } = 0.5;
 

@@ -69,6 +69,10 @@ public sealed partial class NotchWindow : Window
     private readonly TextBlock _server = new() { FontSize = 12.5, Foreground = new SolidColorBrush(Color.FromRgb(0xE5, 0xE7, 0xEB)), TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly TextBlock _where = new() { FontSize = 11.5, Foreground = new SolidColorBrush(Color.FromRgb(0x9C, 0xA3, 0xAF)), TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly TextBlock _speed = new() { FontSize = 11.5, Foreground = new SolidColorBrush(Color.FromRgb(0x9C, 0xA3, 0xAF)) };
+    private readonly TextBlock _musicText = new() { FontSize = 12, Foreground = new SolidColorBrush(Color.FromRgb(0xE5, 0xE7, 0xEB)), TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _musicPlayGlyph = new() { FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = 11, Foreground = Brushes.White, Text = "\uE768" };
+    private readonly Grid _music = new() { Margin = new Thickness(0, 6, 0, 0), Visibility = Visibility.Collapsed };
+    private Application.Media.NowPlaying? _nowPlaying;
     private readonly ScaleTransform _press = new(1, 1);
     private readonly Spring _width;
     private readonly Spring _height;
@@ -129,6 +133,22 @@ public sealed partial class NotchWindow : Window
         _details.Children.Add(_server);
         _details.Children.Add(_where);
         _details.Children.Add(_speed);
+
+        // Now playing: the item and three small buttons (previous, play/pause, next).
+        _music.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        _music.ColumnDefinitions.Add(new ColumnDefinition());
+        _music.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var note = new TextBlock { FontFamily = new FontFamily("Segoe MDL2 Assets"), Text = "\uEC4F", FontSize = 12, Foreground = new SolidColorBrush(ConnectedBlue), Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center };
+        _music.Children.Add(note);
+        Grid.SetColumn(_musicText, 1);
+        _music.Children.Add(_musicText);
+        var controls = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(8, 0, 0, 0) };
+        controls.Children.Add(MediaButton(new TextBlock { FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = 11, Foreground = Brushes.White, Text = "\uE892" }, -1, "Previous"));
+        controls.Children.Add(MediaButton(_musicPlayGlyph, 0, "Play / pause"));
+        controls.Children.Add(MediaButton(new TextBlock { FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = 11, Foreground = Brushes.White, Text = "\uE893" }, 1, "Next"));
+        Grid.SetColumn(controls, 2);
+        _music.Children.Add(controls);
+        _details.Children.Add(_music);
         foreach (UIElement row in _details.Children)
         {
             row.RenderTransform = new TranslateTransform();
@@ -257,11 +277,65 @@ public sealed partial class NotchWindow : Window
 
     public event EventHandler? HideRequested;
 
+    /// <summary>Previous (-1), play/pause (0) or next (+1) on the system's media session.</summary>
+    public event EventHandler<int>? MediaCommand;
+
     /// <summary>The user dragged it: new position 0 (left) … 1 (right).</summary>
     public event EventHandler<double>? Moved;
 
     /// <summary>Test copies: the demo cycle plays the chime only once.</summary>
     internal bool SuppressSound { get; set; }
+
+    /// <summary>What the system is playing (null = nothing); shown when the notch settings allow it.</summary>
+    public void SetNowPlaying(Application.Media.NowPlaying? item)
+    {
+        if (item == _nowPlaying)
+        {
+            return;
+        }
+
+        _nowPlaying = item;
+        Render();
+        if (_expanded)
+        {
+            _height.To(ExpandedHeightNow);
+            Animate();
+        }
+    }
+
+    private bool ShowsMusic => _settings.ShowNowPlaying && _nowPlaying is not null;
+
+    /// <summary>Expanded height: one row more while something is playing.</summary>
+    private double ExpandedHeightNow => ExpandedHeight + (ShowsMusic ? 28 : 0);
+
+    private Button MediaButton(TextBlock glyph, int command, string tip)
+    {
+        var b = new Button
+        {
+            Content = glyph,
+            Width = 26,
+            Height = 22,
+            Margin = new Thickness(2, 0, 0, 0),
+            Cursor = Cursors.Hand,
+            ToolTip = tip,
+            Focusable = false,
+            Template = MediaButtonTemplate(),
+        };
+        b.Click += (_, _) => MediaCommand?.Invoke(this, command);
+        return b;
+    }
+
+    private static ControlTemplate MediaButtonTemplate()
+    {
+        var border = new FrameworkElementFactory(typeof(Border));
+        border.SetValue(Border.CornerRadiusProperty, new CornerRadius(11));
+        border.SetValue(Border.BackgroundProperty, new SolidColorBrush(Color.FromArgb(0x26, 0xFF, 0xFF, 0xFF)));
+        var presenter = new FrameworkElementFactory(typeof(ContentPresenter));
+        presenter.SetValue(HorizontalAlignmentProperty, HorizontalAlignment.Center);
+        presenter.SetValue(VerticalAlignmentProperty, VerticalAlignment.Center);
+        border.AppendChild(presenter);
+        return new ControlTemplate(typeof(Button)) { VisualTree = border };
+    }
 
     public void Apply(NotchSettings settings)
     {
@@ -513,6 +587,11 @@ public sealed partial class NotchWindow : Window
             }
         }
 
+        if (ShowsMusic && _nowPlaying is { IsPlaying: true } playing)
+        {
+            Part("♪ " + playing.Line(26), Color.FromRgb(0xC7, 0xD2, 0xFE));
+        }
+
         if (!showStatus && _line.Inlines.Count == 0)
         {
             // Nothing else chosen: the state is shown after all.
@@ -563,6 +642,13 @@ public sealed partial class NotchWindow : Window
                 _mode is VisualMode.Normal ? null : ModePalette.Label(_mode).ToLowerInvariant(),
             }.Where(x => !string.IsNullOrEmpty(x)))
             : string.Empty;
+        _music.Visibility = ShowsMusic ? Visibility.Visible : Visibility.Collapsed;
+        if (_nowPlaying is { } np)
+        {
+            _musicText.Text = np.Line(48);
+            _musicPlayGlyph.Text = np.IsPlaying ? "\uE769" : "\uE768";
+        }
+
         _speed.Text = connected && st.Traffic is { } tr ? $"↓ {Format.Speed(tr.DownloadBytesPerSecond)}    ↑ {Format.Speed(tr.UploadBytesPerSecond)}" : string.Empty;
 
         _line.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
@@ -633,7 +719,7 @@ public sealed partial class NotchWindow : Window
         Canvas.SetTop(_lineHost, lineTop);
 
         // Details: vertically centred, rows rising in one after another (staggered).
-        Canvas.SetTop(_details, Math.Max(10, (ExpandedHeight - _details.DesiredSize.Height) / 2));
+        Canvas.SetTop(_details, Math.Max(10, (ExpandedHeightNow - _details.DesiredSize.Height) / 2));
         var i = 0;
         foreach (UIElement row in _details.Children)
         {
@@ -726,7 +812,7 @@ public sealed partial class NotchWindow : Window
         _expanded = expanded;
         // A gentle "pop": the island grows past its size a little and settles.
         _width.To(expanded ? ExpandedWidth : CollapsedWidth(), expanded ? 190 : 0);
-        _height.To(expanded ? ExpandedHeight : CollapsedHeight, expanded ? 130 : 0);
+        _height.To(expanded ? ExpandedHeightNow : CollapsedHeight, expanded ? 130 : 0);
         _expand.To(expanded ? 1 : 0);
         Animate();
     }

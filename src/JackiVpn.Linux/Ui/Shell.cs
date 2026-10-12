@@ -519,6 +519,31 @@ public sealed class Shell : Window, INotificationSink
         };
     }
 
+    private Notch? _notch;
+
+    /// <summary>The notch follows its setting and mirrors the connection and what is playing.</summary>
+    private void SyncNotch(Domain.Settings.NotchSettings n)
+    {
+        if (n.Enabled && _notch is null)
+        {
+            _notch = new Notch(this);
+            Services.NowPlaying.Start();
+            _notch.Apply(n);
+            _notch.Update(Services.Orchestrator.Status);
+            _notch.SetNowPlaying(Services.NowPlaying.Current);
+            _notch.Show();
+        }
+        else if (!n.Enabled && _notch is not null)
+        {
+            _notch.Close();
+            _notch = null;
+        }
+        else
+        {
+            _notch?.Apply(n);
+        }
+    }
+
     private void ShowStatus(ConnectionStatus st)
     {
         var color = st.State switch
@@ -552,6 +577,10 @@ public sealed class Shell : Window, INotificationSink
             _ = Task.Run(() => Services.SubscriptionService.RunAutoUpdateLoopAsync(TimeSpan.FromMinutes(1), Lifetime.Token));
             _ = Task.Run(() => Services.SubscriptionService.RunAccountMonitorAsync(Lifetime.Token));
             Services.SearchDnsIfNeeded();
+            Services.Settings.Changed += (_, st) => Dispatcher.UIThread.Post(() => SyncNotch(st.Ui.Notch));
+            Services.Orchestrator.StatusChanged += (_, st) => Dispatcher.UIThread.Post(() => _notch?.Update(st));
+            Services.NowPlaying.Changed += (_, item) => Dispatcher.UIThread.Post(() => _notch?.SetNowPlaying(item));
+            SyncNotch(Services.Settings.Current.Ui.Notch);
             if (Services.Settings.Current.Startup.AutoConnect)
             {
                 await Dashboard.ToggleAsync();
@@ -582,6 +611,7 @@ public sealed class Shell : Window, INotificationSink
         }
         finally
         {
+            _notch?.Close();
             await Lifetime.CancelAsync();
             await Services.DisposeAsync();
             Close();

@@ -155,6 +155,9 @@ public sealed class LinuxServices : IAsyncDisposable
 
     public SpeedTestService SpeedTest { get; } = new();
 
+    /// <summary>What the desktop's media players are playing (MPRIS), for the notch.</summary>
+    public Application.Media.INowPlayingSource NowPlaying { get; } = new MprisNowPlaying();
+
     /// <summary>What IBOX learned per server (last exit country, working fixes).</summary>
     public InsightStore Insights { get; }
 

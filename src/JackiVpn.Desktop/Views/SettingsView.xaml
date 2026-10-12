@@ -50,6 +50,7 @@
                             <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding NotchShowServer}" Margin="0,0,24,8"><TextBlock Text="Server" Style="{StaticResource Text.Label}" /></CheckBox>
                             <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding NotchShowCountry}" Margin="0,0,24,8"><TextBlock Text="Country" Style="{StaticResource Text.Label}" /></CheckBox>
                             <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding NotchShowDuration}" Margin="0,0,24,8"><TextBlock Text="Time connected" Style="{StaticResource Text.Label}" /></CheckBox>
+                            <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding NotchShowNowPlaying}" Margin="0,0,24,8"><TextBlock Text="Now playing" Style="{StaticResource Text.Label}" /></CheckBox>
                         </WrapPanel>
                         <Grid Style="{StaticResource Row}">
                             <Grid.ColumnDefinitions>

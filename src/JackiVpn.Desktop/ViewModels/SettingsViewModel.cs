@@ -74,6 +74,8 @@ public sealed class SettingsViewModel : SettingsPageViewModel
 
     public bool NotchShowDuration { get => S.Ui.Notch.ShowDuration; set => SetNotch(n => n with { ShowDuration = value }); }
 
+    public bool NotchShowNowPlaying { get => S.Ui.Notch.ShowNowPlaying; set => SetNotch(n => n with { ShowNowPlaying = value }); }
+
     public bool NotchHideInFullScreen { get => S.Ui.Notch.HideInFullScreen; set => SetNotch(n => n with { HideInFullScreen = value }); }
 
     public bool NotchSound

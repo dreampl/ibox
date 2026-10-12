@@ -259,6 +259,7 @@ public partial class App : System.Windows.Application
     }
 
     private Views.NotchWindow? _notch;
+    private Services.MediaSessionSource? _media;
 
     /// <summary>The notch follows its setting (Settings page or tray menu) and mirrors the connection.</summary>
     private void SetupNotch()
@@ -284,6 +285,21 @@ public partial class App : System.Windows.Application
                 };
                 _notch.HideRequested += (_, _) => SetNotch(false);
                 _notch.Moved += (_, x) => services.Settings.Update(s => s with { Ui = s.Ui with { Notch = s.Ui.Notch with { Position = x } } });
+                if (_media is null)
+                {
+                    // Now playing: read from Windows' media session only while the notch is on.
+                    _media = new Services.MediaSessionSource();
+                    _media.Changed += (_, item) => Dispatcher.BeginInvoke(() => _notch?.SetNowPlaying(item));
+                    _media.Start();
+                }
+
+                _notch.MediaCommand += (_, c) => _ = c switch
+                {
+                    < 0 => _media!.PreviousAsync(),
+                    > 0 => _media!.NextAsync(),
+                    _ => _media!.PlayPauseAsync(),
+                };
+                _notch.SetNowPlaying(_media.Current);
                 _notch.Apply(n);
                 _notch.Update(services.Orchestrator.Status, Domain.Visuals.ModePalette.Of(services.Orchestrator.Status.Activity, services.Traffic.Mode));
                 _notch.Show();
