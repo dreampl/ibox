@@ -23,6 +23,7 @@ namespace JackiVpn.Linux;
 public sealed class LinuxServices : IAsyncDisposable
 {
     private readonly ILoggerFactory _loggerFactory;
+    private readonly string _singBoxPath;
 
     public LinuxServices(INotificationSink sink, Func<bool> setDesktopProxy)
     {
@@ -31,6 +32,13 @@ public sealed class LinuxServices : IAsyncDisposable
         RunningUnderSudo = sudoUser is { Length: > 0 } && Environment.UserName == "root";
         var home = RunningUnderSudo ? Path.Combine("/home", sudoUser!) : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         DataDir = Path.Combine(home, ".local", "share", "jackivpn");
+#if DEBUG
+        // Test copies keep their data apart from the real one.
+        if (Environment.GetEnvironmentVariable("JACKIVPN_DATA_ROOT") is { Length: > 0 } root)
+        {
+            DataDir = root;
+        }
+#endif
         foreach (var dir in new[] { DataDir, LogsDir, Path.Combine(DataDir, "state"), Path.Combine(DataDir, "rulesets"), Path.Combine(DataDir, "run") })
         {
             Directory.CreateDirectory(dir);
@@ -49,10 +57,12 @@ public sealed class LinuxServices : IAsyncDisposable
         Settings = new SettingsStore(new SqliteSettingsRepository(database), _loggerFactory.CreateLogger("JackiVpn.Settings"));
         Func<AppSettings> settings = () => Settings.Current;
         Accounts = new Application.Accounts.LocalAccountService(Path.Combine(DataDir, "profiles"), protector, Settings, _loggerFactory.CreateLogger("JackiVpn.Profiles"));
+        DualVpn = new Application.Workplace.SecondVpnService(Settings, Profiles, protector, OperatingSystem.IsLinux() ? new LinuxIpsec() : null, _loggerFactory.CreateLogger("JackiVpn.DualVpn"));
 
         var coresDir = Path.Combine(AppContext.BaseDirectory, "cores");
         var catalog = new CoreBinaryCatalog(coresDir, Path.Combine(coresDir, "manifest.json"));
         var singBox = new SingBoxCoreEngine(catalog, _loggerFactory.CreateLogger<SingBoxCoreEngine>());
+        _singBoxPath = catalog.PathOf(Domain.Connection.CoreKind.SingBox);
         var xray = new XrayCoreEngine(catalog, _loggerFactory.CreateLogger<XrayCoreEngine>());
         var workDir = Path.Combine(DataDir, "run");
         var notifications = new NotificationService(sink, () => Settings.Current.Notifications, _loggerFactory.CreateLogger("JackiVpn.Notifications"));
@@ -70,6 +80,7 @@ public sealed class LinuxServices : IAsyncDisposable
         var parser = new ConfigParserPipeline();
         SubscriptionService = new SubscriptionService(Subscriptions, Profiles, () => fetcher, parser, settings, _loggerFactory.CreateLogger("JackiVpn.Subscriptions"), notifications);
         ProfileService = new ProfileService(Profiles, parser);
+        AccountTransfer = new Application.Accounts.AccountTransfer(Settings, Profiles, Subscriptions, SubscriptionService, DualVpn, Accounts, "Linux", _loggerFactory.CreateLogger("JackiVpn.Accounts"));
 
         var ruleSets = new RuleSetManager(Path.Combine(DataDir, "rulesets"), new RuleSetDownloader(() => fetcher), _loggerFactory.CreateLogger("JackiVpn.RuleSets"))
         {
@@ -110,6 +121,7 @@ public sealed class LinuxServices : IAsyncDisposable
                 () => new SupervisorRunner(new CoreSupervisor(catalog, singBox, xray, workDir, sessionLogger)),
                 mode, setDesktopProxy(), sessionLogger),
         });
+        fetcher.IsTunnelAddress = Application.Connectivity.TunnelAddresses.FakeIp(settings, Orchestrator);
 
         UsageBook = new Application.Usage.UsageBook(Path.Combine(DataDir, "state", "usage.json"));
         Usage = new Application.Usage.UsageMonitor(UsageBook, new Application.Usage.DotNetNicCounters(), Orchestrator.GetConnectionsAsync, settings, notifications, _loggerFactory.CreateLogger("JackiVpn.Usage"))
@@ -118,6 +130,8 @@ public sealed class LinuxServices : IAsyncDisposable
             InternalDomains = () => Workplace.Active?.InternalDomains ?? [],
         };
         Traffic = new Application.Traffic.TrafficController(Orchestrator, settings, Workplace, Usage, _loggerFactory.CreateLogger("JackiVpn.Traffic"));
+        // A changed second VPN (names, subnets, its route) lives in the core configuration: reconnect to apply it.
+        DualVpn.Changed += (_, _) => _ = Traffic.SettingsChangedAsync();
         RoutingWatcher = new Application.Routing.RoutingWatcher(Settings, Orchestrator, _loggerFactory.CreateLogger("JackiVpn.Routing"));
         RoutingEditor = new Application.Routing.RoutingEditorServer(Settings, _loggerFactory.CreateLogger("JackiVpn.RoutingEditor"));
         Agent = new Application.Agent.AgentPipeServer(
@@ -138,6 +152,12 @@ public sealed class LinuxServices : IAsyncDisposable
     }
 
     public Application.Workplace.WorkplaceService Workplace { get; }
+
+    /// <summary>The standalone second VPN (Dual VPN).</summary>
+    public Application.Workplace.SecondVpnService DualVpn { get; }
+
+    /// <summary>Account export/import (.ibox) between Windows, Linux and Android.</summary>
+    public Application.Accounts.AccountTransfer AccountTransfer { get; }
 
     public Application.Connectivity.EndpointRescue Rescue { get; }
 
@@ -236,9 +256,15 @@ public sealed class LinuxServices : IAsyncDisposable
         }
     }
 
+    /// <summary>Before a whole-system (TUN) connect: the one-time setup so connecting does not ask for the password.</summary>
+    public Task PrepareTunAsync(CancellationToken ct) =>
+        Settings.Current.Connection.Mode == Domain.Connection.ConnectionMode.Tun ? LinuxTunAccess.EnsureAsync(_singBoxPath, Logger, ct) : Task.CompletedTask;
+
     /// <summary>Servers ordered by subscription (manual imports last), as the list shows them.</summary>
     public async Task<IReadOnlyList<ProxyProfile>> ServersAsync(CancellationToken ct) =>
-        (await Profiles.GetAllAsync(ct).ConfigureAwait(false)).OrderBy(p => p.Origin.SubscriptionId ?? "~", StringComparer.Ordinal).ToList();
+        (await Profiles.GetAllAsync(ct).ConfigureAwait(false))
+            .Where(p => p.Origin.ProviderId != Application.Workplace.SecondVpnService.OwnedTag) // the Dual VPN's config has its own card
+            .OrderBy(p => p.Origin.SubscriptionId ?? "~", StringComparer.Ordinal).ToList();
 
     public async Task<Dictionary<string, string>> SubscriptionNamesAsync(CancellationToken ct) =>
         (await Subscriptions.GetAllAsync(ct).ConfigureAwait(false)).ToDictionary(s => s.Id, s => s.Name, StringComparer.Ordinal);

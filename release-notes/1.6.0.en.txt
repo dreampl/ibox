@@ -1,0 +1,17 @@
+IBOX 1.6.0
+
+New
+- Dual VPN on its own: a second VPN to your company or another server next to IBOX, in every mode — WireGuard (paste or open the .conf), IPsec (IKEv2 or L2TP, set up and dialled by IBOX), Kerio Control (through the Kerio VPN Client) or another company VPN app. Only the company's names and subnets take it. Servers → Add Dual VPN; the dashboard shows when it is active.
+- Move your account to another device: export the profile, its settings, subscriptions and servers to one password-protected .ibox file, and import it on Windows, Linux or Android — IBOX adapts it to the device it is opened on. Windows and Linux: your picture at the bottom left → Export / Import; Android: Settings → Account.
+- A short tour on the first start: how to add servers, choose how to connect and use the eye button. Open it again from About.
+- Linux: the living IBOX eye on the connect button and in the notch.
+
+Fixed
+- Linux: a newly added subscription did not update and brought no servers while connected in TUN mode.
+- Linux: connecting asked for the password three times. Now it asks once (or never, when installed from the .deb).
+- Linux notch: smooth animation, no more jumping on hover, and it can be dragged to another monitor.
+
+Better
+- Windows: much smoother. Card shadows are drawn once instead of being recomputed on every frame (about four times less graphics work while connected), pages you visit open instantly, and the window no longer freezes for a moment when you press Connect.
+- Linux: lighter map animation and server list.
+- Clearer page descriptions in plain words.

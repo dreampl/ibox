@@ -66,6 +66,7 @@ public sealed class AppServices : IAsyncDisposable
         Settings = new SettingsStore(new SqliteSettingsRepository(Database), LoggerFactory.CreateLogger("JackiVpn.Settings"));
         Func<AppSettings> settings = () => Settings.Current;
         Accounts = new Application.Accounts.LocalAccountService(System.IO.Path.Combine(Paths.UserDataRoot, "profiles"), protector, Settings, LoggerFactory.CreateLogger("JackiVpn.Profiles"));
+        DualVpn = new Application.Workplace.SecondVpnService(Settings, Profiles, protector, Sandboxed ? null : new Services.WindowsIpsec(), LoggerFactory.CreateLogger("JackiVpn.DualVpn"));
 
         Catalog = new CoreBinaryCatalog(Paths.CoresDir);
         SingBox = new SingBoxCoreEngine(Catalog, LoggerFactory.CreateLogger<SingBoxCoreEngine>());
@@ -97,6 +98,7 @@ public sealed class AppServices : IAsyncDisposable
         SubscriptionService = new SubscriptionService(Subscriptions, Profiles, () => _fetcher, Parser, settings, LoggerFactory.CreateLogger("JackiVpn.Subscriptions"), Notifications,
             device: () => Settings.Current.Device.Hwid is { } hwid ? new Domain.Subscriptions.DeviceIdentity(hwid, "Windows", Environment.OSVersion.Version.ToString(), "Windows PC") : null);
         ProfileService = new ProfileService(Profiles, Parser);
+        AccountTransfer = new Application.Accounts.AccountTransfer(Settings, Profiles, Subscriptions, SubscriptionService, DualVpn, Accounts, "Windows", LoggerFactory.CreateLogger("JackiVpn.Accounts"));
         RuleSets = new RuleSetManager(Paths.UserRuleSetCacheDir, new RuleSetDownloader(() => _fetcher), LoggerFactory.CreateLogger("JackiVpn.RuleSets"))
         {
             SeedDirectory = System.IO.Path.Combine(AppContext.BaseDirectory, "rulesets-seed"),
@@ -160,8 +162,9 @@ public sealed class AppServices : IAsyncDisposable
                     () => Sandboxed ? null : Service.ConnectedClient,
                     sessionLogger),
         });
+        _fetcher.IsTunnelAddress = Application.Connectivity.TunnelAddresses.FakeIp(settings, Orchestrator);
 
-        UsageBook = new Application.Usage.UsageBook(System.IO.Path.Combine(Paths.UserStateDir, "usage.json"));
+        UsageBook =new Application.Usage.UsageBook(System.IO.Path.Combine(Paths.UserStateDir, "usage.json"));
         Usage = new Application.Usage.UsageMonitor(UsageBook, new Application.Usage.DotNetNicCounters(), Orchestrator.GetConnectionsAsync, settings, Notifications, LoggerFactory.CreateLogger("JackiVpn.Usage"))
         {
             WorkplaceDailyCapMb = () => Workplace.Active?.Rules.DailyCapMb ?? 0,
@@ -170,6 +173,8 @@ public sealed class AppServices : IAsyncDisposable
             Pace = Background.Stretch,
         };
         Traffic = new Application.Traffic.TrafficController(Orchestrator, settings, Workplace, Usage, LoggerFactory.CreateLogger("JackiVpn.Traffic"));
+        // A changed second VPN (names, subnets, its route) lives in the core configuration: reconnect to apply it.
+        DualVpn.Changed += (_, _) => _ = Traffic.SettingsChangedAsync();
         RoutingWatcher = new Application.Routing.RoutingWatcher(Settings, Orchestrator, LoggerFactory.CreateLogger("JackiVpn.Routing"));
         RoutingEditor = new Application.Routing.RoutingEditorServer(Settings, LoggerFactory.CreateLogger("JackiVpn.RoutingEditor"));
         Agent = new Application.Agent.AgentPipeServer(
@@ -231,6 +236,12 @@ public sealed class AppServices : IAsyncDisposable
     }
 
     public Application.Workplace.WorkplaceService Workplace { get; }
+
+    /// <summary>The standalone second VPN (Dual VPN).</summary>
+    public Application.Workplace.SecondVpnService DualVpn { get; }
+
+    /// <summary>Account export/import (.ibox) between Windows, Linux and Android.</summary>
+    public Application.Accounts.AccountTransfer AccountTransfer { get; }
     public Application.Connectivity.EndpointRescue Rescue { get; }
     public Application.Usage.UsageBook UsageBook { get; }
     public Application.Usage.UsageMonitor Usage { get; }

@@ -414,6 +414,17 @@ public sealed class Shell : Window, INotificationSink
         DispatcherTimer.RunOnce(() => _toasts.Children.Remove(toast), TimeSpan.FromSeconds(warning ? 7 : 4.5));
     }
 
+    /// <summary>The first-start tour (also from About); ending it with nothing set up opens Subscriptions.</summary>
+    public async Task ShowTourAsync()
+    {
+        var servers = (await Services.ServersAsync(Lifetime.Token)).Count;
+        var addFirst = await TourDialog.RunAsync(this, servers > 0);
+        Services.Settings.Update(s => s with { Ui = s.Ui with { TourSeen = true } });
+        if (addFirst)
+        {
+            Navigate(_pages.OfType<SubscriptionsPage>().First());
+        }
+    }
     /// <summary>A small modal text prompt (rename, …). Null when cancelled.</summary>
     public async Task<string?> PromptAsync(string title, string label, string? value)
     {
@@ -479,6 +490,20 @@ public sealed class Shell : Window, INotificationSink
             Child = Icon(page.Glyph, 21, Text2, 1.8),
         };
         ToolTip.SetTip(item, page.Title);
+
+        // Screen readers name it; Tab reaches it and Enter or Space opens the page.
+        Avalonia.Automation.AutomationProperties.SetName(item, page.Title);
+        item.Focusable = true;
+        item.KeyDown += (_, e) =>
+        {
+            if (e.Key is Key.Enter or Key.Space)
+            {
+                e.Handled = true;
+                Navigate(page);
+            }
+        };
+        item.GotFocus += (_, _) => item.BorderBrush = B(Accent);
+        item.LostFocus += (_, _) => item.BorderBrush = _current == page ? B(Accent, 0.6) : Brushes.Transparent;
         item.PointerEntered += (_, _) =>
         {
             if (_current != page)
@@ -587,6 +612,11 @@ public sealed class Shell : Window, INotificationSink
             Services.Orchestrator.StatusChanged += (_, st) => Dispatcher.UIThread.Post(() => _notch?.Update(st));
             Services.NowPlaying.Changed += (_, item) => Dispatcher.UIThread.Post(() => _notch?.SetNowPlaying(item));
             SyncNotch(Services.Settings.Current.Ui.Notch);
+            if (Application.Onboarding.Tour.ShouldShow(Services.Settings.Current.Ui.TourSeen, (await Services.ServersAsync(Lifetime.Token)).Count))
+            {
+                // A fresh install: the short tour, once the window has settled.
+                DispatcherTimer.RunOnce(() => _ = ShowTourAsync(), TimeSpan.FromMilliseconds(700));
+            }
             if (Services.Settings.Current.Startup.AutoConnect)
             {
                 await Dashboard.ToggleAsync();

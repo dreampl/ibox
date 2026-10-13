@@ -181,6 +181,7 @@ async Task<int> ConnectAsync()
     using var sigint = PosixSignalRegistration.Create(PosixSignal.SIGINT, c => { c.Cancel = true; stop.TrySetResult(); });
     using var sigterm = PosixSignalRegistration.Create(PosixSignal.SIGTERM, c => { c.Cancel = true; stop.TrySetResult(); });
 
+    await s.PrepareTunAsync(ct);
     if (!await s.Orchestrator.ConnectAsync(new ConnectRequest { ProfileId = profileId, Smart = profileId is null }, ct))
     {
         Console.Error.WriteLine("Could not connect. Details: " + s.LogsDir + (mode == ConnectionMode.Tun ? " (TUN needs the package's network permission for sing-box, or sudo)" : string.Empty));

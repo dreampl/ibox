@@ -40,12 +40,21 @@ public sealed partial class NotchWindow : Window
     private static readonly Stopwatch Clock = Stopwatch.StartNew();
 
     private readonly Border _pill;
-    private readonly Border _shadow;
+    private readonly SoftShadow _shadow;
+
+    /// <summary>The island's shadow, drawn as a picture (a live blur re-ran on every frame of the springs and the eye).</summary>
+    private static readonly DropShadowEffect IslandShadow = Frozen(new DropShadowEffect { BlurRadius = 34, ShadowDepth = 2, Direction = 270, Opacity = 0.85, Color = Colors.Black });
+
+    private static DropShadowEffect Frozen(DropShadowEffect effect)
+    {
+        effect.Freeze();
+        return effect;
+    }
     private readonly Grid _island;
     private readonly OrbView _orb = new() { State = OrbState.Connecting, Tint = Color.FromRgb(0x9C, 0xCF, 0xFF), Width = 44, Height = 44, Detail = 64, MinInk = 0.4, Opacity = 0, IsRunning = false };
     private readonly ScaleTransform _orbScale = new(0.6, 0.6);
     private readonly Canvas _surface = new();
-    private readonly EyeMarkView _eye = new() { Width = 36, Height = 36.5 };
+    private readonly EyeMarkView _eye = new() { Width = 36, Height = 36.5, MaxFps = 30 }; // a layered window: every frame is copied back from the GPU
     private readonly ScaleTransform _eyeScale = new(0.5, 0.5);
     private readonly TextBlock _line = new() { FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _ghost = new() { FontSize = 12.5, FontWeight = FontWeights.SemiBold, Opacity = 0, RenderTransform = new TranslateTransform() };
@@ -173,13 +182,11 @@ public sealed partial class NotchWindow : Window
             Cursor = Cursors.Hand,
         };
         // The shadow lives on its own layer behind the island, so the clip of the content never cuts it off.
-        _shadow = new Border
+        _shadow = new SoftShadow
         {
-            Background = Brushes.Black,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Top,
-            IsHitTestVisible = false,
-            Effect = new DropShadowEffect { BlurRadius = 34, ShadowDepth = 2, Direction = 270, Opacity = 0.85, Color = Colors.Black },
+            Shadow = IslandShadow,
         };
         _island = new Grid
         {

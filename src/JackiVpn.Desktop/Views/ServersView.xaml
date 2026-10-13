@@ -39,6 +39,37 @@
                     <ComboBox ItemsSource="{Binding SortModes}" SelectedItem="{Binding SortMode}" Margin="10,0,0,0" MinWidth="120" ToolTip="Sort" />
                 </StackPanel>
             </DockPanel>
+
+            <!-- Dual VPN: a second VPN to a company or another server, next to IBOX. -->
+            <v:ClaySurface CornerRadius="16" Elevation="Flat" Padding="16,12" Margin="0,0,0,12">
+                <DockPanel>
+                    <Border DockPanel.Dock="Left" Style="{StaticResource IconTile}" Width="40" Height="40" Margin="0,0,14,0" VerticalAlignment="Center">
+                        <TextBlock Style="{StaticResource Icon}" Text="&#xE8CE;" FontSize="16" Foreground="{DynamicResource B.Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Content="Connect" Command="{Binding ConnectDualVpnCommand}" Margin="0,0,10,0"
+                                Visibility="{Binding DualVpnCanDial, Converter={StaticResource Bool2Vis}}" />
+                        <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding DualVpnEnabled}" Margin="0,0,14,0" VerticalAlignment="Center"
+                                  Visibility="{Binding DualVpnConfigured, Converter={StaticResource Bool2Vis}}" AutomationProperties.Name="Dual VPN on or off" />
+                        <Button Command="{Binding EditDualVpnCommand}" AutomationProperties.Name="Set up Dual VPN">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource Icon}" Text="&#xE710;" FontSize="12" Margin="0,0,6,0"
+                                           Visibility="{Binding DualVpnConfigured, Converter={StaticResource InvBool2Vis}}" />
+                                <TextBlock Text="Add Dual VPN" Visibility="{Binding DualVpnConfigured, Converter={StaticResource InvBool2Vis}}" />
+                                <TextBlock Text="Edit" Visibility="{Binding DualVpnConfigured, Converter={StaticResource Bool2Vis}}" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                    <StackPanel VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding DualVpnTitle}" FontWeight="SemiBold" FontSize="14" />
+                            <Ellipse Width="8" Height="8" Margin="8,1,0,0" Fill="{DynamicResource B.Success}" VerticalAlignment="Center"
+                                     Visibility="{Binding DualVpnActive, Converter={StaticResource Bool2Vis}}" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding DualVpnStatus}" Style="{StaticResource Text.Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                    </StackPanel>
+                </DockPanel>
+            </v:ClaySurface>
         </StackPanel>
 
         <Grid>

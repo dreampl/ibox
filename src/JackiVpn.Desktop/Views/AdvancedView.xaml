@@ -11,7 +11,7 @@
     </UserControl.Resources>
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="32,26,32,26" v:Motion.StaggerChildren="True">
-            <TextBlock Text="Engines, multiplexing, smart selection and ownership verification. Defaults are tuned for stability." Style="{StaticResource Text.PageSubtitle}" />
+            <TextBlock Text="For experts: engines, multiplexing, server selection and verification. The defaults already work well." Style="{StaticResource Text.PageSubtitle}" />
 
             <!-- Speed & handshake -->
             <v:ClaySurface>

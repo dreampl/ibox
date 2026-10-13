@@ -119,7 +119,30 @@ internal static class ProfilesUi
         add.HorizontalContentAlignment = HorizontalAlignment.Center;
         add.Margin = new Thickness(0, 8, 0, 0);
         list.Children.Add(add);
-        list.Children.Add(Hint("Each profile has its own settings (routing, DNS, modes, theme…), stored encrypted. Servers are shared."));
+
+        // Moving to another device (Windows, Linux or Android): one encrypted .ibox file.
+        var export = Ghost("Export…", () =>
+        {
+            flyout?.Hide();
+            _ = ExportAsync(shell);
+        });
+        var import = Ghost("Import…", () =>
+        {
+            flyout?.Hide();
+            _ = ImportAsync(shell);
+        });
+        ToolTip.SetTip(export, "Save this profile, its settings, subscriptions and servers to a password-protected file for another device");
+        ToolTip.SetTip(import, "Open an .ibox file from Windows, Linux or Android");
+        var transfer = new Grid { ColumnDefinitions = new ColumnDefinitions("*,8,*"), Margin = new Thickness(0, 4, 0, 0) };
+        export.HorizontalAlignment = import.HorizontalAlignment = HorizontalAlignment.Stretch;
+        export.HorizontalContentAlignment = import.HorizontalContentAlignment = HorizontalAlignment.Center;
+        Grid.SetColumn(import, 2);
+        transfer.Children.Add(export);
+        transfer.Children.Add(import);
+        list.Children.Add(transfer);
+        var hint = Hint("Each profile has its own settings (routing, DNS, modes, theme…), stored encrypted. Servers are shared. An exported account opens on Windows, Linux and Android.");
+        hint.TextWrapping = TextWrapping.Wrap;
+        list.Children.Add(hint);
         flyout = new Flyout { Content = new Border { Padding = new Thickness(6), Child = list }, Placement = PlacementMode.RightEdgeAlignedBottom };
         flyout.ShowAt(anchor);
     }
@@ -295,6 +318,125 @@ internal static class ProfilesUi
         await dialog.ShowDialog(shell);
     }
 
+    private static async Task ExportAsync(Shell shell)
+    {
+        var transfer = shell.Services.AccountTransfer;
+        if (await PromptPasswordAsync(shell, "Export account", "Choose a password for the file. You need it to open the file on the other device.", confirm: true) is not { } password)
+        {
+            return;
+        }
+
+        var file = await shell.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Export account",
+            SuggestedFileName = transfer.SuggestedFileName(),
+            DefaultExtension = "ibox",
+            FileTypeChoices = [new FilePickerFileType("IBOX account") { Patterns = ["*.ibox"] }],
+        });
+        if (file is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var bytes = await transfer.ExportAsync(password, shell.Lifetime.Token);
+            await using var stream = await file.OpenWriteAsync();
+            await stream.WriteAsync(bytes);
+            shell.Toast("Account exported", "Copy the file to the other device and choose Import there.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            shell.Toast("Export failed", ex.Message, warning: true);
+        }
+    }
+
+    private static async Task ImportAsync(Shell shell)
+    {
+        var files = await shell.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Import account",
+            AllowMultiple = false,
+            FileTypeFilter = [new FilePickerFileType("IBOX account") { Patterns = ["*.ibox"] }, FilePickerFileTypes.All],
+        });
+        if (files.Count == 0)
+        {
+            return;
+        }
+
+        byte[] bytes;
+        await using (var stream = await files[0].OpenReadAsync())
+        {
+            if (stream.Length > Application.Accounts.AccountTransfer.MaxFileBytes)
+            {
+                shell.Toast("Import failed", "This is not an IBOX account file.", warning: true);
+                return;
+            }
+
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            bytes = ms.ToArray();
+        }
+
+        if (await PromptPasswordAsync(shell, "Import account", "The password the file was exported with.", confirm: false) is not { } password)
+        {
+            return;
+        }
+
+        // A new profile becomes active: like switching, disconnect first.
+        if (shell.Services.Orchestrator.State != Domain.Connection.ConnectionState.Disconnected)
+        {
+            await shell.Services.Orchestrator.DisconnectAsync();
+        }
+
+        var (result, problem) = await shell.Services.AccountTransfer.ImportAsync(bytes, password, shell.Lifetime.Token);
+        if (result is null)
+        {
+            shell.Toast("Import failed", problem ?? "Unknown error.", warning: true);
+            return;
+        }
+
+        shell.Toast("Account imported", $"\"{result.Name}\" from {result.From}: {result.Subscriptions} subscriptions (updating now), {result.Servers} servers." + (result.Notes.Count > 0 ? " " + string.Join(" ", result.Notes) : string.Empty));
+    }
+
+    /// <summary>A password for an account file (typed twice when choosing one); null when cancelled.</summary>
+    private static async Task<string?> PromptPasswordAsync(Shell shell, string title, string message, bool confirm)
+    {
+        var first = new TextBox { PasswordChar = '•', Width = 300 };
+        var second = new TextBox { PasswordChar = '•', Width = 300, IsVisible = confirm, PlaceholderText = "Again" };
+        var error = T(string.Empty, 12, color: Danger);
+        error.TextWrapping = TextWrapping.Wrap;
+        error.MaxWidth = 300;
+        var hint = Hint(message);
+        hint.TextWrapping = TextWrapping.Wrap;
+        hint.MaxWidth = 300;
+        var dialog = new Window { Title = title, SizeToContent = SizeToContent.WidthAndHeight, CanResize = false, Background = B(Look.P.Window), WindowStartupLocation = WindowStartupLocation.CenterOwner };
+        string? result = null;
+        void Ok()
+        {
+            var problem = confirm
+                ? Application.Accounts.AccountTransfer.PasswordProblem(first.Text) ?? (first.Text != second.Text ? "The two passwords differ." : null)
+                : string.IsNullOrEmpty(first.Text) ? "Enter the password." : null;
+            if (problem is not null)
+            {
+                error.Text = problem;
+                return;
+            }
+
+            result = first.Text;
+            dialog.Close();
+        }
+
+        dialog.Content = new StackPanel
+        {
+            Margin = new Thickness(22),
+            Spacing = 10,
+            Children = { T(title, 15, FontWeight.SemiBold), hint, first, second, error, new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right, Children = { Ghost("Cancel", () => dialog.Close()), Primary("OK", Ok) } } },
+        };
+        dialog.Opened += (_, _) => first.Focus();
+        await dialog.ShowDialog(shell);
+        return result;
+    }
     private static async Task<string?> PromptPinAsync(Shell shell, string title)
     {
         var box = new TextBox { PasswordChar = '•', Width = 220 };

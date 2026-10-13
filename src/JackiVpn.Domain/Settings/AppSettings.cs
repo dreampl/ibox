@@ -398,6 +398,9 @@ public sealed record UiSettings
 {
     public AppTheme Theme { get; init; } = AppTheme.System;
 
+    /// <summary>The first-start tour was shown (or skipped); it can be opened again from About.</summary>
+    public bool TourSeen { get; init; }
+
     /// <summary>Where the node editor placed each node (rules "r:{id}", conditions "c:{id}:{n}", actions "a:{type}").</summary>
     public IReadOnlyDictionary<string, NodePoint> RoutingLayout { get; init; } = new Dictionary<string, NodePoint>(StringComparer.Ordinal);
     public bool CloseToTray { get; init; } = true;
@@ -466,6 +469,9 @@ public sealed record NotchSettings
 
     /// <summary>Horizontal position on the top edge, 0 = left … 1 = right.</summary>
     public double Position { get; init; } = 0.5;
+
+    /// <summary>The monitor it sits on ("x,y" of that monitor's top-left corner); null = the main one.</summary>
+    public string? Display { get; init; }
 
     /// <summary>Seconds without the pointer before it fades out of the way (0 = never).</summary>
     public int FadeAfterSeconds { get; init; } = 6;
@@ -633,6 +639,9 @@ public sealed record AppSettings
     public UsageSettings Usage { get; init; } = new();
     public TrafficControlSettings Traffic { get; init; } = new();
     public WorkplaceSettings Workplace { get; init; } = new();
+
+    /// <summary>The standalone second VPN (Dual VPN) to a company or a server, in every mode.</summary>
+    public SecondVpnSettings DualVpn { get; init; } = new();
     public ConnectivitySettings Connectivity { get; init; } = new();
 
     /// <summary>Control by the command line and AI agents (MCP). Off by default.</summary>

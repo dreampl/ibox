@@ -522,7 +522,7 @@ public sealed class TunnelSessionManager : IAsyncDisposable
             throw new TunnelRequestException("Invalid traffic policy.");
         }
 
-        if (traffic.InternalDns.Any(d => !NetText.IsIpLiteral(d)) || traffic.InternalCidrs.Concat(traffic.BlockedCidrs).Any(c => !NetText.IsCidr(c)))
+        if (traffic.InternalDns.Any(d => !NetText.IsIpLiteral(d)) || traffic.InternalCidrs.Concat(traffic.BlockedCidrs).Concat(traffic.WorkBypass).Any(c => !NetText.IsCidr(c)) || traffic.WorkBypass.Count > 16)
         {
             throw new TunnelRequestException("Invalid workplace address in the traffic policy.");
         }

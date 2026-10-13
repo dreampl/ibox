@@ -83,15 +83,10 @@
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type v:ClaySurface}">
                     <Grid>
-                        <!-- Light theme only: a soft white glow up-left (E.ClayLight is null on the dark theme, so no cost there). -->
-                        <Border x:Name="LightShadow" CornerRadius="{TemplateBinding CornerRadius}" Background="{DynamicResource B.Card}"
-                                Effect="{DynamicResource E.ClayLight}" Visibility="{DynamicResource V.LightOnly}" IsHitTestVisible="False">
-                            <Border.CacheMode><BitmapCache SnapsToDevicePixels="True" /></Border.CacheMode>
-                        </Border>
-                        <Border x:Name="DarkShadow" CornerRadius="{TemplateBinding CornerRadius}" Background="{DynamicResource B.Card}"
-                                Effect="{DynamicResource E.ClayShadow}" IsHitTestVisible="False">
-                            <Border.CacheMode><BitmapCache SnapsToDevicePixels="True" /></Border.CacheMode>
-                        </Border>
+                        <!-- Shadows as pictures rendered once (SoftShadow), not live effects: nothing re-blurs while the
+                             eye, a chart or an animation inside the card redraws. Light theme only: a soft white glow up-left. -->
+                        <v:SoftShadow x:Name="LightShadow" CornerRadius="{TemplateBinding CornerRadius}" Kind="Light" />
+                        <v:SoftShadow x:Name="DarkShadow" CornerRadius="{TemplateBinding CornerRadius}" Kind="Clay" />
                         <Border CornerRadius="{TemplateBinding CornerRadius}" Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
                                 Padding="{TemplateBinding Padding}" SnapsToDevicePixels="True">
@@ -107,7 +102,7 @@
                             <Setter TargetName="LightShadow" Property="Visibility" Value="Collapsed" />
                         </Trigger>
                         <Trigger Property="Elevation" Value="Raised">
-                            <Setter TargetName="DarkShadow" Property="Effect" Value="{DynamicResource E.ClayShadowRaised}" />
+                            <Setter TargetName="DarkShadow" Property="Kind" Value="Raised" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -450,11 +445,10 @@
                 <ControlTemplate TargetType="RadioButton">
                     <Grid>
                         <Border x:Name="Hover" CornerRadius="7" Background="{DynamicResource B.HoverOverlay}" Opacity="0" />
-                        <Border x:Name="Selected" CornerRadius="7" Background="{DynamicResource B.AccentGradientH}" Opacity="0">
-                            <Border.Effect>
-                                <DropShadowEffect BlurRadius="12" ShadowDepth="0" Opacity="0.35" Color="Black" />
-                            </Border.Effect>
-                        </Border>
+                        <Grid x:Name="Selected" Opacity="0">
+                            <v:SoftShadow CornerRadius="7" Kind="Soft" />
+                            <Border CornerRadius="7" Background="{DynamicResource B.AccentGradientH}" />
+                        </Grid>
                         <ContentPresenter Margin="16,7" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Grid>
                     <ControlTemplate.Triggers>
@@ -670,7 +664,10 @@
                 <ControlTemplate TargetType="ListBoxItem">
                     <Grid Width="50" Height="50" Background="Transparent">
                         <Border x:Name="Tile" CornerRadius="16" Background="{DynamicResource B.TileFill}" BorderBrush="{DynamicResource B.Border}" BorderThickness="1" />
-                        <Border x:Name="Glow" CornerRadius="16" Background="{DynamicResource B.AccentGradient}" Opacity="0" Effect="{DynamicResource E.AccentGlow}" />
+                        <Grid x:Name="Glow" Opacity="0">
+                            <v:SoftShadow CornerRadius="16" Kind="Accent" />
+                            <Border CornerRadius="16" Background="{DynamicResource B.AccentGradient}" />
+                        </Grid>
                         <Border x:Name="Hover" CornerRadius="16" Background="{DynamicResource B.HoverOverlay}" Opacity="0" />
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Grid>

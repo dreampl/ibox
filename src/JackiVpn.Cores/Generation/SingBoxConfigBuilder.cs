@@ -172,6 +172,9 @@ public static class SingBoxConfigBuilder
                 exclude.AddRange(traffic.InternalCidrs.Where(NetText.IsCidr));
             }
 
+            // The second VPN's own gateway (IPsec) is reached on the normal network, never through this tunnel.
+            exclude.AddRange(traffic.WorkBypass.Where(NetText.IsCidr));
+
             if (exclude.Count > 0)
             {
                 tun["route_exclude_address"] = SingBoxOutboundBuilder.Array(exclude.Distinct(StringComparer.OrdinalIgnoreCase));
@@ -227,6 +230,11 @@ public static class SingBoxConfigBuilder
                 ["process_path"] = SingBoxOutboundBuilder.Array(directProcesses.Distinct(StringComparer.OrdinalIgnoreCase)),
                 ["outbound"] = DirectTag,
             });
+        }
+
+        if (traffic.WorkBypass.Where(NetText.IsCidr).ToList() is { Count: > 0 } gateway)
+        {
+            routeRules.Add(new JsonObject { ["ip_cidr"] = SingBoxOutboundBuilder.Array(gateway), ["outbound"] = DirectTag });
         }
 
         if (plan.Kind == SessionKind.Tun && work.Route == WorkRoute.Adapter)
@@ -844,6 +852,7 @@ public static class SingBoxConfigBuilder
         "openfortivpn", "PanGPS.exe", "PanGPA.exe", "PanGPS", "wireguard.exe", "wg-quick", "SonicWallConnect.exe", "SWGVC.exe",
         "nm-openvpn-service", "nm-openconnect-service", "charon", "ipsec", "strongswan", "xl2tpd", "pppd", "pulsesecure",
         "Pulse.exe", "dsAccessService.exe", "Zscaler.exe", "ZSATunnel.exe", "f5fpclientW.exe", "CheckPointVPN.exe", "TracSrvWrapper.exe",
+        "kvpncsvc.exe", "kvpncgui.exe", "kvpncadm.exe", "kerio-kvc", "kvpnc", "nm-l2tp-service", "nm-strongswan-service", "charon-nm",
     ];
 
     /// <summary>How internal names and subnets leave this session.</summary>

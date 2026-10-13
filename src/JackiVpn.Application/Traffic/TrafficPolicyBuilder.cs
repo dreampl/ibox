@@ -101,7 +101,7 @@ public static class TrafficPolicyBuilder
             }
         }
 
-        return new TrafficPolicy
+        var policy = new TrafficPolicy
         {
             BlockedApps = blockedApps.Where(a => !TrafficCatalog.Uncuttable.Contains(TrafficCatalog.AppName(a))).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
             BlockedDomains = blockedDomains.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
@@ -125,6 +125,41 @@ public static class TrafficPolicyBuilder
             MediaApps = smart && ctx.ProcessAware ? Category(TrafficCatalog.MediaPlayers, t, limited) : [],
             DownloadApps = smart && ctx.ProcessAware ? Category(TrafficCatalog.DownloadApps, t, limited) : [],
             TrackProcesses = ctx.ProcessAware && s.Usage.Enabled,
+        };
+        return WithSecondVpn(policy, s.DualVpn, ctx);
+    }
+
+    /// <summary>
+    /// The standalone Dual VPN, in every mode: its names and subnets take the second VPN (it wins over a workplace's
+    /// own), and its gateway never enters the tunnel. An adapter route needs per-app rules (not on Android).
+    /// </summary>
+    public static TrafficPolicy WithSecondVpn(TrafficPolicy policy, SecondVpnSettings dual, TrafficContext ctx)
+    {
+        ArgumentNullException.ThrowIfNull(policy);
+        ArgumentNullException.ThrowIfNull(dual);
+        ArgumentNullException.ThrowIfNull(ctx);
+        if (!dual.Enabled || !dual.IsConfigured || (dual.Route == WorkRoute.Adapter && !ctx.ProcessAware))
+        {
+            return policy;
+        }
+
+        var names = dual.Domains.Select(d => d.Trim().TrimStart('*', '.').TrimEnd('.').ToLowerInvariant()).Where(Domain.Common.NetText.IsValidHostName);
+        var subnets = dual.Cidrs.Where(Domain.Common.NetText.IsCidr);
+        var dns = dual.Dns.Where(Domain.Common.NetText.IsIpLiteral).ToList();
+
+        // Policy-based IPsec (IKEv2 on Linux) has no adapter: its subnets stay outside the tunnel, names go direct.
+        var route = dual.Route == WorkRoute.Adapter && !Domain.Network.AdapterNames.IsValid(dual.Interface?.Trim()) ? WorkRoute.Off : dual.Route;
+        return policy with
+        {
+            InternalDomains = policy.InternalDomains.Concat(names).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+            InternalCidrs = policy.InternalCidrs.Concat(subnets).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+            InternalDns = dns.Count > 0 ? dns : policy.InternalDns,
+            WorkRoute = route,
+            WorkServerId = route == WorkRoute.Server ? dual.ServerId : null,
+            WorkInterface = route == WorkRoute.Adapter ? dual.Interface!.Trim() : null,
+            WorkBypass = dual.GatewayIps.Where(Domain.Common.NetText.IsIpLiteral)
+                .Select(ip => ip + (ip.Contains(':', StringComparison.Ordinal) ? "/128" : "/32"))
+                .ToList(),
         };
     }
 

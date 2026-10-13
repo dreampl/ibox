@@ -63,7 +63,12 @@ public sealed class EyeMarkView : Viewbox
     private readonly TranslateTransform _drift = new();
     private readonly SolidColorBrush _frameBrush = new(SleepFrame);
     private readonly SolidColorBrush _pupilBrush = new(SleepPupil);
-    private readonly DropShadowEffect _glow = new() { Color = Blue, BlurRadius = 14, ShadowDepth = 0, Opacity = 0 };
+
+    // The pupil's glow: a soft gradient square that moves with it (a live blur effect re-ran on every eye frame).
+    private const double GlowSpread = 9;
+    private readonly Rectangle _glow;
+    private readonly TranslateTransform _glowMove = new();
+    private readonly ScaleTransform _glowBlink = new(1, 1, (EyeMark.PupilSize / 2) + GlowSpread, (EyeMark.PupilSize / 2) + GlowSpread);
     private readonly OrbView _orb;
     private double _last;
     private double _lastDraw;
@@ -80,8 +85,21 @@ public sealed class EyeMarkView : Viewbox
             RadiusX = 1.5,
             RadiusY = 1.5,
             Fill = _pupilBrush,
-            Effect = _glow,
             RenderTransform = new TransformGroup { Children = { _pupilBlink, _pupilMove } },
+        };
+        var glowBrush = new RadialGradientBrush
+        {
+            GradientStops = { new GradientStop(Color.FromArgb(0xB0, Blue.R, Blue.G, Blue.B), 0.35), new GradientStop(Color.FromArgb(0, Blue.R, Blue.G, Blue.B), 1) },
+        };
+        glowBrush.Freeze();
+        _glow = new Rectangle
+        {
+            Width = EyeMark.PupilSize + (2 * GlowSpread),
+            Height = EyeMark.PupilSize + (2 * GlowSpread),
+            Fill = glowBrush,
+            Opacity = 0,
+            IsHitTestVisible = false,
+            RenderTransform = new TransformGroup { Children = { _glowBlink, _glowMove } },
         };
         _orb = new OrbView
         {
@@ -99,7 +117,7 @@ public sealed class EyeMarkView : Viewbox
             Width = EyeMark.Width,
             Height = EyeMark.Height,
             RenderTransform = _drift,
-            Children = { _frame, _pupil, _orb },
+            Children = { _frame, _glow, _pupil, _orb },
         };
         Eye = new EyeMotion();
         _clock = new ViewClock(this, IdleInterval, Tick);
@@ -126,6 +144,9 @@ public sealed class EyeMarkView : Viewbox
     /// <summary>Colour of the lit frame (white by default; tinted on coloured buttons).</summary>
     public Color AwakeFrame { get => (Color)GetValue(AwakeFrameProperty); set => SetValue(AwakeFrameProperty, value); }
 
+    /// <summary>Upper bound of drawn frames per second while the eye moves (the notch, a layered window, uses 30).</summary>
+    public double MaxFps { get; set; } = 60;
+
     /// <summary>Optional: called every frame before the motion steps (e.g. to feed the pointer position).</summary>
     public Action<EyeMarkView>? BeforeFrame { get; set; }
 
@@ -151,7 +172,7 @@ public sealed class EyeMarkView : Viewbox
         var duration = animate && !Motion.Reduced ? TimeSpan.FromMilliseconds(420) : TimeSpan.Zero;
         _frameBrush.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(frame, duration) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut } });
         _pupilBrush.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(pupil, duration));
-        _glow.BeginAnimation(DropShadowEffect.OpacityProperty, new DoubleAnimation(awake ? 0.9 : 0, duration));
+        _glow.BeginAnimation(OpacityProperty, new DoubleAnimation(awake ? 0.9 : 0, duration));
         _pupil.BeginAnimation(OpacityProperty, new DoubleAnimation(seeking ? 0 : 1, duration));
         _orb.IsRunning = seeking;
         _orb.BeginAnimation(OpacityProperty, new DoubleAnimation(seeking ? 1 : 0, duration));
@@ -169,7 +190,7 @@ public sealed class EyeMarkView : Viewbox
     private bool Tick()
     {
         var now = Clock.Elapsed.TotalSeconds;
-        if (Eye.IsMoving && now - _lastDraw < 1 / 62.0)
+        if (Eye.IsMoving && now - _lastDraw < 1 / (MaxFps + 2))
         {
             return true; // high-refresh monitors: at most ~60 steps per second
         }
@@ -203,6 +224,9 @@ public sealed class EyeMarkView : Viewbox
         _pupilMove.X = x;
         _pupilMove.Y = y;
         _pupilBlink.ScaleY = Eye.Openness;
+        _glowMove.X = x - GlowSpread;
+        _glowMove.Y = y - GlowSpread;
+        _glowBlink.ScaleY = Eye.Openness;
         // The drift is in screen pixels: convert to mark units so it stays half a pixel at any size.
         var scale = ActualWidth > 0 ? ActualWidth / EyeMark.Width : 1;
         _drift.X = Eye.DriftX / scale;

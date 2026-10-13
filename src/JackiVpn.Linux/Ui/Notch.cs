@@ -1,34 +1,48 @@
 using System.Globalization;
+using System.Runtime.InteropServices;
 using Avalonia;
+using Avalonia.Animation;
+using Avalonia.Animation.Easings;
 using Avalonia.Controls;
-using Avalonia.Controls.Shapes;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Platform;
 using Avalonia.Threading;
 using JackiVpn.Application.Media;
 using JackiVpn.Domain.Connection;
 using JackiVpn.Domain.Settings;
+using JackiVpn.Domain.Visuals;
 using static JackiVpn.Linux.Ui.Ui;
 
 namespace JackiVpn.Linux.Ui;
 
 /// <summary>
-/// The Linux notch, like the Windows one: a small black island on the top edge with the connection state, the live
-/// ping and what is playing; hovering grows it with the server, the exit, speeds and media buttons. It can be
-/// dragged along the top edge, fades out of the way after a few seconds and never sits in the task bar.
+/// The Linux notch, like the Windows one: a small black island at the top of the screen with the IBOX eye, the
+/// connection state, the live ping and what is playing; hovering grows it smoothly into a card with the server, the
+/// exit, speeds and media buttons. The window itself never moves or resizes on hover (that made it jump): it is as
+/// big as the open card and only the black island inside animates; outside the island clicks pass through to the
+/// windows below. Drag it along the top of any monitor; it fades out of the way after a few seconds.
 /// </summary>
 public sealed class Notch : Window
 {
     private const double CollapsedHeight = 34;
     private const double ExpandedWidth = 410;
     private const double FadedOpacity = 0.32;
+    private static readonly TimeSpan Anim = TimeSpan.FromMilliseconds(240);
     private readonly Shell _shell;
-    private readonly Border _pill = new() { Background = Brushes.Black, CornerRadius = new CornerRadius(0, 0, 18, 18), ClipToBounds = true, Cursor = new Cursor(StandardCursorType.Hand) };
-    private readonly Ellipse _dot = new() { Width = 9, Height = 9, VerticalAlignment = VerticalAlignment.Center };
-    private readonly OrbView _orb = new() { State = Domain.Visuals.OrbState.Connecting, Width = 20, Height = 20, Tint = Color.Parse("#9CCFFF"), IsVisible = false };
+    private readonly Border _pill = new()
+    {
+        Background = Brushes.Black,
+        CornerRadius = new CornerRadius(0, 0, 18, 18),
+        ClipToBounds = true,
+        Cursor = new Cursor(StandardCursorType.Hand),
+        HorizontalAlignment = HorizontalAlignment.Center,
+        VerticalAlignment = VerticalAlignment.Top,
+    };
+    private readonly EyeMarkView _eye = new() { Width = 19, Height = 19, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _line = new() { FontSize = 12.5, FontWeight = FontWeight.SemiBold, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center };
-    private readonly TextBlock _title = new() { FontSize = 13, FontWeight = FontWeight.SemiBold, Foreground = Brushes.White };
+    private readonly TextBlock _title = new() { FontSize = 13, FontWeight = FontWeight.SemiBold, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _ping = new() { FontSize = 20, FontWeight = FontWeight.SemiBold, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Right };
     private readonly TextBlock _server = new() { FontSize = 12.5, Foreground = new SolidColorBrush(Color.Parse("#E5E7EB")), TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly TextBlock _where = new() { FontSize = 11.5, Foreground = new SolidColorBrush(Color.Parse("#9CA3AF")), TextTrimming = TextTrimming.CharacterEllipsis };
@@ -39,14 +53,17 @@ public sealed class Notch : Window
     private readonly StackPanel _collapsed;
     private readonly StackPanel _expandedView;
     private readonly DispatcherTimer _fade = new() { Interval = TimeSpan.FromSeconds(6) };
+    private readonly DispatcherTimer _leave = new() { Interval = TimeSpan.FromMilliseconds(160) };
     private NotchSettings _settings = new();
     private ConnectionStatus _status = new();
     private NowPlaying? _nowPlaying;
     private bool _expanded;
     private bool _dragging;
     private bool _moved;
-    private Point _dragStart;
+    private PixelPoint _grab;
     private double _center = 0.5;
+    private string? _display;
+    private Size _pillSize;
 
     public Notch(Shell shell)
     {
@@ -59,15 +76,19 @@ public sealed class Notch : Window
         ShowActivated = false;
         Background = Brushes.Transparent;
         TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
-        SizeToContent = SizeToContent.WidthAndHeight;
+        SizeToContent = SizeToContent.Manual;
+        Width = ExpandedWidth;
+        Height = CollapsedHeight;
 
         _collapsed = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 10,
+            Spacing = 9,
             Height = CollapsedHeight,
-            Margin = new Thickness(18, 0, 18, 0),
-            Children = { new Grid { Width = 20, Children = { _dot, _orb } }, _line },
+            Margin = new Thickness(16, 0, 18, 0),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Top,
+            Children = { _eye, _line },
         };
         _playPause = MediaButton("M8 5v14l11-7z", () => _shell.Services.NowPlaying.PlayPauseAsync());
         var controls = new StackPanel
@@ -97,23 +118,48 @@ public sealed class Notch : Window
             Width = ExpandedWidth - 44,
             Margin = new Thickness(22, 14, 22, 16),
             Spacing = 2,
-            IsVisible = false,
+            Opacity = 0,
+            IsHitTestVisible = false,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Top,
             Children = { head, _server, _where, _speed, _musicRow },
         };
+
+        // Size, corners and the cross-fade of the two faces animate on the compositor's clock (smooth, no timers).
+        var easing = new CubicEaseOut();
+        _pill.Transitions =
+        [
+            new DoubleTransition { Property = WidthProperty, Duration = Anim, Easing = easing },
+            new DoubleTransition { Property = HeightProperty, Duration = Anim, Easing = easing },
+            new DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(450) },
+            new CornerRadiusTransition { Property = Avalonia.Controls.Border.CornerRadiusProperty, Duration = Anim, Easing = easing },
+        ];
+        _collapsed.Transitions = [new DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(140) }];
+        _expandedView.Transitions = [new DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(200), Delay = TimeSpan.FromMilliseconds(70) }];
         _pill.Child = new Panel { Children = { _collapsed, _expandedView } };
-        Content = _pill;
+        Content = new Panel { Background = Brushes.Transparent, Children = { _pill } };
 
         _pill.PointerEntered += (_, _) => Hover(true);
         _pill.PointerExited += (_, _) => Hover(false);
         _pill.PointerPressed += OnPressed;
         _pill.PointerMoved += OnMoved;
         _pill.PointerReleased += OnReleased;
+        _leave.Tick += (_, _) =>
+        {
+            _leave.Stop();
+            if (!_pill.IsPointerOver && !_dragging)
+            {
+                SetExpanded(false);
+                RestartFade();
+            }
+        };
         _fade.Tick += (_, _) =>
         {
             _fade.Stop();
             if (!_pill.IsPointerOver)
             {
-                Opacity = FadedOpacity;
+                _pill.Opacity = FadedOpacity;
+                _eye.Resting = true;
             }
         };
         var menu = new ContextMenu();
@@ -127,6 +173,7 @@ public sealed class Notch : Window
         _pill.ContextMenu = menu;
         Opened += (_, _) =>
         {
+            Resize(animate: false);
             Place();
             RestartFade();
         };
@@ -136,9 +183,11 @@ public sealed class Notch : Window
     {
         _settings = settings;
         _fade.Interval = TimeSpan.FromSeconds(Math.Max(1, settings.FadeAfterSeconds));
-        if (!_dragging)
+        if (!_dragging && (_center != settings.Position || _display != settings.Display))
         {
             _center = settings.Position;
+            _display = settings.Display;
+            Place();
         }
 
         Render();
@@ -173,9 +222,7 @@ public sealed class Notch : Window
             ConnectionState.Disconnecting => "Stopping…",
             _ => "Connecting…",
         };
-        _dot.Fill = new SolidColorBrush(connected ? Color.Parse("#4ADE80") : stateColor);
-        _dot.IsVisible = !busy;
-        _orb.IsVisible = busy;
+        _eye.State = connected ? EyeState.Awake : busy ? EyeState.Seeking : EyeState.Asleep;
         var pingColor = st.LatencyMs switch { < 150 => Color.Parse("#4ADE80"), < 300 => Color.Parse("#FBBF24"), _ => Color.Parse("#F87171") };
         var s = _settings;
         _line.Inlines?.Clear();
@@ -258,7 +305,7 @@ public sealed class Notch : Window
             _playPause.Content = Icon(np.IsPlaying ? "M8 5v14 M16 5v14" : "M8 5v14l11-7z", 11, Colors.White, 2.2);
         }
 
-        Dispatcher.UIThread.Post(Place, DispatcherPriority.Background);
+        Dispatcher.UIThread.Post(() => Resize(animate: true), DispatcherPriority.Background);
     }
 
     private static string Duration(TimeSpan d) => d.TotalHours >= 1 ? d.ToString(@"h\:mm", CultureInfo.InvariantCulture) + " h" : $"{(int)d.TotalMinutes} min";
@@ -284,19 +331,76 @@ public sealed class Notch : Window
         return b;
     }
 
-    /// <summary>On the top edge at the saved horizontal position.</summary>
+    /// <summary>
+    /// The island's size for the current face. The window keeps the open card's size (only its height follows the
+    /// content, growing downwards), so nothing moves on screen while the island animates inside it.
+    /// </summary>
+    private void Resize(bool animate)
+    {
+        _collapsed.Measure(Size.Infinity);
+        _expandedView.Measure(new Size(ExpandedWidth, double.PositiveInfinity));
+        var open = new Size(ExpandedWidth, Math.Ceiling(_expandedView.DesiredSize.Height));
+        var shut = new Size(Math.Min(ExpandedWidth, Math.Ceiling(_collapsed.DesiredSize.Width)), CollapsedHeight);
+        var target = _expanded ? open : shut;
+        if (Math.Abs(Height - open.Height) > 0.5)
+        {
+            Height = open.Height; // grows downwards from the top edge: nothing visible moves
+        }
+
+        if (target != _pillSize)
+        {
+            var transitions = _pill.Transitions;
+            if (!animate)
+            {
+                _pill.Transitions = null;
+            }
+
+            _pill.Width = target.Width;
+            _pill.Height = target.Height;
+            _pill.Transitions = transitions;
+            _pillSize = target;
+            if (animate)
+            {
+                // A shrinking island gives the pointer back to the windows below once it has settled.
+                DispatcherTimer.RunOnce(UpdateInputShape, Anim + TimeSpan.FromMilliseconds(60));
+            }
+        }
+
+        UpdateInputShape();
+    }
+
+    /// <summary>The monitor it sits on: the saved one if it is still there, else the main one.</summary>
+    private Screen? Monitor()
+    {
+        if (_display is { } key && Screens.All.FirstOrDefault(s => Key(s) == key) is { } saved)
+        {
+            return saved;
+        }
+
+        return Screens.Primary ?? Screens.All.FirstOrDefault();
+    }
+
+    private static string Key(Screen s) => string.Create(CultureInfo.InvariantCulture, $"{s.Bounds.X},{s.Bounds.Y}");
+
+    /// <summary>
+    /// At the top of the monitor's work area (below a desktop's top bar: GNOME pushes windows out of it, which made
+    /// the notch jump), at the saved horizontal position.
+    /// </summary>
     private void Place()
     {
-        if ((Screens.ScreenFromWindow(this) ?? Screens.Primary ?? Screens.All.FirstOrDefault()) is not { } screen)
+        if (Monitor() is not { } screen)
         {
             return;
         }
 
-        var area = screen.Bounds;
-        var scale = screen.Scaling;
-        var width = Bounds.Width * scale;
+        var area = screen.WorkingArea;
+        var width = ExpandedWidth * screen.Scaling;
         var x = area.X + ((area.Width - width) * Math.Clamp(_center, 0, 1));
-        Position = new PixelPoint((int)x, area.Y);
+        var target = new PixelPoint((int)Math.Round(x), area.Y);
+        if (Position != target)
+        {
+            Position = target;
+        }
     }
 
     private void Hover(bool inside)
@@ -308,14 +412,18 @@ public sealed class Notch : Window
 
         if (inside)
         {
+            _leave.Stop();
             _fade.Stop();
-            Opacity = 1;
+            _pill.Opacity = 1;
+            _eye.Resting = false;
+            _eye.Wake();
             SetExpanded(true);
         }
         else
         {
-            SetExpanded(false);
-            RestartFade();
+            // A short grace period: the edge of a growing island must not flicker it shut.
+            _leave.Stop();
+            _leave.Start();
         }
     }
 
@@ -327,10 +435,11 @@ public sealed class Notch : Window
         }
 
         _expanded = expanded;
-        _collapsed.IsVisible = !expanded;
-        _expandedView.IsVisible = expanded;
+        _collapsed.Opacity = expanded ? 0 : 1;
+        _expandedView.Opacity = expanded ? 1 : 0;
+        _expandedView.IsHitTestVisible = expanded;
         _pill.CornerRadius = new CornerRadius(0, 0, expanded ? 22 : 18, expanded ? 22 : 18);
-        Dispatcher.UIThread.Post(Place, DispatcherPriority.Background);
+        Resize(animate: true);
     }
 
     private void RestartFade()
@@ -351,28 +460,36 @@ public sealed class Notch : Window
 
         _dragging = true;
         _moved = false;
-        _dragStart = e.GetPosition(null);
+        var at = this.PointToScreen(e.GetPosition(this));
+        _grab = new PixelPoint(at.X - Position.X, at.Y - Position.Y);
         e.Pointer.Capture(_pill);
     }
 
+    /// <summary>Dragging: along the top of whichever monitor the pointer is on.</summary>
     private void OnMoved(object? sender, PointerEventArgs e)
     {
-        if (!_dragging || (Screens.ScreenFromWindow(this) ?? Screens.Primary ?? Screens.All.FirstOrDefault()) is not { } screen)
+        if (!_dragging)
         {
             return;
         }
 
-        var p = e.GetPosition(null);
-        var dx = p.X - _dragStart.X;
-        if (!_moved && Math.Abs(dx) < 4)
+        var at = this.PointToScreen(e.GetPosition(this));
+        if (!_moved && Math.Abs(at.X - _grab.X - Position.X) < 5 && Math.Abs(at.Y - _grab.Y - Position.Y) < 5)
         {
             return;
         }
 
         _moved = true;
-        var area = screen.Bounds;
-        var span = Math.Max(1, (area.Width / screen.Scaling) - Bounds.Width);
-        _center = Math.Clamp(_center + (dx / span), 0, 1);
+        if ((Screens.ScreenFromPoint(at) ?? Monitor()) is not { } screen)
+        {
+            return;
+        }
+
+        var area = screen.WorkingArea;
+        var width = ExpandedWidth * screen.Scaling;
+        var span = Math.Max(1, area.Width - width);
+        _center = Math.Clamp((at.X - _grab.X - area.X) / span, 0, 1);
+        _display = Key(screen);
         Place();
     }
 
@@ -384,12 +501,17 @@ public sealed class Notch : Window
         _moved = false;
         if (wasDrag)
         {
-            var at = _center;
-            _shell.Services.Settings.Update(s => s with { Ui = s.Ui with { Notch = s.Ui.Notch with { Position = at } } });
+            var (at, display) = (_center, _display);
+            _shell.Services.Settings.Update(s => s with { Ui = s.Ui with { Notch = s.Ui.Notch with { Position = at, Display = display } } });
         }
         else if (e.InitialPressMouseButton == MouseButton.Left)
         {
             ShowMain();
+        }
+
+        if (!_pill.IsPointerOver)
+        {
+            Hover(false);
         }
     }
 
@@ -398,5 +520,77 @@ public sealed class Notch : Window
         _shell.Show();
         _shell.WindowState = WindowState.Normal;
         _shell.Activate();
+    }
+
+    /// <summary>
+    /// X11 (and XWayland): only the island takes the mouse; the transparent rest of the window lets clicks through
+    /// to whatever is below. Without the X shape extension the whole window simply stays clickable.
+    /// </summary>
+    private void UpdateInputShape()
+    {
+        if (!OperatingSystem.IsLinux() || TryGetPlatformHandle() is not { HandleDescriptor: "XID" } handle)
+        {
+            return;
+        }
+
+        var scale = RenderScaling;
+        var w = (int)Math.Ceiling(Math.Max(_pillSize.Width, _pill.Bounds.Width) * scale);
+        var h = (int)Math.Ceiling(Math.Max(_pillSize.Height, _pill.Bounds.Height) * scale);
+        var x = (int)Math.Floor(((ExpandedWidth * scale) - w) / 2);
+        X11Shape.SetInput(handle.Handle, x, 0, w, h);
+    }
+
+    private static class X11Shape
+    {
+        private static IntPtr _display;
+        private static bool _broken;
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct XRectangle
+        {
+            public short X;
+            public short Y;
+            public ushort Width;
+            public ushort Height;
+        }
+
+        [DllImport("libX11.so.6")]
+        private static extern IntPtr XOpenDisplay(IntPtr name);
+
+        [DllImport("libX11.so.6")]
+        private static extern int XFlush(IntPtr display);
+
+        [DllImport("libXext.so.6")]
+        private static extern void XShapeCombineRectangles(IntPtr display, IntPtr window, int destKind, int xOff, int yOff, XRectangle[] rectangles, int count, int op, int ordering);
+
+        public static void SetInput(IntPtr window, int x, int y, int width, int height)
+        {
+            if (_broken)
+            {
+                return;
+            }
+
+            try
+            {
+                if (_display == IntPtr.Zero)
+                {
+                    _display = XOpenDisplay(IntPtr.Zero);
+                    if (_display == IntPtr.Zero)
+                    {
+                        _broken = true;
+                        return;
+                    }
+                }
+
+                // ShapeInput = 2, ShapeSet = 0, Unsorted = 0.
+                var rect = new XRectangle { X = (short)x, Y = (short)y, Width = (ushort)Math.Max(1, width), Height = (ushort)Math.Max(1, height) };
+                XShapeCombineRectangles(_display, window, 2, 0, 0, [rect], 1, 0, 0);
+                XFlush(_display);
+            }
+            catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException)
+            {
+                _broken = true;
+            }
+        }
     }
 }

@@ -15,7 +15,7 @@
                     </StackPanel>
                 </Button>
                 <StackPanel>
-                    <TextBlock Text="PasarGuard panels are detected automatically. Subscription links are stored encrypted and never shown or logged in full."
+                    <TextBlock Text="Paste the link your provider gave you; IBOX adds its servers and keeps them up to date. Links are stored encrypted."
                                Style="{StaticResource Text.PageSubtitle}" />
                 </StackPanel>
             </DockPanel>

@@ -81,8 +81,47 @@ byte[] ControlTar(long installedKb)
         tar.WriteEntry(new GnuTarEntry(TarEntryType.RegularFile, "./control") { Mode = Reg, ModificationTime = mtime, DataStream = new MemoryStream(Encoding.UTF8.GetBytes(control)) });
 
         // Whole-system (TUN) mode without sudo: only sing-box gets the network-admin capability, not the app.
-        const string postinst = "#!/bin/sh\nset -e\nif command -v setcap >/dev/null 2>&1; then\n  setcap cap_net_admin,cap_net_raw,cap_net_bind_service+ep /opt/jackivpn/cores/sing-box || true\nfi\nexit 0\n";
+        // The tunnel sets its DNS through systemd-resolved, which asked for the password on every connect: the
+        // installing user joins the jackivpn group, which a polkit rule lets do that (same files as the app's
+        // one-time setup in LinuxTunAccess).
+        var postinst = """
+            #!/bin/sh
+            set -e
+            if command -v setcap >/dev/null 2>&1; then
+              setcap cap_net_admin,cap_net_raw,cap_net_bind_service+ep /opt/jackivpn/cores/sing-box || true
+            fi
+            getent group jackivpn >/dev/null || groupadd -r jackivpn || true
+            for u in "${SUDO_USER:-}" "$(id -nu "${PKEXEC_UID:-x}" 2>/dev/null || true)"; do
+              if [ -n "$u" ] && [ "$u" != root ] && id "$u" >/dev/null 2>&1; then usermod -aG jackivpn "$u" || true; fi
+            done
+            mkdir -p /etc/polkit-1/rules.d
+            cat > /etc/polkit-1/rules.d/49-jackivpn.rules <<'EOF'
+            // IBOX: the VPN tunnel sets its own DNS (systemd-resolved) without asking for the password every time.
+            polkit.addRule(function(action, subject) {
+                if ((action.id.indexOf("org.freedesktop.resolve1.set-") == 0 || action.id == "org.freedesktop.resolve1.revert")
+                    && subject.local && subject.isInGroup("jackivpn")) {
+                    return polkit.Result.YES;
+                }
+            });
+            EOF
+            chmod 644 /etc/polkit-1/rules.d/49-jackivpn.rules
+            if [ -d /etc/polkit-1/localauthority ]; then
+              mkdir -p /etc/polkit-1/localauthority/50-local.d
+              cat > /etc/polkit-1/localauthority/50-local.d/49-jackivpn.pkla <<'EOF'
+            [IBOX tunnel DNS]
+            Identity=unix-group:jackivpn
+            Action=org.freedesktop.resolve1.set-dns-servers;org.freedesktop.resolve1.set-domains;org.freedesktop.resolve1.set-default-route;org.freedesktop.resolve1.set-llmnr;org.freedesktop.resolve1.set-mdns;org.freedesktop.resolve1.set-dns-over-tls;org.freedesktop.resolve1.set-dnssec;org.freedesktop.resolve1.set-dnssec-negative-trust-anchors;org.freedesktop.resolve1.revert
+            ResultAny=yes
+            ResultInactive=yes
+            ResultActive=yes
+            EOF
+            fi
+            exit 0
+
+            """.Replace("\r\n", "\n");
+        const string postrm = "#!/bin/sh\nset -e\nif [ \"$1\" = remove ] || [ \"$1\" = purge ]; then\n  rm -f /etc/polkit-1/rules.d/49-jackivpn.rules /etc/polkit-1/localauthority/50-local.d/49-jackivpn.pkla\nfi\nexit 0\n";
         tar.WriteEntry(new GnuTarEntry(TarEntryType.RegularFile, "./postinst") { Mode = Exe, ModificationTime = mtime, DataStream = new MemoryStream(Encoding.UTF8.GetBytes(postinst)) });
+        tar.WriteEntry(new GnuTarEntry(TarEntryType.RegularFile, "./postrm") { Mode = Exe, ModificationTime = mtime, DataStream = new MemoryStream(Encoding.UTF8.GetBytes(postrm)) });
     }
 
     return ms.ToArray();

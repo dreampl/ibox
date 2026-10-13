@@ -35,8 +35,8 @@ public sealed class ConnectOrb : Grid
     private readonly RotateTransform _spin = new();
     private readonly TextBlock _caption = new() { FontSize = 12.5, FontWeight = FontWeight.SemiBold, LetterSpacing = 0.6, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 12, 0, 0) };
     private readonly Ellipse _captionDot = new() { Width = 8, Height = 8, Margin = new Thickness(0, 9, 0, 0), HorizontalAlignment = HorizontalAlignment.Center };
-    private readonly Border _glyph = new() { Width = 62, Height = 62, HorizontalAlignment = HorizontalAlignment.Center };
-    private readonly OrbView _orb = new() { State = Domain.Visuals.OrbState.Connecting, Width = 70, Height = 70, IsVisible = false, Tint = Colors.White };
+    // The IBOX eye, as on Windows: asleep, seeking (thinking orb inside the O) or awake (follows the pointer).
+    private readonly EyeMarkView _eye = new() { Width = 60, Height = 61, HorizontalAlignment = HorizontalAlignment.Center };
     private readonly ScaleTransform _scale = new(1, 1);
     private DispatcherTimer? _anim;
     private (ConnectionState, ActivityProfile)? _shown;
@@ -73,11 +73,27 @@ public sealed class ConnectOrb : Grid
                 GradientStops = { new GradientStop(Color.Parse("#2EFFFFFF"), 0), new GradientStop(Color.Parse("#00FFFFFF"), 0.5), new GradientStop(Color.Parse("#14000000"), 1) },
             },
         };
-        var face = new StackPanel { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, Children = { new Grid { Children = { _glyph, _orb } }, _caption, _captionDot } };
+        var face = new StackPanel { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, Children = { _eye, _caption, _captionDot } };
         var root = new Grid { RenderTransform = _scale, Children = { _halo, plate, track, _spinner, _onRing, depth, _disc, sheen, face } };
         Children.Add(root);
         SetState(ConnectionState.Disconnected, ActivityProfile.Normal);
+        AttachedToVisualTree += (_, _) =>
+        {
+            if (TopLevel.GetTopLevel(this) is { } top)
+            {
+                top.PointerMoved += OnPointerMoved;
+            }
+        };
+        DetachedFromVisualTree += (_, e) =>
+        {
+            if (e.RootVisual is TopLevel top)
+            {
+                top.PointerMoved -= OnPointerMoved;
+            }
+        };
     }
+
+    private void OnPointerMoved(object? sender, PointerEventArgs e) => _eye.LookAt(e.GetPosition(_eye));
 
     public void SetState(ConnectionState state, ActivityProfile activity)
     {
@@ -130,8 +146,8 @@ public sealed class ConnectOrb : Grid
         var ink = p.IsLight && connected && activity == ActivityProfile.Normal ? Color.Parse("#0E9F6E")
             : p.IsLight && !connected && !busy && !failed ? p.TextSecondary
             : Colors.White;
-        _glyph.Child = Icon(Icons.ShieldCheck, 62, ink, 1.9);
-        _orb.Tint = ink;
+        _eye.AwakeFrame = ink;
+        _eye.State = connected ? Domain.Visuals.EyeState.Awake : busy ? Domain.Visuals.EyeState.Seeking : Domain.Visuals.EyeState.Asleep;
         _halo.Fill = new RadialGradientBrush { GradientStops = { new GradientStop(WithAlpha(main, connected ? 0.45 : 0.25), 0.55), new GradientStop(Colors.Transparent, 1) } };
         _halo.Opacity = connected || busy || failed ? 1 : 0;
         _onRing.Stroke = B(main);
@@ -146,8 +162,6 @@ public sealed class ConnectOrb : Grid
             : "CONNECT";
         _caption.Foreground = B(ink == Colors.White ? Color.Parse("#F2FFFFFF") : ink);
         _captionDot.Fill = _caption.Foreground;
-        _glyph.IsVisible = !busy;
-        _orb.IsVisible = busy;
         _anim?.Stop();
         _anim = null;
         _scale.ScaleX = _scale.ScaleY = 1;
@@ -157,8 +171,8 @@ public sealed class ConnectOrb : Grid
             _anim = new DispatcherTimer(TimeSpan.FromMilliseconds(33), DispatcherPriority.Render, (_, _) =>
             {
                 var t = (DateTime.UtcNow - start).TotalSeconds;
+                // Only the spinner turns: scaling the whole clay orb each frame re-rendered its shadows (slow).
                 _spin.Angle = (t * 300) % 360;
-                _scale.ScaleX = _scale.ScaleY = 1 + (0.015 * Math.Sin(t * Math.PI * 1.5));
             });
             _anim.Start();
         }
@@ -187,6 +201,7 @@ public sealed class DashboardPage(Shell shell) : Page(shell)
     private TextBlock _title = new();
     private TextBlock _detail = new();
     private WrapPanel _chips = new();
+    private string? _chipKey;
     private TextBlock _ip = new();
     private TextBlock _reason = new();
     private TextBlock _error = new();
@@ -248,6 +263,13 @@ public sealed class DashboardPage(Shell shell) : Page(shell)
         _plan = new Panel();
 
         EventHandler<ConnectionStatus> status = (_, st) => Dispatcher.UIThread.Post(() => Apply(st));
+        EventHandler dualChanged = (_, _) => Dispatcher.UIThread.Post(() =>
+        {
+            _chipKey = null;
+            Apply(_status);
+        });
+        S.DualVpn.Changed += dualChanged;
+        Track(() => S.DualVpn.Changed -= dualChanged);
         S.Orchestrator.StatusChanged += status;
         Track(() => S.Orchestrator.StatusChanged -= status);
         EventHandler<Domain.Settings.AppSettings> settings = (_, _) => Dispatcher.UIThread.Post(() => _ = RefreshSelectionAsync());
@@ -308,6 +330,7 @@ public sealed class DashboardPage(Shell shell) : Page(shell)
         _title = new TextBlock { FontSize = 26, FontWeight = FontWeight.SemiBold, Foreground = B(Text) };
         _detail = new TextBlock { FontSize = 13, Foreground = B(Muted), Margin = new Thickness(0, 2, 0, 12), TextWrapping = TextWrapping.Wrap };
         _chips = new WrapPanel();
+        _chipKey = null;
         _ip = new TextBlock { FontFamily = new FontFamily("monospace"), FontSize = 12.5, Foreground = B(Text2), Margin = new Thickness(0, 2, 0, 0) };
         _reason = new TextBlock { FontSize = 12, Foreground = B(Muted), Margin = new Thickness(0, 8, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis };
         _error = new TextBlock { FontSize = 12, Foreground = B(Danger), Margin = new Thickness(0, 8, 0, 0), TextWrapping = TextWrapping.Wrap };
@@ -559,6 +582,7 @@ public sealed class DashboardPage(Shell shell) : Page(shell)
                 return;
             }
 
+            await S.PrepareTunAsync(Shell.Lifetime.Token);
             await S.Orchestrator.ConnectAsync(new ConnectRequest(), Shell.Lifetime.Token);
         });
     }
@@ -589,44 +613,72 @@ public sealed class DashboardPage(Shell shell) : Page(shell)
         _detail.Text = connected
             ? st.ProfileName ?? string.Empty
             : st.State == ConnectionState.Disconnected ? "Choose a server or let smart connect pick the fastest." : st.ProfileName ?? "Click the orb to cancel.";
-        _chips.Children.Clear();
-        if (connected)
+        // The chips change rarely; the status arrives every second (traffic): rebuild them only when they differ.
+        var dual = S.DualVpn.Current;
+        var dualShown = dual is { Enabled: true, IsConfigured: true };
+        var dualActive = dualShown && S.DualVpn.IsActive(st.State);
+        var chipKey = string.Join('|', connected, st.LatencyMs is { } l ? Math.Round(l / 5) : -1, st.Mode, st.LocalProxyPort, st.Protocol, st.Core, st.Activity, st.JackiSmartConnectActive, dualShown, dualActive, dual.Name, Look.P.IsLight);
+        if (chipKey != _chipKey)
         {
-            var latency = new StackPanel
+            _chipKey = chipKey;
+            _chips.Children.Clear();
+            if (dualShown)
             {
-                Orientation = Orientation.Horizontal,
-                Spacing = 7,
-                Children =
+                var dualChip = Chip(new StackPanel
                 {
-                    new Ellipse { Width = 8, Height = 8, Fill = B(st.LatencyMs switch { null => p.TextMuted, < 150 => p.Success, < 300 => p.Warning, _ => p.Danger }), VerticalAlignment = VerticalAlignment.Center },
-                    new TextBlock { Text = st.LatencyMs is { } ms ? $"{ms:0} ms" : "— ms", FontFamily = new FontFamily("monospace"), FontSize = 12, Foreground = B(Text) },
-                },
-            };
-            _chips.Children.Add(Chip(latency));
-            if (_duration.Parent is Panel oldParent)
-            {
-                oldParent.Children.Remove(_duration);
+                    Orientation = Orientation.Horizontal,
+                    Spacing = 7,
+                    Children =
+                    {
+                        new Ellipse { Width = 8, Height = 8, Fill = B(dualActive ? p.Success : p.TextMuted), VerticalAlignment = VerticalAlignment.Center },
+                        new TextBlock { Text = "Dual VPN · " + dual.Name + (dualActive ? " · active" : string.Empty), FontSize = 12, Foreground = B(Text) },
+                    },
+                });
+                dualChip.Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand);
+                ToolTip.SetTip(dualChip, dual.KindLabel + ": " + S.DualVpn.Describe(st.State) + ". Click to manage it.");
+                dualChip.PointerPressed += (_, _) => Shell.Navigate(Shell.Servers);
+                _chips.Children.Add(dualChip);
             }
 
-            _chips.Children.Add(Chip(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { Icon(Icons.Clock, 12, Text2, 2), _duration } }));
-            var mode = st.Mode == ConnectionMode.Tun ? "TUN" : $"Proxy 127.0.0.1:{st.LocalProxyPort}";
-            _chips.Children.Add(Chip(new TextBlock { Text = string.Join(" · ", new[] { mode, st.Protocol, st.Core?.ToString() }.Where(x => !string.IsNullOrEmpty(x))), FontSize = 12, Foreground = B(Text) }));
-            if (st.Activity != ActivityProfile.Normal)
+            if (connected)
             {
-                var color = st.Activity == ActivityProfile.Gaming ? Color.Parse("#F43F7A") : Streaming;
-                var chip = Chip(new TextBlock { Text = st.Activity == ActivityProfile.Gaming ? "Gaming" : "Streaming", FontSize = 12, FontWeight = FontWeight.SemiBold, Foreground = B(Text) });
-                chip.Background = B(color, 0.15);
-                chip.BorderBrush = B(color);
-                _chips.Children.Add(chip);
+                var latency = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Spacing = 7,
+                    Children =
+                    {
+                        new Ellipse { Width = 8, Height = 8, Fill = B(st.LatencyMs switch { null => p.TextMuted, < 150 => p.Success, < 300 => p.Warning, _ => p.Danger }), VerticalAlignment = VerticalAlignment.Center },
+                        new TextBlock { Text = st.LatencyMs is { } ms ? $"{ms:0} ms" : "— ms", FontFamily = new FontFamily("monospace"), FontSize = 12, Foreground = B(Text) },
+                    },
+                };
+                _chips.Children.Add(Chip(latency));
+                if (_duration.Parent is Panel oldParent)
+                {
+                    oldParent.Children.Remove(_duration);
+                }
+
+                _chips.Children.Add(Chip(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { Icon(Icons.Clock, 12, Text2, 2), _duration } }));
+                var mode = st.Mode == ConnectionMode.Tun ? "TUN" : $"Proxy 127.0.0.1:{st.LocalProxyPort}";
+                _chips.Children.Add(Chip(new TextBlock { Text = string.Join(" · ", new[] { mode, st.Protocol, st.Core?.ToString() }.Where(x => !string.IsNullOrEmpty(x))), FontSize = 12, Foreground = B(Text) }));
+                if (st.Activity != ActivityProfile.Normal)
+                {
+                    var color = st.Activity == ActivityProfile.Gaming ? Color.Parse("#F43F7A") : Streaming;
+                    var chip = Chip(new TextBlock { Text = st.Activity == ActivityProfile.Gaming ? "Gaming" : "Streaming", FontSize = 12, FontWeight = FontWeight.SemiBold, Foreground = B(Text) });
+                    chip.Background = B(color, 0.15);
+                    chip.BorderBrush = B(color);
+                    _chips.Children.Add(chip);
+                }
+
+                if (st.JackiSmartConnectActive)
+                {
+                    var chip = Chip(new TextBlock { Text = "Jacki Smart Connect", FontSize = 12, FontWeight = FontWeight.SemiBold, Foreground = B(Accent) });
+                    chip.Background = B(Accent, 0.12);
+                    chip.BorderBrush = B(Accent);
+                    _chips.Children.Add(chip);
+                }
             }
 
-            if (st.JackiSmartConnectActive)
-            {
-                var chip = Chip(new TextBlock { Text = "Jacki Smart Connect", FontSize = 12, FontWeight = FontWeight.SemiBold, Foreground = B(Accent) });
-                chip.Background = B(Accent, 0.12);
-                chip.BorderBrush = B(Accent);
-                _chips.Children.Add(chip);
-            }
         }
 
         _ip.Text = connected && st.PublicIp is { } ip ? ip : string.Empty;

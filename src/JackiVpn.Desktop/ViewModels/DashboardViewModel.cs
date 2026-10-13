@@ -119,6 +119,28 @@ public sealed partial class DashboardViewModel : ObservableObject
     [RelayCommand]
     private void OpenSubscriptions() => _main.Navigate(_main.Subscriptions);
 
+    // Dual VPN badge: shown while the second VPN is on; green when it carries company traffic.
+    [ObservableProperty]
+    private bool _dualVpnShown;
+
+    [ObservableProperty]
+    private bool _dualVpnActive;
+
+    [ObservableProperty]
+    private string _dualVpnText = string.Empty;
+
+    [ObservableProperty]
+    private string _dualVpnTip = string.Empty;
+
+    private void RefreshDualVpn()
+    {
+        var d = _s.DualVpn.Current;
+        DualVpnShown = d is { Enabled: true, IsConfigured: true };
+        DualVpnActive = _s.DualVpn.IsActive(_s.Orchestrator.State);
+        DualVpnText = "Dual VPN · " + d.Name + (DualVpnActive ? " · active" : string.Empty);
+        DualVpnTip = d.KindLabel + ": " + _s.DualVpn.Describe(_s.Orchestrator.State) + ". Click to manage it on the Servers page.";
+    }
+
     /// <summary>Server card and location button follow the connection or the selection.</summary>
     private void RefreshServerCard()
     {
@@ -175,6 +197,8 @@ public sealed partial class DashboardViewModel : ObservableObject
             _ = RefreshSelectionAsync();
         });
         services.SubscriptionService.Updated += (_, _) => Ui.Post(() => _ = RefreshPlanAsync());
+        services.DualVpn.Changed += (_, _) => Ui.Post(RefreshDualVpn);
+        RefreshDualVpn();
         services.Traffic.Changed += (_, _) => Ui.Post(() =>
         {
             if (IsConnected)
@@ -478,6 +502,11 @@ public sealed partial class DashboardViewModel : ObservableObject
         if (st.State != State && st.State is ConnectionState.Connected or ConnectionState.Disconnected)
         {
             _ = CheckSystemProxyAsync();
+        }
+
+        if (st.State != State)
+        {
+            Ui.Post(RefreshDualVpn);
         }
 
         State = st.State;

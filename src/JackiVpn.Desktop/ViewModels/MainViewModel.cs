@@ -182,6 +182,19 @@ public sealed partial class MainViewModel : ObservableObject
     [CommunityToolkit.Mvvm.Input.RelayCommand]
     private void OpenProfiles() => new Views.ProfilesWindow(_services).Show();
 
+    /// <summary>The first-start tour (also from About); ending it with nothing set up opens Subscriptions.</summary>
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    public async Task ShowTourAsync()
+    {
+        var servers = (await _services.Profiles.GetAllAsync(_services.Lifetime)).Count;
+        var addFirst = Views.TourWindow.Run(servers > 0);
+        _services.Settings.Update(s => s with { Ui = s.Ui with { TourSeen = true } });
+        if (addFirst)
+        {
+            Navigate(Subscriptions);
+        }
+    }
+
     /// <summary>The active profile, for the rail avatar.</summary>
     public Application.Accounts.LocalAccount? ActiveAccount => _services.Accounts.Active;
 
