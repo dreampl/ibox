@@ -23,7 +23,7 @@
     </UserControl.Resources>
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="32,26,32,26" v:Motion.StaggerChildren="True">
-            <TextBlock Text="How domain names are resolved while connected. The default keeps every lookup encrypted and inside the tunnel."
+            <TextBlock Text="How site names are looked up. The default (Smart) keeps every lookup encrypted and inside the VPN — usually nothing to change here."
                        Style="{StaticResource Text.PageSubtitle}" />
 
             <v:ClaySurface>

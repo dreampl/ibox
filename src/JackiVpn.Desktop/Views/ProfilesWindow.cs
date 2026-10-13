@@ -104,12 +104,116 @@ internal sealed class ProfilesWindow
         var add = DialogService.Styled(new Button { Content = "Add profile", HorizontalAlignment = HorizontalAlignment.Stretch, Margin = new Thickness(0, 12, 0, 0), Padding = new Thickness(0, 9, 0, 9) }, "Button.Outline");
         add.Click += (_, _) => _ = EditAsync(null);
         root.Children.Add(add);
+
+        // Moving to another device (Windows, Linux or Android): one encrypted .ibox file.
+        var transfer = new Grid { Margin = new Thickness(0, 8, 0, 0) };
+        transfer.ColumnDefinitions.Add(new ColumnDefinition());
+        transfer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
+        transfer.ColumnDefinitions.Add(new ColumnDefinition());
+        var export = DialogService.Styled(new Button { Content = "Export account…", Padding = new Thickness(0, 9, 0, 9), ToolTip = "Save this profile, its settings, subscriptions and servers to a password-protected file for another device" }, "Button.Outline");
+        export.Click += (_, _) => _ = ExportAsync();
+        var import = DialogService.Styled(new Button { Content = "Import account…", Padding = new Thickness(0, 9, 0, 9), ToolTip = "Open an .ibox file from Windows, Linux or Android" }, "Button.Outline");
+        import.Click += (_, _) => _ = ImportAsync();
+        Grid.SetColumn(import, 2);
+        transfer.Children.Add(export);
+        transfer.Children.Add(import);
+        root.Children.Add(transfer);
+        root.Children.Add(DialogService.Styled(new TextBlock { Text = "The file works on Windows, Linux and Android; IBOX adapts it to the device it is opened on.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) }, "Text.Hint"));
         var close = new Button { Content = "Close", IsCancel = true, MinWidth = 90, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
         close.Click += (_, _) => _window.Close();
         root.Children.Add(close);
         _window.Content = new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
         Render();
         _window.ShowDialog();
+    }
+
+    private async Task ExportAsync()
+    {
+        if (AskPassword("Export account", "Choose a password for the file. You need it to open the file on the other device.", confirm: true) is not { } password)
+        {
+            return;
+        }
+
+        var dlg = new Microsoft.Win32.SaveFileDialog { Filter = "IBOX account (*.ibox)|*.ibox", FileName = _s.AccountTransfer.SuggestedFileName(), OverwritePrompt = true };
+        if (dlg.ShowDialog(_window) != true)
+        {
+            return;
+        }
+
+        try
+        {
+            await File.WriteAllBytesAsync(dlg.FileName, await _s.AccountTransfer.ExportAsync(password, _s.Lifetime));
+            DialogService.Show("Account exported", "Saved to " + dlg.FileName + ". Copy it to the other device and choose Import account there.", null, "OK", null, false, 480, null);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            DialogService.Show("Export failed", ex.Message, null, "OK", null, false, 480, null);
+        }
+    }
+
+    private async Task ImportAsync()
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog { Filter = "IBOX account (*.ibox)|*.ibox|All files (*.*)|*.*", CheckFileExists = true };
+        if (dlg.ShowDialog(_window) != true)
+        {
+            return;
+        }
+
+        if (new FileInfo(dlg.FileName).Length > Application.Accounts.AccountTransfer.MaxFileBytes
+            || AskPassword("Import account", "The password the file was exported with.", confirm: false) is not { } password)
+        {
+            return;
+        }
+
+        // A new profile becomes active: like switching, disconnect first.
+        if (_s.Orchestrator.State != Domain.Connection.ConnectionState.Disconnected)
+        {
+            await _s.Orchestrator.DisconnectAsync();
+        }
+
+        var (result, problem) = await _s.AccountTransfer.ImportAsync(await File.ReadAllBytesAsync(dlg.FileName), password, _s.Lifetime);
+        if (result is null)
+        {
+            DialogService.Show("Import failed", problem ?? "Unknown error.", null, "OK", null, false, 480, null);
+            return;
+        }
+
+        Render();
+        var notes = result.Notes.Count > 0 ? "\n\n" + string.Join("\n", result.Notes) : string.Empty;
+        DialogService.Show("Account imported", $"\"{result.Name}\" from {result.From} is now the active profile: {result.Subscriptions} subscriptions (updating now) and {result.Servers} servers.{notes}", null, "OK", null, false, 480, null);
+    }
+
+    /// <summary>A password for an account file (typed twice when choosing one); null when cancelled.</summary>
+    private string? AskPassword(string title, string message, bool confirm)
+    {
+        var first = new PasswordBox();
+        var second = new PasswordBox();
+        var error = DialogService.Styled(new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) }, "Text.Hint");
+        error.SetResourceReference(TextBlock.ForegroundProperty, "B.Danger");
+        var panel = new StackPanel { Margin = new Thickness(0, 12, 0, 0) };
+        panel.Children.Add(Label("Password"));
+        panel.Children.Add(first);
+        if (confirm)
+        {
+            panel.Children.Add(Label("Again"));
+            panel.Children.Add(second);
+        }
+
+        panel.Children.Add(error);
+        while (DialogService.Show(title, message, panel, "OK", "Cancel", false, 440, first))
+        {
+            var problem = confirm ? Application.Accounts.AccountTransfer.PasswordProblem(first.Password) ?? (first.Password != second.Password ? "The two passwords differ." : null)
+                : first.Password.Length == 0 ? "Enter the password." : null;
+            if (problem is null)
+            {
+                return first.Password;
+            }
+
+            error.Text = problem;
+            (panel.Parent as Panel)?.Children.Remove(panel);
+        }
+
+        return null;
     }
 
     private void Render()

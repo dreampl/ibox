@@ -345,6 +345,57 @@ public sealed class LocalAccountService
         }
     }
 
+    /// <summary>
+    /// An account brought from another device (see <see cref="AccountTransfer"/>): a new profile with those settings and
+    /// picture, made active (the current settings are saved to the current profile first).
+    /// </summary>
+    public async Task<string?> ImportAsync(string name, int color, byte[]? picture, string? pictureExt, AppSettings settings, CancellationToken ct)
+    {
+        if (Problem(name) is { } problem)
+        {
+            return problem;
+        }
+
+        if (_state.Accounts.Count >= MaxAccounts)
+        {
+            return $"Up to {MaxAccounts} profiles: remove one first.";
+        }
+
+        await _gate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            var account = new LocalAccount { Id = NewId(), Name = name.Trim(), Color = Math.Clamp(color, 0, AvatarColors.Count - 1), CreatedUtc = DateTimeOffset.UtcNow };
+            if (picture is { Length: > 0 and <= MaxPictureBytes } && pictureExt is ".png" or ".jpg")
+            {
+                await File.WriteAllBytesAsync(Path.Combine(_dir, account.Id + pictureExt), picture, ct).ConfigureAwait(false);
+                account = account with { Picture = account.Id + pictureExt };
+            }
+
+            if (Active is { } current)
+            {
+                await WriteSettingsAsync(current, _settings.Current, ct).ConfigureAwait(false);
+                if (current.IsLocked)
+                {
+                    _unlocked.Remove(current.Id);
+                }
+            }
+
+            await WriteSettingsAsync(account, settings, ct).ConfigureAwait(false);
+            _state = new State([.. _state.Accounts, account], account.Id);
+            await SaveListAsync(ct).ConfigureAwait(false);
+            _settings.Update(_ => SettingsMigrations.Upgrade(settings));
+            await _settings.FlushAsync().ConfigureAwait(false);
+            _logger.LogInformation("Profile {Name} imported and active.", account.Name);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+
+        Changed?.Invoke(this, EventArgs.Empty);
+        return null;
+    }
+
     /// <summary>Writes the active profile's encrypted copy now (also called on exit).</summary>
     public async Task SaveActiveAsync(CancellationToken ct)
     {

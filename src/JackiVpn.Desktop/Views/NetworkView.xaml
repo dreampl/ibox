@@ -4,7 +4,7 @@
              xmlns:v="clr-namespace:JackiVpn.Desktop.Views">
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="32,26,32,26" v:Motion.StaggerChildren="True">
-            <TextBlock Text="Connection mode, leak protection and repair tools. Every change to Windows is journaled and undone on disconnect or after a crash."
+            <TextBlock Text="How IBOX connects (the whole system with TUN, or only apps that use the proxy), leak protection and repair tools. Every change to Windows is undone when you disconnect."
                        Style="{StaticResource Text.PageSubtitle}" />
 
             <!-- Service -->

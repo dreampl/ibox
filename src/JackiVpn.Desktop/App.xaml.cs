@@ -146,6 +146,9 @@ public partial class App : System.Windows.Application
         }
 
         WheelScrolling.Install();
+#if DEBUG
+        PerfProbe.StartIfAsked(_services.Logger);
+#endif
         _vm = new MainViewModel(_services, new DialogService());
         _window = new MainWindow(_vm) { CloseToTray = () => _services.Settings.Current.Ui.CloseToTray };
         MainWindow = _window;
@@ -177,6 +180,26 @@ public partial class App : System.Windows.Application
 
         await _vm.InitializeAsync();
         _services.StartBackground();
+        if (_window.IsVisible)
+        {
+            // The other pages are built quietly once the start has settled: every first visit then shows at once.
+            _ = Dispatcher.BeginInvoke(async () =>
+            {
+                await Task.Delay(2500);
+                // The pages people open most; the rest (Advanced, Logs, …) build on their first visit.
+                await _window.WarmUpPagesAsync([_vm.Servers, _vm.Subscriptions, _vm.Usage, _vm.Settings, _vm.Routing]);
+            }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        }
+
+        if (_window.IsVisible && Application.Onboarding.Tour.ShouldShow(_services.Settings.Current.Ui.TourSeen, (await _services.Profiles.GetAllAsync(_services.Lifetime)).Count))
+        {
+            // A fresh install: the short tour, once the window has settled (not blocking the rest of the start).
+            _ = Dispatcher.BeginInvoke(async () =>
+            {
+                await Task.Delay(600);
+                await _vm.ShowTourAsync();
+            }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        }
         SetupNotch();
         _activity = new ActivityDetector(_services.Orchestrator, _services.LoggerFactory.CreateLogger("JackiVpn.Activity")) { GameChanged = _services.Traffic.ReportGame };
         _activity.Start();

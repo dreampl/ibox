@@ -43,10 +43,8 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="RadioButton">
                         <Grid>
-                            <Border x:Name="Bd" CornerRadius="20" Background="{DynamicResource B.CardFill}" BorderBrush="{DynamicResource B.Border}" BorderThickness="1"
-                                    Effect="{DynamicResource E.SoftShadow}">
-                                <Border.CacheMode><BitmapCache /></Border.CacheMode>
-                            </Border>
+                            <v:SoftShadow CornerRadius="20" Kind="Soft" />
+                            <Border x:Name="Bd" CornerRadius="20" Background="{DynamicResource B.CardFill}" BorderBrush="{DynamicResource B.Border}" BorderThickness="1" />
                             <Border x:Name="Sel" CornerRadius="20" BorderBrush="{DynamicResource B.Accent}" BorderThickness="1.5" Background="{DynamicResource B.AccentSoft}" Opacity="0" />
                             <Border x:Name="Hover" CornerRadius="20" Background="{DynamicResource B.HoverOverlay}" Opacity="0" />
                             <ContentPresenter Margin="12,10,20,10" VerticalAlignment="Center" />
@@ -191,9 +189,8 @@
                                     </StackPanel>
                                 </RadioButton>
                                 <Grid Margin="0,0,12,12">
-                                    <Border CornerRadius="20" Background="{DynamicResource B.CardFill}" BorderBrush="{DynamicResource B.Border}" BorderThickness="1" Effect="{DynamicResource E.SoftShadow}">
-                                        <Border.CacheMode><BitmapCache /></Border.CacheMode>
-                                    </Border>
+                                    <v:SoftShadow CornerRadius="20" Kind="Soft" />
+                                    <Border CornerRadius="20" Background="{DynamicResource B.CardFill}" BorderBrush="{DynamicResource B.Border}" BorderThickness="1" />
                                     <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding SmartMode}" Margin="12,10,16,10" VerticalAlignment="Center"
                                               ToolTip="Test servers and pick the fastest working one; switch automatically when it fails" AutomationProperties.Name="Smart connect">
                                         <StackPanel Orientation="Horizontal">
@@ -210,6 +207,21 @@
                             <StackPanel Grid.Row="1" x:Name="StatusBlock" Margin="2,10,360,0" VerticalAlignment="Center">
                                 <TextBlock Text="{Binding StatusTitle}" FontSize="26" FontWeight="SemiBold" v:Motion.FadeOnChange="True" />
                                 <TextBlock Text="{Binding StatusDetail}" Style="{StaticResource Text.Hint}" FontSize="13" Margin="0,2,0,12" v:Motion.FadeOnChange="True" />
+
+                                <!-- Dual VPN: the second VPN to the company, when it is on (green dot = carrying company traffic). -->
+                                <Button Style="{StaticResource Button.Bare}" HorizontalAlignment="Left" Margin="0,0,0,8" Command="{Binding OpenServersCommand}"
+                                        Visibility="{Binding DualVpnShown, Converter={StaticResource Bool2Vis}}" ToolTip="{Binding DualVpnTip}" AutomationProperties.Name="Dual VPN">
+                                    <Border Style="{StaticResource Chip}" Margin="0">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Grid Width="8" Height="8" Margin="0,0,7,0">
+                                                <Ellipse Fill="{DynamicResource B.TextMuted}" />
+                                                <Ellipse Fill="{DynamicResource B.Success}" Visibility="{Binding DualVpnActive, Converter={StaticResource Bool2Vis}}" />
+                                            </Grid>
+                                            <TextBlock Style="{StaticResource ChipIcon}" Text="&#xE8CE;" />
+                                            <TextBlock Text="{Binding DualVpnText}" Style="{StaticResource ChipText}" />
+                                        </StackPanel>
+                                    </Border>
+                                </Button>
 
                                 <WrapPanel Visibility="{Binding IsConnected, Converter={StaticResource Bool2Vis}}">
                                     <Border Style="{StaticResource Chip}" ToolTip="{Binding LatencyTip}">

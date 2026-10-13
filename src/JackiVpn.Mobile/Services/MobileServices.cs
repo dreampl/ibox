@@ -88,6 +88,8 @@ public sealed class MobileServices : IAsyncDisposable
                 ? new Domain.Subscriptions.DeviceIdentity(hwid, "Android", global::Android.OS.Build.VERSION.Release ?? string.Empty, PhoneModel)
                 : null);
         ProfileService = new ProfileService(Profiles, Parser);
+        DualVpn = new Application.Workplace.SecondVpnService(Settings, Profiles, protector, null, LoggerFactory.CreateLogger("JackiVpn.DualVpn"));
+        AccountTransfer = new Application.Accounts.AccountTransfer(Settings, Profiles, Subscriptions, SubscriptionService, DualVpn, null, "Android", LoggerFactory.CreateLogger("JackiVpn.Accounts"));
         RuleSets = new RuleSetManager(Path.Combine(DataDir, "rulesets"), new RuleSetDownloader(() => _fetcher), LoggerFactory.CreateLogger("JackiVpn.RuleSets"))
         {
             SeedDirectory = Path.Combine(DataDir, "rulesets-seed"),
@@ -128,6 +130,7 @@ public sealed class MobileServices : IAsyncDisposable
                 sessionLogger,
                 proxyOnly: mode == Domain.Connection.ConnectionMode.SystemProxy),
         });
+        _fetcher.IsTunnelAddress = Application.Connectivity.TunnelAddresses.FakeIp(settings, Orchestrator);
         JackiVpnService.Revoked += (_, _) => _ = Orchestrator.DisconnectAsync();
         Orchestrator.NetworkChanged += (_, _) =>
         {
@@ -151,6 +154,7 @@ public sealed class MobileServices : IAsyncDisposable
         Usage = usage;
         // No per-app process names on Android (one VPN process carries every app): domain and class rules only.
         Traffic = new Application.Traffic.TrafficController(Orchestrator, settings, Workplace, Usage, LoggerFactory.CreateLogger("JackiVpn.Traffic")) { ProcessAware = false };
+        DualVpn.Changed += (_, _) => _ = Traffic.SettingsChangedAsync();
         RoutingWatcher = new Application.Routing.RoutingWatcher(Settings, Orchestrator, LoggerFactory.CreateLogger("JackiVpn.Routing"));
         var updateLog = LoggerFactory.CreateLogger("JackiVpn.Updates");
         Updates = new Infrastructure.Updates.UpdateMonitor(new Infrastructure.Updates.AppUpdateService(updateLog), () => Settings.Current.Updates,
@@ -178,6 +182,12 @@ public sealed class MobileServices : IAsyncDisposable
     public ActivityMonitor Activity { get; }
 
     public Application.Workplace.WorkplaceService Workplace { get; }
+
+    /// <summary>The second VPN (Dual VPN); on Android only a server route (one VPN app at a time).</summary>
+    public Application.Workplace.SecondVpnService DualVpn { get; }
+
+    /// <summary>Account export/import (.ibox) between Windows, Linux and Android.</summary>
+    public Application.Accounts.AccountTransfer AccountTransfer { get; }
     public Application.Connectivity.EndpointRescue Rescue { get; }
     public Application.Connectivity.DnsFinder DnsFinder { get; }
 

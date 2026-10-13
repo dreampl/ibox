@@ -13,7 +13,7 @@
                     <Button Content="Export…" Command="{Binding ExportCommand}" />
                 </StackPanel>
                 <StackPanel>
-                    <TextBlock Text="Rules are checked top to bottom; the first match wins. Destination conditions in one rule match if any matches; other conditions must all match."
+                    <TextBlock Text="Decide which sites and apps go through the VPN, go direct or are blocked. Rules are checked from the top; the first match wins."
                                Style="{StaticResource Text.PageSubtitle}" />
                 </StackPanel>
             </DockPanel>

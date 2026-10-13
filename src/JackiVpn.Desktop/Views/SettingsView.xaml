@@ -4,7 +4,7 @@
              xmlns:v="clr-namespace:JackiVpn.Desktop.Views">
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="32,26,32,26" v:Motion.StaggerChildren="True">
-            <TextBlock Text="Appearance, startup, notifications and logging." Style="{StaticResource Text.PageSubtitle}" />
+            <TextBlock Text="Look (light / dark), start-up, the notch, notifications and AI agents." Style="{StaticResource Text.PageSubtitle}" />
 
             <v:ClaySurface>
                 <StackPanel>

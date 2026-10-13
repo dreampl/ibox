@@ -100,6 +100,11 @@
                 <controls:SettingRow Icon="lock" Tint="{StaticResource Danger}" Title="{loc:T Set_AlwaysOn}" Subtitle="{loc:T Set_AlwaysOnHint}" Command="{Binding OpenVpnSettingsCommand}" />
             </controls:SettingGroup>
 
+            <controls:SettingGroup Header="{loc:T Set_Account}">
+                <controls:SettingRow Icon="up" Tint="{StaticResource Primary2}" Title="{loc:T Set_Export}" Subtitle="{loc:T Set_ExportHint}" Command="{Binding ExportAccountCommand}" />
+                <controls:SettingRow Icon="down" Tint="{StaticResource Teal}" Title="{loc:T Set_Import}" Subtitle="{loc:T Set_ImportHint}" Command="{Binding ImportAccountCommand}" />
+            </controls:SettingGroup>
+
             <controls:SettingGroup Header="{loc:T Set_About}">
                 <controls:SettingRow Icon="file" Tint="{StaticResource Text2}" Title="{loc:T Set_ShareLog}" Subtitle="{loc:T Set_ShareLogHint}" Command="{Binding ShareLogsCommand}" />
                 <controls:SettingRow Icon="info" Tint="{StaticResource Text2}" Title="{loc:T Set_Licenses}" Command="{Binding LicensesCommand}" />

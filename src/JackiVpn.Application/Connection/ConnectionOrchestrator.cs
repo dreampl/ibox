@@ -170,12 +170,24 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
 
     // ------------------------------------------------------------------ connect
 
-    /// <summary>Connects; returns false (with <see cref="ConnectionStatus.LastError"/> set) on failure.</summary>
-    public async Task<bool> ConnectAsync(ConnectRequest request, CancellationToken ct)
+    /// <summary>
+    /// Connects; returns false (with <see cref="ConnectionStatus.LastError"/> set) on failure. Runs on the thread pool:
+    /// called from a button, the work up to the first real wait (reading and decrypting every server, building the
+    /// plan) used to run on the UI thread and froze the window for the click.
+    /// </summary>
+    public Task<bool> ConnectAsync(ConnectRequest request, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(request);
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct, _lifetime.Token);
+
+        // Registered before the hop to the thread pool: a cancel right after the click still finds this connect.
+        var cts = CancellationTokenSource.CreateLinkedTokenSource(ct, _lifetime.Token);
         Volatile.Write(ref _connectCts, cts);
+        return Task.Run(() => ConnectCoreAsync(request, cts), CancellationToken.None);
+    }
+
+    private async Task<bool> ConnectCoreAsync(ConnectRequest request, CancellationTokenSource cts)
+    {
+        using var owned = cts;
         try
         {
             await _op.WaitAsync(cts.Token).ConfigureAwait(false);
@@ -405,6 +417,7 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
     {
         var all = (await _d.Profiles.GetAllAsync(ct).ConfigureAwait(false))
             .Where(p => p.SyncState != ProfileSyncState.RemovedByProvider)
+            .Where(p => p.Origin.ProviderId != Workplace.SecondVpnService.OwnedTag) // the Dual VPN's own config is never the main server
             .ToList();
         var anchorId = request.ProfileId ?? settings.Connection.SelectedProfileId;
         var anchor = anchorId is null ? null : all.FirstOrDefault(p => p.Id == anchorId);
@@ -1248,7 +1261,10 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
     /// Restarts the session on the same server (a setting that lives in the core configuration changed). With
     /// <paramref name="refreshRouting"/> the rule-sets are prepared again first (rules or rule-sets changed).
     /// </summary>
-    public async Task<bool> ReconnectAsync(string reason, CancellationToken ct, bool refreshRouting = false)
+    public Task<bool> ReconnectAsync(string reason, CancellationToken ct, bool refreshRouting = false) =>
+        Task.Run(() => ReconnectCoreAsync(reason, ct, refreshRouting), CancellationToken.None); // off the UI thread, as ConnectAsync
+
+    private async Task<bool> ReconnectCoreAsync(string reason, CancellationToken ct, bool refreshRouting)
     {
         await _op.WaitAsync(ct).ConfigureAwait(false);
         try
@@ -1285,8 +1301,10 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
 
     // ------------------------------------------------------------------ manual switch
 
-    /// <summary>User picked another server while connected.</summary>
-    public async Task<bool> SwitchToAsync(string profileId, CancellationToken ct)
+    /// <summary>User picked another server while connected (off the UI thread, as ConnectAsync).</summary>
+    public Task<bool> SwitchToAsync(string profileId, CancellationToken ct) => Task.Run(() => SwitchToCoreAsync(profileId, ct), CancellationToken.None);
+
+    private async Task<bool> SwitchToCoreAsync(string profileId, CancellationToken ct)
     {
         await _op.WaitAsync(ct).ConfigureAwait(false);
         try

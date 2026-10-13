@@ -82,8 +82,12 @@ public sealed class FlagView : Control
     }
 }
 
-/// <summary>Dotted world map with a soft pulse on the exit location (pulse animates only while connected and visible).</summary>
-public sealed class WorldMapView : Control
+/// <summary>
+/// Dotted world map with a soft pulse on the exit location. The dots are drawn once (per size and theme); only the
+/// small pulse layer over the exit redraws while connected and visible, so the animation touches a few hundred pixels
+/// instead of the whole map.
+/// </summary>
+public sealed class WorldMapView : Panel
 {
     public static readonly StyledProperty<double?> LatitudeProperty = AvaloniaProperty.Register<WorldMapView, double?>(nameof(Latitude));
     public static readonly StyledProperty<double?> LongitudeProperty = AvaloniaProperty.Register<WorldMapView, double?>(nameof(Longitude));
@@ -92,15 +96,15 @@ public sealed class WorldMapView : Control
 
     private static readonly Stopwatch Clock = Stopwatch.StartNew();
     private readonly DispatcherTimer _timer;
-    private StreamGeometry? _dots;
-    private Size _dotsFor;
-
-    static WorldMapView() => AffectsRender<WorldMapView>(LatitudeProperty, LongitudeProperty, CountryCodeProperty, IsActiveProperty);
+    private readonly Dots _dots = new();
+    private readonly Pulse _pulse = new();
 
     public WorldMapView()
     {
         IsHitTestVisible = false;
-        _timer = new DispatcherTimer(TimeSpan.FromMilliseconds(42), DispatcherPriority.Render, (_, _) => InvalidateVisual());
+        Children.Add(_dots);
+        Children.Add(_pulse);
+        _timer = new DispatcherTimer(TimeSpan.FromMilliseconds(42), DispatcherPriority.Render, (_, _) => _pulse.InvalidateVisual());
     }
 
     public double? Latitude { get => GetValue(LatitudeProperty); set => SetValue(LatitudeProperty, value); }
@@ -117,6 +121,12 @@ public sealed class WorldMapView : Control
         if (change.Property == IsActiveProperty || change.Property == IsVisibleProperty)
         {
             UpdateTimer();
+        }
+
+        if (change.Property == IsActiveProperty || change.Property == LatitudeProperty || change.Property == LongitudeProperty || change.Property == CountryCodeProperty)
+        {
+            InvalidateArrange(); // the pulse layer moves to the new exit
+            _pulse.InvalidateVisual();
         }
     }
 
@@ -150,62 +160,99 @@ public sealed class WorldMapView : Control
         return new Size(w, Math.Min(double.IsInfinity(availableSize.Height) ? double.MaxValue : availableSize.Height, w * WorldMap.Rows / WorldMap.Columns));
     }
 
-    private (double Cell, double X, double Y) Layout()
+    private static (double Cell, double X, double Y) Layout(Size size)
     {
-        var cell = Math.Min(Bounds.Width / WorldMap.Columns, Bounds.Height / WorldMap.Rows);
-        return (cell, (Bounds.Width - (cell * WorldMap.Columns)) / 2, (Bounds.Height - (cell * WorldMap.Rows)) / 2);
+        var cell = Math.Min(size.Width / WorldMap.Columns, size.Height / WorldMap.Rows);
+        return (cell, (size.Width - (cell * WorldMap.Columns)) / 2, (size.Height - (cell * WorldMap.Rows)) / 2);
     }
 
-    public override void Render(DrawingContext context)
+    protected override Size ArrangeOverride(Size finalSize)
     {
-        var (cell, ox, oy) = Layout();
-        if (cell <= 0)
+        _dots.Arrange(new Rect(finalSize));
+        var (cell, ox, oy) = Layout(finalSize);
+        if (IsActive && cell > 0 && (Latitude is { } lat && Longitude is { } lon ? (lat, lon) : WorldMap.CountryPoint(CountryCode)) is { } loc)
         {
-            return;
+            var (pc, pr) = WorldMap.Project(loc.Item1, loc.Item2);
+            var reach = (cell * 6.7) + 2;
+            var cx = ox + ((pc + 0.5) * cell);
+            var cy = oy + ((pr + 0.5) * cell);
+            _pulse.Cell = cell;
+            _pulse.Arrange(new Rect(cx - reach, cy - reach, reach * 2, reach * 2));
+        }
+        else
+        {
+            _pulse.Arrange(default);
         }
 
-        if (_dots is null || _dotsFor != Bounds.Size)
-        {
-            _dotsFor = Bounds.Size;
-            _dots = new StreamGeometry();
-            var r = cell * 0.3;
-            using var ctx = _dots.Open();
-            for (var row = 0; row < WorldMap.Rows; row++)
-            {
-                for (var col = 0; col < WorldMap.Columns; col++)
-                {
-                    if (!WorldMap.IsLand(col, row))
-                    {
-                        continue;
-                    }
+        return finalSize;
+    }
 
-                    var cx = ox + ((col + 0.5) * cell);
-                    var cy = oy + ((row + 0.5) * cell);
-                    ctx.BeginFigure(new Point(cx - r, cy), true);
-                    ctx.ArcTo(new Point(cx + r, cy), new Size(r, r), 0, false, SweepDirection.Clockwise);
-                    ctx.ArcTo(new Point(cx - r, cy), new Size(r, r), 0, false, SweepDirection.Clockwise);
-                    ctx.EndFigure(true);
+    /// <summary>The land dots: one cached geometry, redrawn only when the size or the theme changes.</summary>
+    private sealed class Dots : Control
+    {
+        private StreamGeometry? _geometry;
+        private Size _for;
+
+        public override void Render(DrawingContext context)
+        {
+            var (cell, ox, oy) = Layout(Bounds.Size);
+            if (cell <= 0)
+            {
+                return;
+            }
+
+            if (_geometry is null || _for != Bounds.Size)
+            {
+                _for = Bounds.Size;
+                _geometry = new StreamGeometry();
+                var r = cell * 0.3;
+                using var ctx = _geometry.Open();
+                for (var row = 0; row < WorldMap.Rows; row++)
+                {
+                    for (var col = 0; col < WorldMap.Columns; col++)
+                    {
+                        if (!WorldMap.IsLand(col, row))
+                        {
+                            continue;
+                        }
+
+                        var cx = ox + ((col + 0.5) * cell);
+                        var cy = oy + ((row + 0.5) * cell);
+                        ctx.BeginFigure(new Point(cx - r, cy), true);
+                        ctx.ArcTo(new Point(cx + r, cy), new Size(r, r), 0, false, SweepDirection.Clockwise);
+                        ctx.ArcTo(new Point(cx - r, cy), new Size(r, r), 0, false, SweepDirection.Clockwise);
+                        ctx.EndFigure(true);
+                    }
                 }
             }
-        }
 
-        context.DrawGeometry(new SolidColorBrush(Look.P.MapDot), null, _dots);
-        if (!IsActive || (Latitude is { } lat && Longitude is { } lon ? (lat, lon) : WorldMap.CountryPoint(CountryCode)) is not { } loc)
+            context.DrawGeometry(new SolidColorBrush(Look.P.MapDot), null, _geometry);
+        }
+    }
+
+    /// <summary>The exit: a ring that grows and fades every 2.4 s around a solid core with a soft halo.</summary>
+    private sealed class Pulse : Control
+    {
+        public double Cell { get; set; }
+
+        public override void Render(DrawingContext context)
         {
-            return;
-        }
+            if (Cell <= 0 || Bounds.Width <= 0)
+            {
+                return;
+            }
 
-        var (pc, pr) = WorldMap.Project(loc.Item1, loc.Item2);
-        var center = new Point(ox + ((pc + 0.5) * cell), oy + ((pr + 0.5) * cell));
-        var color = Success;
-        var t = (Clock.Elapsed.TotalSeconds % 2.4) / 2.4;
-        var ring = (cell * 1.2) + (t * cell * 5.5);
-        context.DrawEllipse(null, new Pen(new SolidColorBrush(Color.FromArgb((byte)(200 * (1 - t)), color.R, color.G, color.B)), 1.6), center, ring, ring);
-        context.DrawEllipse(new SolidColorBrush(Color.FromArgb(0x40, color.R, color.G, color.B)), null, center, cell * 1.6, cell * 1.6);
-        context.DrawEllipse(new SolidColorBrush(color), new Pen(Brushes.White, Math.Max(1, cell * 0.3)), center, cell * 0.85, cell * 0.85);
+            var cell = Cell;
+            var center = new Point(Bounds.Width / 2, Bounds.Height / 2);
+            var color = Success;
+            var t = (Clock.Elapsed.TotalSeconds % 2.4) / 2.4;
+            var ring = (cell * 1.2) + (t * cell * 5.5);
+            context.DrawEllipse(null, new Pen(new SolidColorBrush(Color.FromArgb((byte)(200 * (1 - t)), color.R, color.G, color.B)), 1.6), center, ring, ring);
+            context.DrawEllipse(new SolidColorBrush(Color.FromArgb(0x40, color.R, color.G, color.B)), null, center, cell * 1.6, cell * 1.6);
+            context.DrawEllipse(new SolidColorBrush(color), new Pen(Brushes.White, Math.Max(1, cell * 0.3)), center, cell * 0.85, cell * 0.85);
+        }
     }
 }
-
 /// <summary>Live throughput: download and upload as smooth lines over soft gradient areas, auto-scaled.</summary>
 public sealed class TrafficChart : Control
 {

@@ -105,7 +105,7 @@ public sealed class RoutingPage : OptionsPage
         S.Settings.Changed += changed;
         Track(() => S.Settings.Changed -= changed);
         return Stack(
-            Header("Routing", "Rules are checked top to bottom; the first match wins.", actions),
+            Header("Routing", "Decide which sites and apps go through the VPN, go direct or are blocked. Rules are checked from the top; the first match wins.", actions),
             Section("Preset", "Rule = everything through VPN except BitTorrent; Global = everything through VPN; Direct = nothing through VPN; Iran friendly = Iranian sites and IPs direct, the rest through VPN (every preset rule is editable).",
                 Row("Preset", null, preset),
                 Row("Unmatched traffic", "What happens to traffic that matches no rule.", final),
@@ -656,7 +656,7 @@ public sealed class DnsPage(Shell shell) : OptionsPage(shell)
             leak.IsVisible = v is DnsMode.System or DnsMode.Local;
         });
         return Stack(
-            Header("DNS", "How domain names are resolved while connected. The default keeps every lookup encrypted and inside the tunnel."),
+            Header("DNS", "How site names are looked up. The default (Smart) keeps every lookup encrypted and inside the VPN — usually nothing to change here."),
             Section("DNS mode", null, Row("Mode", null, mode), leak),
             Section("Which DNS", "The resolver used outside the tunnel: for VPN server addresses, and for direct sites if you turn that on. Names inside the tunnel use the encrypted resolver.", _choice),
             search,
@@ -693,7 +693,7 @@ public sealed class NetworkPage(Shell shell) : OptionsPage(shell)
         var c = Cur.Connection;
         var mode = Combo([(ConnectionMode.Tun, "TUN (all apps)"), (ConnectionMode.SystemProxy, "System proxy")], c.Mode, v => Set(x => x with { Connection = x.Connection with { Mode = v } }));
         return Stack(
-            Header("Network", "Connection mode and network options."),
+            Header("Network", "How IBOX connects: the whole system (TUN) or only apps that use the proxy, plus network options."),
             Section("Connection mode", "TUN captures all traffic through a virtual network device (sing-box gets the network permission when the package is installed). System proxy only covers apps that honor the desktop proxy settings (GNOME/Ubuntu: set automatically while connected).",
                 Row("Mode", null, mode),
                 Row("IPv6", "Auto enables IPv6 only when the server is proven to carry it; otherwise IPv6 is blocked inside the tunnel so it cannot leak.", EnumCombo(Cur.Ipv6, v => Set(x => x with { Ipv6 = v }))),
@@ -722,7 +722,7 @@ public sealed class AdvancedPage(Shell shell) : OptionsPage(shell)
         var f = Cur.Smart.Failover;
         var probe = Cur.Probe;
         return Stack(
-            Header("Advanced", "Engines, multiplexing, smart selection and server tests. Defaults are tuned for stability."),
+            Header("Advanced", "For experts: engines, multiplexing, server selection and tests. The defaults already work well."),
             Section("Speed & handshake", "Base ping is set by the distance to the server. These settings remove the extra waiting on top of it.",
                 Row("Auto-tune each server", "Measures TLS record vs TCP fragmentation, WebSocket 0-RTT and MUX on real handshakes and keeps the fastest variant that works.", Toggle(p.AutoTune, v => Set(x => x with { Performance = x.Performance with { AutoTune = v } }))),
                 Row("Fast DNS (FakeIP, TUN)", "Tunneled names are answered instantly and resolved by the server.", Toggle(Cur.Dns.FakeIpEnabled, v => Set(x => x with { Dns = x.Dns with { FakeIpEnabled = v } }))),
@@ -763,7 +763,7 @@ public sealed class SettingsPage(Shell shell) : OptionsPage(shell)
     public override string Glyph => Icons.Settings;
 
     protected override Control Build() => Stack(
-        Header("Settings", "Appearance, startup, notifications and logging."),
+        Header("Settings", "Look (light / dark), start-up, the notch, notifications and AI agents."),
         Section("Appearance", null,
             Row("Theme", "System follows the desktop's light or dark setting. Changes apply at once.", Combo(
                 [(AppTheme.System, "System"), (AppTheme.Light, "Light"), (AppTheme.Dark, "Dark")],
@@ -921,6 +921,7 @@ public sealed class AboutPage(Shell shell) : Page(shell)
             Children =
             {
                 Header("About"),
+                Section("Getting started", "A one-minute walk through adding servers, choosing how to connect and the eye button.", Ghost("Show the tour", () => _ = Shell.ShowTourAsync())),
                 Card(new StackPanel
                 {
                     Spacing = 6,

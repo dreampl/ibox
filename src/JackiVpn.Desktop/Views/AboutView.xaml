@@ -12,6 +12,18 @@
                 </StackPanel>
             </StackPanel>
 
+            <!-- How to start, again: the first-start tour. -->
+            <v:ClaySurface Margin="0,0,0,16">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Content="Show the tour" VerticalAlignment="Center"
+                            Command="{Binding DataContext.ShowTourCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                    <StackPanel>
+                        <TextBlock Text="Getting started" Style="{StaticResource Text.Section}" />
+                        <TextBlock Text="A one-minute walk through adding servers, choosing how to connect and the eye button." Style="{StaticResource Text.Hint}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </DockPanel>
+            </v:ClaySurface>
+
             <v:ClaySurface DataContext="{Binding DataContext.Update, RelativeSource={RelativeSource AncestorType=Window}}">
                 <StackPanel>
                     <DockPanel>

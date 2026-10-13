@@ -32,9 +32,18 @@ Linux (Ubuntu / Debian, 64-bit)
 1. Install the package: sudo apt install ./jackivpn_<version>_amd64.deb
    (or unpack jackivpn_<version>_amd64.tar.gz anywhere and run ./jackivpn from it).
 2. Open IBOX from the applications menu (or run: jackivpn gui). The package gives sing-box the network
-   permission TUN mode needs, so no sudo is needed to connect.
+   permission TUN mode needs, so no sudo is needed to connect. (From the .tar.gz, the first TUN connect asks
+   for your password once.) Dual VPN over IPsec uses NetworkManager's plugin: network-manager-l2tp or
+   network-manager-strongswan.
 3. Add your subscription link under Subscriptions and connect.
 Uninstall: sudo apt remove jackivpn
+
+New in 1.6.0
+------------
+- Dual VPN on its own (WireGuard, IPsec, Kerio, or the company's VPN app): Servers > Add Dual VPN.
+- Move your account to another device as one password-protected .ibox file (Windows, Linux, Android).
+- A short first-start tour (again from About); much smoother Windows app; Linux fixes (subscriptions in TUN
+  mode, one password prompt, notch).
 
 New in 1.5.0
 ------------

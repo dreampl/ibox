@@ -6,7 +6,7 @@
     <ProductName>JackiVpn</ProductName>
     <ProductDisplayName>Jacki VPN</ProductDisplayName>
     <ProductCompany>Jacki</ProductCompany>
-    <Version>1.5.0</Version>
+    <Version>1.6.0</Version>
     <Company>$(ProductCompany)</Company>
     <Product>$(ProductDisplayName)</Product>
     <Copyright>Copyright © $(ProductCompany)</Copyright>
