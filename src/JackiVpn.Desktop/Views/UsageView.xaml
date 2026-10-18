@@ -1,7 +1,7 @@
 <UserControl x:Class="JackiVpn.Desktop.Views.UsageView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:v="clr-namespace:JackiVpn.Desktop.Views"
+             xmlns:v="clr-namespace:JackiVpn.Desktop.Views" xmlns:k="clr-namespace:JackiVpn.Desktop.Views;assembly=JackiVpn.NotchKit"
              xmlns:vm="clr-namespace:JackiVpn.Desktop.ViewModels"
              x:Name="Page">
     <UserControl.Resources>
@@ -9,7 +9,7 @@
         <SolidColorBrush x:Key="UpBrush" Color="#FFEB6834" />
     </UserControl.Resources>
     <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="32,26,32,26" v:Motion.StaggerChildren="True">
+        <StackPanel Margin="32,26,32,26" k:Motion.StaggerChildren="True">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Right" HorizontalAlignment="Right">
                     <Border Style="{StaticResource SegmentHost}">
@@ -21,7 +21,7 @@
                             <RadioButton Style="{StaticResource Segment}" GroupName="TMode" Content="Work" IsChecked="{Binding Mode, Converter={StaticResource EnumIs}, ConverterParameter=Work}" ToolTip="Company traffic stays local; updates and heavy personal traffic are held back." />
                         </StackPanel>
                     </Border>
-                    <TextBlock Text="{Binding ModeReason}" Style="{StaticResource Text.Caption}" HorizontalAlignment="Right" Margin="0,6,4,0" v:Motion.FadeOnChange="True" />
+                    <TextBlock Text="{Binding ModeReason}" Style="{StaticResource Text.Caption}" HorizontalAlignment="Right" Margin="0,6,4,0" k:Motion.FadeOnChange="True" />
                 </StackPanel>
                 <StackPanel>
                     <TextBlock Text="Where your data goes, what is using it right now, and how to keep it under control." Style="{StaticResource Text.PageSubtitle}" />
@@ -90,7 +90,7 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                         <StackPanel Orientation="Horizontal" Visibility="{Binding Live.Count, Converter={StaticResource ZeroToVis}}">
-                            <v:OrbView State="Breathing" Width="22" Height="22" Margin="0,0,8,0" />
+                            <k:OrbView State="Breathing" Width="22" Height="22" Margin="0,0,8,0" />
                             <TextBlock Text="Connect to see which apps use the tunnel (TUN mode shows every app)." Style="{StaticResource Text.Hint}" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="360" />
                         </StackPanel>
                     </StackPanel>
@@ -190,7 +190,7 @@
                                 </Style.Triggers>
                             </Style>
                         </StackPanel.Style>
-                        <v:OrbView State="Composing" Width="24" Height="24" Margin="0,0,10,0" />
+                        <k:OrbView State="Composing" Width="24" Height="24" Margin="0,0,10,0" />
                         <TextBlock Text="Per-app usage appears here once you are connected (every app in TUN mode; in proxy mode, apps that use the proxy)." Style="{StaticResource Text.Hint}" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="700" />
                     </StackPanel>
 

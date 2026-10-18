@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net;
 using System.Net.NetworkInformation;
+using JackiVpn.Application.Connection;
 using JackiVpn.Application.Settings;
 using JackiVpn.Domain.Abstractions;
 using JackiVpn.Domain.Common;
@@ -27,6 +28,9 @@ public interface ISecondVpnSystem
 
     /// <summary>The network adapter the connection uses once up (null when it has none, e.g. policy-based IKEv2).</summary>
     string? AdapterOf(string entry);
+
+    /// <summary>Full tunnel (all traffic: the Dual VPN alone) or split (only its routes); applies on the next dial.</summary>
+    Task<string?> SetFullTunnelAsync(string entry, bool full, CancellationToken ct);
 }
 
 /// <summary>What the editor hands over (plain text; secrets are encrypted before they are stored).</summary>
@@ -50,6 +54,7 @@ public sealed record SecondVpnDraft
     public string? Domains { get; init; }
     public string? Cidrs { get; init; }
     public string? Dns { get; init; }
+    public SecondVpnScope Scope { get; init; }
 }
 
 /// <summary>A wg-quick configuration ([Interface] + [Peer]) as an IBOX server, plus what it says about the network.</summary>
@@ -151,10 +156,10 @@ public static class WireGuardConf
 }
 
 /// <summary>
-/// The standalone Dual VPN: a second VPN to a company or a server next to the IBOX connection, in every mode. A
-/// WireGuard config or a saved server rides inside IBOX's own core; IPsec is the system's VPN client, set up and
-/// dialled from here; Kerio and other company VPN apps keep their own app and IBOX uses their adapter. Only the
-/// given names and subnets take the second VPN; everything else keeps the IBOX connection.
+/// The standalone Dual VPN: a second VPN to a company or a server, with its own on/off. On alone it carries all
+/// traffic (a WireGuard config or a saved server as IBOX's connection; IPsec dialled as a full tunnel); with the main
+/// VPN on too, the traffic is split — only the company's part (smart, or the names and subnets listed) takes the
+/// second VPN. Kerio and other company VPN apps keep their own app and IBOX uses their adapter.
 /// </summary>
 public sealed class SecondVpnService(SettingsStore settings, IProfileRepository profiles, ISecretProtector protector, ISecondVpnSystem? system, ILogger logger)
 {
@@ -170,6 +175,159 @@ public sealed class SecondVpnService(SettingsStore settings, IProfileRepository 
 
     /// <summary>IPsec here (Windows, Linux with NetworkManager); not on Android.</summary>
     public bool SupportsIpsec => system is not null;
+
+    private ConnectionOrchestrator? _orchestrator;
+    private bool? _ipsecFull;
+
+    /// <summary>
+    /// Connects this to the connection: when the user turns the main VPN off while the Dual VPN is on, the Dual VPN
+    /// takes over everything; before the main VPN comes on, an IPsec second VPN switches to split tunnel.
+    /// </summary>
+    public void Attach(ConnectionOrchestrator orchestrator)
+    {
+        _orchestrator = orchestrator;
+        orchestrator.UserDisconnected += (_, wasDualOnly) =>
+        {
+            if (!wasDualOnly && Current is { Enabled: true, IsConfigured: true })
+            {
+                _ = Task.Run(() => RunAloneAsync(CancellationToken.None));
+            }
+            else
+            {
+                Changed?.Invoke(this, EventArgs.Empty);
+            }
+        };
+    }
+
+    /// <summary>True while the Dual VPN runs on its own and carries everything.</summary>
+    public bool IsAlone => Current is { Enabled: true, IsConfigured: true } d && (d.Route == WorkRoute.Server
+        ? _orchestrator?.Status is { State: ConnectionState.Connected, DualOnly: true }
+        : !MainOn && AdapterUp(d.Interface));
+
+    /// <summary>The main VPN is on (not just the Dual VPN alone).</summary>
+    private bool MainOn => _orchestrator?.Status is { DualOnly: false } s && !ConnectionStateRules.IsIdle(s.State);
+
+    /// <summary>The Dual VPN alone: its server becomes the connection (all traffic), or IPsec dials as a full tunnel.</summary>
+    public async Task<string?> RunAloneAsync(CancellationToken ct)
+    {
+        var d = Current;
+        if (!d.Enabled || !d.IsConfigured || MainOn)
+        {
+            return null;
+        }
+
+        try
+        {
+            switch (d.Kind)
+            {
+                case SecondVpnKind.WireGuard or SecondVpnKind.Server when _orchestrator is { } o && d.ServerId is { } id:
+                    logger.LogInformation("Dual VPN on its own: all traffic goes through it.");
+                    if (!await o.ConnectAsync(new ConnectRequest { ProfileId = id, Smart = false, DualOnly = true }, ct).ConfigureAwait(false))
+                    {
+                        return o.Status.LastError ?? "The second VPN did not connect.";
+                    }
+
+                    return null;
+                case SecondVpnKind.Ipsec when system is not null:
+                    return await DialIpsecAsync(full: true, ct).ConfigureAwait(false);
+                default:
+                    return null; // Kerio / another VPN app: that app decides what it carries
+            }
+        }
+        finally
+        {
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    /// <summary>Before the main VPN connects: an IPsec second VPN that carried everything switches to split tunnel.</summary>
+    public async Task PrepareMainAsync(CancellationToken ct)
+    {
+        if (Current is { Enabled: true, Kind: SecondVpnKind.Ipsec, IsConfigured: true } && system is not null && _ipsecFull != false)
+        {
+            await DialIpsecAsync(full: false, ct).ConfigureAwait(false);
+        }
+    }
+
+    private async Task<string?> DialIpsecAsync(bool full, CancellationToken ct)
+    {
+        var d = Current;
+        var entry = EntryName(d);
+        if (_ipsecFull != full)
+        {
+            await system!.HangUpAsync(entry, ct).ConfigureAwait(false);
+            if (await system.SetFullTunnelAsync(entry, full, ct).ConfigureAwait(false) is { } problem)
+            {
+                return problem;
+            }
+
+            _ipsecFull = full;
+        }
+
+        return await ConnectAsync(ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// For the smart scope: the second VPN's own subnet, resolvers and domain (its adapter, when it has one), and this
+    /// device's local networks (the adapters with a gateway, other than the VPNs), which must stay direct.
+    /// </summary>
+    public SecondVpnDetected Detect()
+    {
+        var d = Current;
+        if (!d.Enabled || !d.IsConfigured || d.Scope != SecondVpnScope.Smart)
+        {
+            // Nothing to find out (and the adapter queries are not free).
+            return new SecondVpnDetected();
+        }
+
+        try
+        {
+            var all = NetworkInterface.GetAllNetworkInterfaces().Where(n => n.OperationalStatus == OperationalStatus.Up && n.NetworkInterfaceType != NetworkInterfaceType.Loopback).ToList();
+            var vpn = d.Interface is { Length: > 0 } name ? all.FirstOrDefault(n => string.Equals(n.Name, name, StringComparison.OrdinalIgnoreCase)) : null;
+            var domains = new List<string>();
+            var cidrs = new List<string>();
+            var dns = new List<string>();
+            if (vpn is not null)
+            {
+                var props = vpn.GetIPProperties();
+                if (props.DnsSuffix is { Length: > 0 } suffix && NetText.IsValidHostName(suffix))
+                {
+                    domains.Add(suffix);
+                }
+
+                dns.AddRange(props.DnsAddresses.Where(a => !IPAddress.IsLoopback(a)).Select(a => a.ToString()));
+                cidrs.AddRange(props.UnicastAddresses.Where(u => u.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork && u.PrefixLength is > 0 and < 32)
+                    .Select(u => Network(u.Address, u.PrefixLength)));
+            }
+
+            static bool OurOrVpn(NetworkInterface n) => n.NetworkInterfaceType is NetworkInterfaceType.Ppp or NetworkInterfaceType.Tunnel
+                || new[] { "jacki", "ibox", "sing", "tun", "wg", "kvnet", "kerio", "vpn", "tap" }.Any(k => n.Name.Contains(k, StringComparison.OrdinalIgnoreCase) || n.Description.Contains(k, StringComparison.OrdinalIgnoreCase));
+            var local = all.Where(n => n != vpn && !OurOrVpn(n) && n.GetIPProperties().GatewayAddresses.Count > 0)
+                .SelectMany(n => n.GetIPProperties().UnicastAddresses)
+                .Where(u => u.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork && u.PrefixLength is > 0 and < 32)
+                .Select(u => Network(u.Address, u.PrefixLength))
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+            return new SecondVpnDetected { Domains = domains, Cidrs = cidrs, Dns = dns, LocalSubnets = local };
+        }
+        catch (Exception ex) when (ex is NetworkInformationException or PlatformNotSupportedException or NotSupportedException or InvalidOperationException)
+        {
+            // Android and some systems do not tell gateways or resolvers: the smart scope then uses the private ranges only.
+            return new SecondVpnDetected();
+        }
+    }
+
+    private static string Network(IPAddress address, int prefix)
+    {
+        var bytes = address.GetAddressBytes();
+        for (var i = 0; i < bytes.Length; i++)
+        {
+            var keep = Math.Clamp(prefix - (i * 8), 0, 8);
+            bytes[i] &= (byte)(0xFF << (8 - keep));
+        }
+
+        return new IPAddress(bytes) + "/" + prefix.ToString(CultureInfo.InvariantCulture);
+    }
 
     /// <summary>The system connection's name for this second VPN.</summary>
     public static string EntryName(SecondVpnSettings dual) => "IBOX " + Clean(dual.Name);
@@ -192,7 +350,7 @@ public sealed class SecondVpnService(SettingsStore settings, IProfileRepository 
             return false;
         }
 
-        return d.Route == WorkRoute.Server ? main == ConnectionState.Connected : AdapterUp(d.Interface);
+        return d.Route == WorkRoute.Server ? main == ConnectionState.Connected : AdapterUp(d.Interface) || (d.Kind == SecondVpnKind.Ipsec && d.Interface is null && _ipsecFull is not null);
     }
 
     /// <summary>One line for the dashboard and the servers list.</summary>
@@ -209,9 +367,15 @@ public sealed class SecondVpnService(SettingsStore settings, IProfileRepository 
             return "Needs setup";
         }
 
+        if (IsAlone)
+        {
+            return "On alone — all traffic goes through it";
+        }
+
         if (IsActive(main))
         {
-            return d.Route == WorkRoute.Server ? "Active — company traffic via " + d.KindLabel : "Active — via " + d.Interface;
+            var what = d.Scope == SecondVpnScope.Smart ? "the company's traffic (smart)" : "the listed names and subnets";
+            return MainOn ? $"Active — {what} via {(d.Route == WorkRoute.Server ? d.KindLabel : d.Interface)}" : "Active — via " + (d.Interface ?? d.KindLabel);
         }
 
         return d.Kind switch
@@ -219,7 +383,7 @@ public sealed class SecondVpnService(SettingsStore settings, IProfileRepository 
             SecondVpnKind.Kerio => "Waiting for the Kerio VPN Client to connect",
             SecondVpnKind.App => "Waiting for the company VPN app (" + d.Interface + ")",
             SecondVpnKind.Ipsec => "Not connected",
-            _ => "Turns on with the IBOX connection",
+            _ => "Connecting…",
         };
     }
 
@@ -259,13 +423,39 @@ public sealed class SecondVpnService(SettingsStore settings, IProfileRepository 
         }
     }
 
-    public Task SetEnabledAsync(bool on, CancellationToken ct)
+    /// <summary>
+    /// The Dual VPN's own switch, independent of the main VPN: on alone it carries everything; with the main VPN on
+    /// it takes the company's part (the main connection is rebuilt with the split). Off: back to the main VPN alone,
+    /// or nothing.
+    /// </summary>
+    public async Task<string?> SetEnabledAsync(bool on, CancellationToken ct)
     {
         settings.Update(s => s with { DualVpn = s.DualVpn with { Enabled = on } });
+        Changed?.Invoke(this, EventArgs.Empty); // with the main VPN on, the traffic settings rebuild its connection
+        var d = Current;
+        if (on)
+        {
+            if (MainOn)
+            {
+                return d.Kind == SecondVpnKind.Ipsec && system is not null ? await DialIpsecAsync(full: false, ct).ConfigureAwait(false) : null;
+            }
+
+            return await RunAloneAsync(ct).ConfigureAwait(false);
+        }
+
+        if (_orchestrator?.Status.DualOnly == true)
+        {
+            await _orchestrator.DisconnectAsync(ct).ConfigureAwait(false);
+        }
+
+        if (d.Kind == SecondVpnKind.Ipsec && system is not null)
+        {
+            await system.HangUpAsync(EntryName(d), ct).ConfigureAwait(false);
+            _ipsecFull = null;
+        }
+
         Changed?.Invoke(this, EventArgs.Empty);
-        return Current.Kind == SecondVpnKind.Ipsec && system is not null
-            ? on ? ConnectAsync(ct) : system.HangUpAsync(EntryName(Current), ct)
-            : Task.CompletedTask;
+        return null;
     }
 
     /// <summary>Checks and stores the edited second VPN (sets up IPsec, saves a WireGuard config as a server).</summary>
@@ -281,6 +471,7 @@ public sealed class SecondVpnService(SettingsStore settings, IProfileRepository 
         {
             Name = name,
             Kind = draft.Kind,
+            Scope = draft.Scope,
             IpsecType = draft.IpsecType,
             Username = string.IsNullOrWhiteSpace(draft.Username) ? null : draft.Username.Trim(),
             Interface = null,
@@ -426,9 +617,9 @@ public sealed class SecondVpnService(SettingsStore settings, IProfileRepository 
             return $"\"{badDns}\" is not an IP address.";
         }
 
-        if (domains.Count == 0 && cidrs.Count == 0)
+        if (draft.Scope == SecondVpnScope.Custom && domains.Count == 0 && cidrs.Count == 0)
         {
-            return "Add the company's internal names or subnets: only they take the second VPN.";
+            return "Add the company's names or subnets (only they take the second VPN), or choose Smart.";
         }
 
         if (domains.Count > 500 || cidrs.Count > 500 || dns.Count > 8)
@@ -457,13 +648,16 @@ public sealed class SecondVpnService(SettingsStore settings, IProfileRepository 
         };
         settings.Update(s => s with { DualVpn = next });
         logger.LogInformation("Dual VPN saved: {Kind}, {Names} names, {Subnets} subnets.", next.KindLabel, next.Domains.Count, next.Cidrs.Count);
+        _ipsecFull = null;
         Changed?.Invoke(this, EventArgs.Empty);
-        if (next.Kind == SecondVpnKind.Ipsec)
+
+        // Saved = on: with the main VPN on it takes the company's part; alone it carries everything.
+        if (MainOn)
         {
-            return await ConnectAsync(ct).ConfigureAwait(false);
+            return next.Kind == SecondVpnKind.Ipsec && system is not null ? await DialIpsecAsync(full: false, ct).ConfigureAwait(false) : null;
         }
 
-        return null;
+        return await RunAloneAsync(ct).ConfigureAwait(false);
     }
 
     /// <summary>Dials the IPsec second VPN (others connect by themselves or with IBOX).</summary>

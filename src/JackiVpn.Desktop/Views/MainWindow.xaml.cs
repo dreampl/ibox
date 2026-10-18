@@ -25,8 +25,13 @@ public partial class MainWindow : Window
         SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(this);
         vm.PropertyChanged += OnVmChanged;
         ShowPage(vm.Selected?.Page);
+        IsVisibleChanged += OnVisibilityChanged;
 
-        StateChanged += (_, _) => UpdateOnScreen();
+        StateChanged += (_, _) =>
+        {
+            UpdateOnScreen();
+            ScheduleRelease();
+        };
         IsVisibleChanged += (_, _) => UpdateOnScreen();
     }
 
@@ -113,11 +118,99 @@ public partial class MainWindow : Window
             PageHost.Children.Add(view);
         }
 
+        // Only the last few pages stay built: going back is instant, memory stays small.
+        _recent.Remove(page);
+        _recent.Add(page);
+        while (_recent.Count > MaxCachedPages)
+        {
+            var old = _recent[0];
+            _recent.RemoveAt(0);
+            if (_pages.Remove(old, out var gone))
+            {
+                PageHost.Children.Remove(gone);
+                gone.Content = null;
+            }
+        }
+
         foreach (var (key, presenter) in _pages)
         {
             presenter.Visibility = ReferenceEquals(key, page) ? Visibility.Visible : Visibility.Collapsed;
         }
     }
+
+    private const int MaxCachedPages = 3;
+    private readonly System.Collections.Generic.List<object> _recent = [];
+
+    private System.Windows.Threading.DispatcherTimer? _release;
+
+    /// <summary>
+    /// Closed to the tray: after a few seconds the cached pages (except the current one) and the shadow pictures
+    /// are let go and the memory handed back to Windows — IBOX mostly lives in the tray. They are rebuilt on the
+    /// next visit. A one-shot timer started by hiding, not a repeating one.
+    /// </summary>
+    private void OnVisibilityChanged(object sender, DependencyPropertyChangedEventArgs e) => ScheduleRelease();
+
+    /// <summary>
+    /// Off screen (tray or minimized): after a few seconds the other pages are let go and the memory handed back to
+    /// Windows; while it stays off screen the unused memory is handed back again every two minutes (timers touch a
+    /// little of it), so IBOX in the tray stays at a few tens of megabytes.
+    /// </summary>
+    private void ScheduleRelease()
+    {
+        _release ??= new System.Windows.Threading.DispatcherTimer(System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        _release.Tick -= ReleasePages;
+        _release.Tick += ReleasePages;
+        _release.Stop();
+        if (OffScreen)
+        {
+            _releaseRounds = 0;
+            _release.Interval = TimeSpan.FromSeconds(5);
+            _release.Start();
+        }
+    }
+
+    private bool OffScreen => !IsVisible || WindowState == WindowState.Minimized;
+
+    private int _releaseRounds;
+
+    private void ReleasePages(object? sender, EventArgs e)
+    {
+        if (!OffScreen)
+        {
+            _release?.Stop();
+            return;
+        }
+
+        if (_releaseRounds++ == 0)
+        {
+            var current = _vm.Selected?.Page;
+            foreach (var key in System.Linq.Enumerable.ToList(_pages.Keys))
+            {
+                if (!ReferenceEquals(key, current))
+                {
+                    PageHost.Children.Remove(_pages[key]);
+                    _pages[key].Content = null;
+                    _pages.Remove(key);
+                    _recent.Remove(key);
+                }
+            }
+
+            SoftShadow.ClearCache();
+        }
+
+        // A full compacting collection now and then; in between only the untouched pages go back to Windows.
+        if (_releaseRounds % 5 == 1)
+        {
+            GC.Collect(2, GCCollectionMode.Aggressive, blocking: true, compacting: true);
+        }
+
+        using var self = System.Diagnostics.Process.GetCurrentProcess();
+        _ = EmptyWorkingSet(self.Handle);
+        _release!.Interval = TimeSpan.FromMinutes(2);
+    }
+
+    [System.Runtime.InteropServices.DllImport("psapi.dll")]
+    private static extern bool EmptyWorkingSet(nint process);
     /// <summary>
     /// After start-up, builds the other pages one at a time while the app is idle (laid out hidden, then collapsed),
     /// so even the first visit of a page shows at once instead of building it then.

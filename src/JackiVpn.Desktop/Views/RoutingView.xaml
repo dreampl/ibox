@@ -1,10 +1,10 @@
 <UserControl x:Class="JackiVpn.Desktop.Views.RoutingView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:v="clr-namespace:JackiVpn.Desktop.Views"
+             xmlns:v="clr-namespace:JackiVpn.Desktop.Views" xmlns:k="clr-namespace:JackiVpn.Desktop.Views;assembly=JackiVpn.NotchKit"
              xmlns:vm="clr-namespace:JackiVpn.Desktop.ViewModels">
     <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="32,26,32,26" v:Motion.StaggerChildren="True">
+        <StackPanel Margin="32,26,32,26" k:Motion.StaggerChildren="True">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
                     <Button Style="{StaticResource Button.Outline}" Content="Node editor…" Command="{Binding OpenNodeEditorCommand}" Margin="0,0,8,0"
@@ -121,7 +121,7 @@
                     <DockPanel Margin="0,0,0,10">
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                             <Button Content="Add rule-set…" Command="{Binding AddRuleSetCommand}" Margin="0,0,8,0" />
-                            <v:OrbView State="Composing" Width="24" Height="24" Margin="0,0,8,0" VerticalAlignment="Center" IsRunning="{Binding IsUpdatingRuleSets}" Visibility="{Binding IsUpdatingRuleSets, Converter={StaticResource Bool2Vis}}" />
+                            <k:OrbView State="Composing" Width="24" Height="24" Margin="0,0,8,0" VerticalAlignment="Center" IsRunning="{Binding IsUpdatingRuleSets}" Visibility="{Binding IsUpdatingRuleSets, Converter={StaticResource Bool2Vis}}" />
                         <Button Content="Update now" Command="{Binding UpdateRuleSetsCommand}" IsEnabled="{Binding IsUpdatingRuleSets, Converter={StaticResource InvBool}}" />
                         </StackPanel>
                         <StackPanel>

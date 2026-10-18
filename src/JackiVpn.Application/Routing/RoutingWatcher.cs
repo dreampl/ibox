@@ -15,7 +15,7 @@ namespace JackiVpn.Application.Routing;
 /// </summary>
 public sealed class RoutingWatcher : IDisposable
 {
-    public static readonly TimeSpan Settle = TimeSpan.FromSeconds(1.5);
+    public static readonly TimeSpan Settle = TimeSpan.FromSeconds(6);
 
     private readonly SettingsStore _settings;
     private readonly ConnectionOrchestrator _orchestrator;

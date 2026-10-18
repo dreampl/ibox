@@ -44,6 +44,11 @@ internal static class ProfilesUi
             }
         }
 
+        if (Domain.Visuals.Avatars.Find(account.Avatar) is { } art)
+        {
+            return new AvatarArtView { Art = art, Width = size, Height = size };
+        }
+
         var color = Color.FromUInt32(LocalAccountService.AvatarColors[Math.Clamp(account.Color, 0, LocalAccountService.AvatarColors.Count - 1)]);
         return new Border
         {
@@ -53,6 +58,43 @@ internal static class ProfilesUi
             Background = Gradient(color, Color.FromArgb(255, (byte)(color.R * 0.75), (byte)(color.G * 0.75), (byte)(color.B * 0.75))),
             Child = new TextBlock { Text = account.Initials, FontSize = size * 0.38, FontWeight = FontWeight.SemiBold, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center },
         };
+    }
+
+    /// <summary>A cartoon avatar (<see cref="Domain.Visuals.Avatars"/>) drawn from its vectors, clipped to a circle.</summary>
+    public sealed class AvatarArtView : Control
+    {
+        private static readonly Dictionary<string, (Geometry Shape, IBrush? Fill, IPen? Pen)[]> Shapes = new(StringComparer.Ordinal);
+
+        public Domain.Visuals.AvatarArt? Art { get; set; }
+
+        public override void Render(DrawingContext context)
+        {
+            if (Art is not { } art || Bounds.Width <= 0)
+            {
+                return;
+            }
+
+            if (!Shapes.TryGetValue(art.Id, out var shapes))
+            {
+                shapes = art.Layers.Select(l => (
+                    Geometry.Parse(l.Data),
+                    l.Fill == 0 ? null : (IBrush?)new SolidColorBrush(Color.FromUInt32(l.Fill)),
+                    l.Stroke == 0 ? null : (IPen?)new Pen(new SolidColorBrush(Color.FromUInt32(l.Stroke)), l.StrokeWidth, lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round)))
+                    .ToArray();
+                Shapes[art.Id] = shapes;
+            }
+
+            var s = Math.Min(Bounds.Width, Bounds.Height) / 100;
+            using (context.PushTransform(Matrix.CreateScale(s, s)))
+            using (context.PushGeometryClip(new EllipseGeometry(new Rect(0, 0, 100, 100))))
+            {
+                context.DrawEllipse(new SolidColorBrush(Color.FromUInt32(art.Background)), null, new Point(50, 50), 50, 50);
+                foreach (var (shape, fill, pen) in shapes)
+                {
+                    context.DrawGeometry(fill, pen, shape);
+                }
+            }
+        }
     }
 
     public static void ShowPicker(Shell shell, Control anchor)
@@ -193,30 +235,36 @@ internal static class ProfilesUi
         };
         var color = account?.Color ?? accounts.Accounts.Count % LocalAccountService.AvatarColors.Count;
         var name = new TextBox { Text = account?.Name ?? string.Empty, Width = 320, PlaceholderText = "Name" };
-        var swatches = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        // The face of the profile: ten cartoon avatars to pick from (or a picture of your own below).
+        var avatar = account?.Avatar ?? Domain.Visuals.Avatars.NextFree(accounts.Accounts.Select(a => a.Avatar));
+        var swatches = new WrapPanel { MaxWidth = 340 };
         void ShowSwatches()
         {
             swatches.Children.Clear();
-            for (var i = 0; i < LocalAccountService.AvatarColors.Count; i++)
+            foreach (var art in Domain.Visuals.Avatars.All)
             {
-                var index = i;
-                var c = Color.FromUInt32(LocalAccountService.AvatarColors[i]);
-                var swatch = new Border
+                var id = art.Id;
+                var chosen = id == avatar;
+                var face = new Border
                 {
-                    Width = 28,
-                    Height = 28,
-                    CornerRadius = new CornerRadius(14),
-                    Background = B(c),
-                    BorderBrush = B(Text),
-                    BorderThickness = new Thickness(index == color ? 2.5 : 0),
+                    Width = 58,
+                    Height = 58,
+                    Margin = new Thickness(0, 0, 8, 8),
+                    CornerRadius = new CornerRadius(29),
+                    Padding = new Thickness(3),
+                    BorderBrush = B(chosen ? Accent : Ui.Border),
+                    BorderThickness = new Thickness(chosen ? 2.5 : 1),
                     Cursor = new Cursor(StandardCursorType.Hand),
+                    Child = new AvatarArtView { Art = art, Width = 48, Height = 48 },
                 };
-                swatch.PointerPressed += (_, _) =>
+                ToolTip.SetTip(face, art.Name);
+                Avalonia.Automation.AutomationProperties.SetName(face, "Avatar " + art.Name);
+                face.PointerPressed += (_, _) =>
                 {
-                    color = index;
+                    avatar = id;
                     ShowSwatches();
                 };
-                swatches.Children.Add(swatch);
+                swatches.Children.Add(face);
             }
         }
 
@@ -227,7 +275,7 @@ internal static class ProfilesUi
         var removePin = new CheckBox { Content = "Remove the PIN", IsVisible = account?.IsLocked == true };
         var error = new TextBlock { Foreground = B(Danger), FontSize = 12, TextWrapping = TextWrapping.Wrap, MaxWidth = 360, IsVisible = false };
         string? picture = null;
-        var pictureButton = Ghost("Choose picture…", () => { });
+        var pictureButton = Ghost("Or use a picture of your own…", () => { });
         pictureButton.IsVisible = account is not null;
         pictureButton.Click += async (_, _) =>
         {
@@ -238,7 +286,7 @@ internal static class ProfilesUi
                 FileTypeFilter = [new FilePickerFileType("Pictures") { Patterns = ["*.png", "*.jpg", "*.jpeg"] }],
             });
             picture = files.Count > 0 ? files[0].TryGetLocalPath() : null;
-            pictureButton.Content = picture is null ? "Choose picture…" : Path.GetFileName(picture);
+            pictureButton.Content = picture is null ? "Or use a picture of your own…" : Path.GetFileName(picture);
         };
 
         void Fail(string text)
@@ -252,7 +300,7 @@ internal static class ProfilesUi
             var newPin = string.IsNullOrEmpty(pin.Text) ? null : pin.Text;
             if (account is null)
             {
-                var (_, problem) = await accounts.CreateAsync(name.Text ?? string.Empty, color, copy.IsChecked == true, newPin, CancellationToken.None);
+                var (_, problem) = await accounts.CreateAsync(name.Text ?? string.Empty, color, copy.IsChecked == true, newPin, CancellationToken.None, avatar);
                 if (problem is not null)
                 {
                     Fail(problem);
@@ -261,7 +309,7 @@ internal static class ProfilesUi
             }
             else
             {
-                if (await accounts.RenameAsync(account.Id, name.Text ?? string.Empty, color, CancellationToken.None) is { } problem)
+                if (await accounts.RenameAsync(account.Id, name.Text ?? string.Empty, color, CancellationToken.None, picture is null && avatar != account.Avatar ? avatar : null) is { } problem)
                 {
                     Fail(problem);
                     return;
@@ -304,7 +352,7 @@ internal static class ProfilesUi
             {
                 T(account is null ? "Add profile" : "Edit profile", 17, FontWeight.SemiBold),
                 name,
-                Caption("Colour"),
+                Caption("Avatar"),
                 swatches,
                 pictureButton,
                 copy,

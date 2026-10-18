@@ -39,7 +39,7 @@ public sealed partial class ServiceControl(ILogger logger) : IAsyncDisposable
 
     public static string ClientVersion => typeof(ServiceControl).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
 
-    public static string ServiceExecutablePath => Path.Combine(AppContext.BaseDirectory, "JackiVpn.Service.exe");
+    public static string ServiceExecutablePath => Path.Combine(AppContext.BaseDirectory, "IBOX.Service.exe");
 
     public static bool ServiceExecutableAvailable => File.Exists(ServiceExecutablePath);
 
@@ -164,7 +164,7 @@ public sealed partial class ServiceControl(ILogger logger) : IAsyncDisposable
     {
         if (!ServiceExecutableAvailable)
         {
-            return (false, $"JackiVpn.Service.exe was not found next to the app ({AppContext.BaseDirectory}). Use the packaged build (scripts\\build.ps1).");
+            return (false, $"IBOX.Service.exe was not found next to the app ({AppContext.BaseDirectory}). Use the packaged build (scripts\\build.ps1).");
         }
 
         var resultFile = Path.Combine(Path.GetTempPath(), $"jackivpn-svc-{Guid.NewGuid():N}.txt");

@@ -275,7 +275,7 @@ public sealed class TrafficChart : Control
             return;
         }
 
-        var grid = new Pen(new SolidColorBrush(Ui.Border), 1, new DashStyle([2, 4], 0));
+        var grid = new Pen(new SolidColorBrush(Ui.Divider), 1, new DashStyle([2, 4], 0));
         for (var i = 1; i <= 3; i++)
         {
             var y = Math.Round(h * i / 4) + 0.5;

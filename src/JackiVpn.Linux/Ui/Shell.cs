@@ -172,16 +172,54 @@ public sealed class Shell : Window, INotificationSink
                 Look.Apply(s.Ui.Theme);
             }
         });
-        Opened += async (_, _) => await StartAsync();
+        Opened += async (_, _) =>
+        {
+            // Whole-system mode: the one password of the session is asked now, when the app opens, not on connect.
+            _ = Services.PrepareTunAsync(Lifetime.Token);
+            await StartAsync();
+        };
         if (Environment.GetEnvironmentVariable("IBOX_RENDER_DEBUG") == "1")
         {
             RendererDiagnostics.DebugOverlays = Avalonia.Rendering.RendererDebugOverlays.Fps | Avalonia.Rendering.RendererDebugOverlays.DirtyRects;
         }
         Closing += OnClosing;
+        // Minimized: the memory nobody looks at goes back to the system (managed heap compacted, native heap trimmed).
+        PropertyChanged += (_, e) =>
+        {
+            if (e.Property == WindowStateProperty && WindowState == WindowState.Minimized)
+            {
+                DispatcherTimer.RunOnce(() =>
+                {
+                    if (WindowState == WindowState.Minimized)
+                    {
+                        ReleaseMemory();
+                    }
+                }, TimeSpan.FromSeconds(4));
+            }
+        };
         Navigate(_pages[0]);
     }
 
     public LinuxServices Services { get; }
+
+    private static void ReleaseMemory()
+    {
+        GC.Collect(2, GCCollectionMode.Aggressive, blocking: true, compacting: true);
+        if (OperatingSystem.IsLinux())
+        {
+            try
+            {
+                _ = MallocTrim(0);
+            }
+            catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException)
+            {
+                // not glibc (musl): nothing to trim
+            }
+        }
+    }
+
+    [System.Runtime.InteropServices.DllImport("libc", EntryPoint = "malloc_trim")]
+    private static extern int MallocTrim(nuint pad);
 
     public CancellationTokenSource Lifetime { get; }
 
@@ -364,8 +402,8 @@ public sealed class Shell : Window, INotificationSink
     private void StyleNav(Border item, bool selected)
     {
         item.Background = selected ? AccentGradientVertical() : Brushes.Transparent;
-        item.BorderBrush = selected ? B(Accent, 0.6) : Brushes.Transparent;
-        item.BoxShadow = selected ? new BoxShadows(new BoxShadow { OffsetY = 6, Blur = 18, Spread = -2, Color = WithAlpha(Accent, Look.P.IsLight ? 0.35 : 0.5) }) : default;
+        item.BorderBrush = Brushes.Transparent;
+        item.BoxShadow = default;
         if (item.Child is Viewbox icon && icon.Child is Canvas c && c.Children[0] is Avalonia.Controls.Shapes.Path path)
         {
             path.Stroke = selected ? Brushes.White : B(Text2);
@@ -376,7 +414,7 @@ public sealed class Shell : Window, INotificationSink
     {
         StartPoint = new RelativePoint(0.5, 0, RelativeUnit.Relative),
         EndPoint = new RelativePoint(0.5, 1, RelativeUnit.Relative),
-        GradientStops = { new GradientStop(Look.P.AccentHover, 0), new GradientStop(Color.Parse("#2563EB"), 1) },
+        GradientStops = { new GradientStop(Look.P.Accent, 0), new GradientStop(Look.P.Accent, 1) },
     };
 
     public void Show(AppNotification notification) => Dispatcher.UIThread.Post(() => Toast(notification.Title, notification.Message));

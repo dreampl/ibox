@@ -124,7 +124,6 @@ public sealed class FloatingNavBar : ContentView
             StrokeShape = new RoundRectangle { CornerRadius = 32 },
             StrokeThickness = 0,
             BackgroundColor = Color.FromArgb("#01000000"),
-            Shadow = new Shadow { Brush = new SolidColorBrush(Colors.Black), Opacity = 0.55f, Radius = 26, Offset = new Point(0, 10) },
             InputTransparent = true,
         };
 
@@ -138,12 +137,11 @@ public sealed class FloatingNavBar : ContentView
             {
                 new Ellipse
                 {
-                    Fill = new LinearGradientBrush(new GradientStopCollection { new(Color.FromArgb("#2B7FF0"), 0f), new(Color.FromArgb("#6BB8FF"), 1f) }, new Point(0.5, 0), new Point(0.5, 1)),
+                    Fill = new SolidColorBrush(Color.FromArgb("#3B82F6")),
                 },
                 new Ellipse { Stroke = new SolidColorBrush(Colors.White.WithAlpha(0.28f)), StrokeThickness = 1, Margin = new Thickness(2) },
                 _plus,
             },
-            Shadow = new Shadow { Brush = new SolidColorBrush(Color.FromArgb("#3D9BFF")), Opacity = 0.6f, Radius = 22, Offset = new Point(0, 8) },
         };
         AutomationProperties.SetName(_fab, "Add");
         _plusTurn = new Spring(v => _plus.Rotation = v, stiffness: 300, damping: Spring.DampingFor(300, 0.55));
@@ -181,7 +179,6 @@ public sealed class FloatingNavBar : ContentView
         _ = gradientKey;
         _ = PowerTapped;
         var tint = visual == PowerVisual.Connected ? accent : Color.FromArgb("#3D9BFF");
-        _fab.Shadow = new Shadow { Brush = new SolidColorBrush(tint), Opacity = 0.6f, Radius = 22, Offset = new Point(0, 8) };
     }
 
     public void Select(int index, bool raise, bool animate = true)

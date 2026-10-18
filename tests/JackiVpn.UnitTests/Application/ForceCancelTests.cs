@@ -56,12 +56,12 @@ public sealed class ForceCancelTests : IDisposable
     /// <param name="smart">Two servers in smart mode (the pool test runs) instead of one selected server.</param>
     /// <param name="slowProfiles">Loading the server list waits until cancelled (the "preparing" phase).</param>
     /// <param name="slowPoolTest">The pool test waits until cancelled (the "testing" phase).</param>
-    private ConnectionOrchestrator Create(bool smart = false, bool slowProfiles = false, bool slowPoolTest = false, bool killSwitch = true, TimeSpan? reconnectDelay = null)
+    private ConnectionOrchestrator Create(bool smart = false, bool slowProfiles = false, bool slowPoolTest = false, bool killSwitch = true, TimeSpan? reconnectDelay = null, bool protectOnDrop = true)
     {
         var settings = new AppSettings
         {
             Connection = new ConnectionSettings { Mode = ConnectionMode.SystemProxy, SmartMode = smart, SelectedProfileId = _a.Id },
-            KillSwitch = new KillSwitchSettings { Enabled = killSwitch },
+            KillSwitch = new KillSwitchSettings { Enabled = killSwitch, ProtectOnDrop = protectOnDrop },
             Smart = new SmartSettings { Failover = new FailoverPolicy { HealthCheckInterval = TimeSpan.FromHours(1) } },
             Performance = new PerformanceSettings { AutoTune = false },
             Probe = new ProbeSettings { CheckPublicIp = false },
@@ -207,6 +207,51 @@ public sealed class ForceCancelTests : IDisposable
         // When the stuck step finally returns, the cancelled connect unwinds without reconnecting anything.
         release.SetResult();
         (await connect.WaitAsync(TimeSpan.FromSeconds(10), Ct)).Should().BeFalse();
+        orchestrator.State.Should().Be(ConnectionState.Disconnected);
+        _backend.IsRunning.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task A_dropped_connection_is_never_given_up_while_apps_are_held()
+    {
+        await using var orchestrator = Create(killSwitch: false);
+        (await orchestrator.ConnectAsync(new ConnectRequest(), Ct)).Should().BeTrue();
+
+        // The server stays unreachable for several rounds: IBOX keeps trying instead of giving up.
+        var failing = 4;
+        _backend.StartBehaviour = _ => Interlocked.Decrement(ref failing) >= 0 ? throw new BackendStartException("unreachable") : Task.CompletedTask;
+        _backend.Crash();
+        await WaitUntilAsync(() => orchestrator.Status.LastError?.Contains("trying again", StringComparison.Ordinal) == true);
+        orchestrator.State.Should().NotBe(ConnectionState.Faulted, "a connection that was working is not given up");
+
+        await WaitUntilAsync(() => orchestrator.State == ConnectionState.Connected);
+        orchestrator.Status.KillSwitchEngaged.Should().BeFalse();
+        _backend.Starts.Should().BeGreaterThan(4);
+    }
+
+    [Fact]
+    public async Task Without_protection_a_lost_connection_ends_after_the_retries()
+    {
+        await using var orchestrator = Create(killSwitch: false, protectOnDrop: false);
+        (await orchestrator.ConnectAsync(new ConnectRequest(), Ct)).Should().BeTrue();
+        _backend.StartBehaviour = _ => throw new BackendStartException("unreachable");
+        _backend.Crash();
+
+        await WaitUntilAsync(() => orchestrator.State == ConnectionState.Faulted);
+    }
+
+    [Fact]
+    public async Task Disconnect_ends_the_waiting_at_once()
+    {
+        await using var orchestrator = Create(killSwitch: false, reconnectDelay: TimeSpan.FromSeconds(2));
+        (await orchestrator.ConnectAsync(new ConnectRequest(), Ct)).Should().BeTrue();
+        _backend.StartBehaviour = _ => throw new BackendStartException("unreachable");
+        _backend.Crash();
+        await WaitUntilAsync(() => orchestrator.State == ConnectionState.Reconnecting);
+
+        var sw = Stopwatch.StartNew();
+        await orchestrator.DisconnectAsync(Ct).WaitAsync(TimeSpan.FromSeconds(10), Ct);
+        sw.Elapsed.Should().BeLessThan(Budget);
         orchestrator.State.Should().Be(ConnectionState.Disconnected);
         _backend.IsRunning.Should().BeFalse();
     }

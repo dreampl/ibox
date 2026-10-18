@@ -48,6 +48,17 @@ public sealed class SoftShadow : FrameworkElement
     public static readonly DependencyProperty ShadowProperty = DependencyProperty.Register(
         nameof(Shadow), typeof(DropShadowEffect), typeof(SoftShadow), new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
 
+    /// <summary>
+    /// Shadows are drawn only where this is set (inherited): the tour. Sections, cards and buttons are flat — less to
+    /// draw and remember.
+    /// </summary>
+    public static readonly DependencyProperty AllowedProperty = DependencyProperty.RegisterAttached(
+        "Allowed", typeof(bool), typeof(SoftShadow), new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.Inherits | FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static bool GetAllowed(DependencyObject d) => (bool)d.GetValue(AllowedProperty);
+
+    public static void SetAllowed(DependencyObject d, bool value) => d.SetValue(AllowedProperty, value);
+
     private const int MaxCached = 64;
     private static readonly Dictionary<string, Picture> Cache = new(StringComparer.Ordinal);
     private readonly DispatcherTimer _settle;
@@ -90,6 +101,9 @@ public sealed class SoftShadow : FrameworkElement
 
     public DropShadowEffect? Shadow { get => (DropShadowEffect?)GetValue(ShadowProperty); set => SetValue(ShadowProperty, value); }
 
+    /// <summary>Drops every shadow picture (the window went to the tray; they are drawn again when needed).</summary>
+    public static void ClearCache() => Cache.Clear();
+
     private void OnThemeChanged(object? sender, EventArgs e)
     {
         Cache.Clear();
@@ -116,6 +130,11 @@ public sealed class SoftShadow : FrameworkElement
     protected override void OnRender(DrawingContext drawingContext)
     {
         ArgumentNullException.ThrowIfNull(drawingContext);
+        if (!GetAllowed(this))
+        {
+            return;
+        }
+
         var w = Math.Round(ActualWidth);
         var h = Math.Round(ActualHeight);
         if (w < 1 || h < 1 || !IsVisible || (Shadow ?? TryFindResource(EffectKey)) is not DropShadowEffect effect)

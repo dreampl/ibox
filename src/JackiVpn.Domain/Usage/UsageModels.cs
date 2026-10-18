@@ -262,6 +262,20 @@ public sealed record DualVpnSettings
     };
 }
 
+/// <summary>
+/// Friendly apps (Alita, by default): programs IBOX works with instead of around. They are never cut, limited or
+/// slowed by traffic control, IBOX does not warn about a system proxy they run, and — when allowed — their traffic
+/// takes their own network path outside IBOX (also through the kill switch).
+/// </summary>
+public sealed record FriendAppsSettings
+{
+    /// <summary>Parts of the program names (case-insensitive): "alita" covers Alita.exe, alita, alita-agent…</summary>
+    public IReadOnlyList<string> Apps { get; init; } = ["alita"];
+
+    /// <summary>Their traffic goes its own way (outside the tunnel) instead of through IBOX.</summary>
+    public bool Direct { get; init; }
+}
+
 /// <summary>What the standalone second VPN is (Dual VPN, any mode).</summary>
 [System.Text.Json.Serialization.JsonConverter(typeof(System.Text.Json.Serialization.JsonStringEnumConverter<SecondVpnKind>))]
 public enum SecondVpnKind
@@ -282,6 +296,29 @@ public enum SecondVpnKind
     Server,
 }
 
+/// <summary>What takes the second VPN while the main one is on too (alone, the second VPN carries everything).</summary>
+[System.Text.Json.Serialization.JsonConverter(typeof(System.Text.Json.Serialization.JsonStringEnumConverter<SecondVpnScope>))]
+public enum SecondVpnScope
+{
+    /// <summary>IBOX decides: the company's private addresses, what the second VPN announces (its subnet, DNS, domain)
+    /// and the names and subnets listed — never this device's own local network.</summary>
+    Smart = 0,
+
+    /// <summary>Only the names and subnets listed.</summary>
+    Custom,
+}
+
+/// <summary>What IBOX found out about the second VPN and this device's network (for the smart scope).</summary>
+public sealed record SecondVpnDetected
+{
+    public IReadOnlyList<string> Domains { get; init; } = [];
+    public IReadOnlyList<string> Cidrs { get; init; } = [];
+    public IReadOnlyList<string> Dns { get; init; } = [];
+
+    /// <summary>This device's own local networks: never sent to the second VPN.</summary>
+    public IReadOnlyList<string> LocalSubnets { get; init; } = [];
+}
+
 [System.Text.Json.Serialization.JsonConverter(typeof(System.Text.Json.Serialization.JsonStringEnumConverter<IpsecType>))]
 public enum IpsecType
 {
@@ -300,6 +337,9 @@ public sealed record SecondVpnSettings
     public string Name { get; init; } = "Company VPN";
 
     public SecondVpnKind Kind { get; init; }
+
+    /// <summary>With the main VPN on too: what goes through the second VPN (smart, or only the lists).</summary>
+    public SecondVpnScope Scope { get; init; }
 
     /// <summary>The saved server that carries it (WireGuard: its imported config; Server: the chosen one).</summary>
     public string? ServerId { get; init; }
@@ -334,7 +374,7 @@ public sealed record SecondVpnSettings
 
     /// <summary>Set up far enough to carry traffic.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
-    public bool IsConfigured => (Domains.Count > 0 || Cidrs.Count > 0)
+    public bool IsConfigured => (Scope == SecondVpnScope.Smart || Domains.Count > 0 || Cidrs.Count > 0)
         && (Route == WorkRoute.Server ? !string.IsNullOrWhiteSpace(ServerId)
             : Kind == SecondVpnKind.Ipsec ? !string.IsNullOrWhiteSpace(Host) : !string.IsNullOrWhiteSpace(Interface));
 
@@ -436,6 +476,15 @@ public sealed record TrafficPolicy
 
     /// <summary>Addresses of the second VPN's own gateway (CIDRs): never enter the tunnel, always direct.</summary>
     public IReadOnlyList<string> WorkBypass { get; init; } = [];
+
+    /// <summary>This device's own local networks (CIDRs): direct, even when a company range would cover them.</summary>
+    public IReadOnlyList<string> WorkLocal { get; init; } = [];
+
+    /// <summary>Friendly apps (name parts): never slowed by the relay.</summary>
+    public IReadOnlyList<string> Friends { get; init; } = [];
+
+    /// <summary>The friendly apps' traffic takes its own path (outside the tunnel).</summary>
+    public bool FriendsDirect { get; init; }
 
     /// <summary>Connections of the classes below pass the in-app relay (limits change at run time).</summary>
     public bool Shaping { get; init; }

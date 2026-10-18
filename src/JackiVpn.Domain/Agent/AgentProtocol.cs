@@ -41,10 +41,21 @@ public static class AgentMethods
     public const string SetDns = "dns.set";
     public const string SpeedTest = "speedtest.run";
 
-    /// <summary>Methods that change something (need "allow changes").</summary>
-    public static readonly IReadOnlySet<string> Changing = new HashSet<string>(StringComparer.Ordinal) { Connect, Disconnect, SetMode, AddRule, RemoveRule, SetDns };
+    /// <summary>Ecosystem (IBAR): status with usage, traffic mode, Dual VPN and network in one answer.</summary>
+    public const string EcoStatus = "eco.status";
+    public const string SetTraffic = "traffic.set";
+    public const string SetDualVpn = "dualvpn.set";
 
-    public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal) { Status, ListServers, Connect, Disconnect, SetMode, ListRules, AddRule, RemoveRule, GetDns, SetDns, SpeedTest };
+    /// <summary>Keeps the connection open and sends eco.status again whenever it changes (at most once a second).</summary>
+    public const string Watch = "status.watch";
+
+    /// <summary>IBAR shows the notch: IBOX hides its own while this connection is open.</summary>
+    public const string NotchYield = "notch.yield";
+
+    /// <summary>Methods that change something (need "allow changes").</summary>
+    public static readonly IReadOnlySet<string> Changing = new HashSet<string>(StringComparer.Ordinal) { Connect, Disconnect, SetMode, AddRule, RemoveRule, SetDns, SetTraffic, SetDualVpn };
+
+    public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal) { Status, ListServers, Connect, Disconnect, SetMode, ListRules, AddRule, RemoveRule, GetDns, SetDns, SpeedTest, EcoStatus, SetTraffic, SetDualVpn, Watch, NotchYield };
 }
 
 public sealed record AgentRequest(int Id, string Method, JsonElement? Params = null);
@@ -79,3 +90,23 @@ public sealed record AgentConnectRequest(string? Server = null, bool? Smart = nu
 public sealed record AgentDnsRequest(string Selection, string? Address = null, bool Doh = false, string? Host = null);
 
 public sealed record AgentDns(string Selection, string InUse, bool UseForDirect);
+
+/// <summary>Everything IBAR shows about IBOX, in one answer (no credentials, no addresses of servers).</summary>
+public sealed record AgentEco
+{
+    public required AgentStatus Status { get; init; }
+
+    /// <summary>normal, eco, gaming, streaming, work (the chosen one; "auto" when IBOX decides).</summary>
+    public string TrafficMode { get; init; } = "normal";
+
+    public long UsedTodayBytes { get; init; }
+
+    public string? DualVpnName { get; init; }
+
+    public bool DualVpnOn { get; init; }
+
+    public string? DualVpnText { get; init; }
+
+    /// <summary>The network IBOX recognised (Wi-Fi name, company domain…).</summary>
+    public string? Network { get; init; }
+}

@@ -1,9 +1,9 @@
 <UserControl x:Class="JackiVpn.Desktop.Views.SettingsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:v="clr-namespace:JackiVpn.Desktop.Views">
+             xmlns:v="clr-namespace:JackiVpn.Desktop.Views" xmlns:k="clr-namespace:JackiVpn.Desktop.Views;assembly=JackiVpn.NotchKit">
     <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="32,26,32,26" v:Motion.StaggerChildren="True">
+        <StackPanel Margin="32,26,32,26" k:Motion.StaggerChildren="True">
             <TextBlock Text="Look (light / dark), start-up, the notch, notifications and AI agents." Style="{StaticResource Text.PageSubtitle}" />
 
             <v:ClaySurface>
@@ -29,6 +29,13 @@
                             <TextBlock Text="The connection stays up; use Exit in the tray menu to quit." Style="{StaticResource Text.Hint}" />
                         </StackPanel>
                     </CheckBox>
+                    <!-- Friendly apps: IBOX works with Alita instead of around it. -->
+                    <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding FriendsDirect}" Margin="0,12,0,0">
+                        <StackPanel>
+                            <TextBlock Text="Let Alita use its own network path" Style="{StaticResource Text.Label}" />
+                            <TextBlock Text="IBOX never cuts, limits or slows Alita and does not warn about its proxy. Turn this on when Alita handles its own connection: its traffic then goes outside IBOX (also through the kill switch). Applies on the next connect." Style="{StaticResource Text.Hint}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </CheckBox>
                 </StackPanel>
             </v:ClaySurface>
 
@@ -38,7 +45,7 @@
                     <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding NotchEnabled}" Margin="0,0,0,12">
                         <StackPanel>
                             <TextBlock Text="Show the notch at the top of the screen" Style="{StaticResource Text.Label}" />
-                            <TextBlock Text="A small black island with the IBOX eye, the connection and the live ping. Hover for more, drag it left or right; it fades after a while — rest the pointer on it for 1.5 s to bring it back. Also in the tray menu." Style="{StaticResource Text.Hint}" />
+                            <TextBlock Text="A small black island with the IBOX eye, the connection and the live ping. Hover for more, drag it left or right; it fades after a while — rest the pointer on it for a moment to bring it back. Also in the tray menu." Style="{StaticResource Text.Hint}" />
                         </StackPanel>
                     </CheckBox>
                     <StackPanel IsEnabled="{Binding NotchEnabled}">
@@ -69,13 +76,45 @@
                                 <TextBlock Text="A quiet two-note chime (turning this on plays it once)." Style="{StaticResource Text.Hint}" />
                             </StackPanel>
                         </CheckBox>
-                        <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding NotchHideInFullScreen}">
+                        <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding NotchHideInFullScreen}" Margin="0,0,0,12">
                             <StackPanel>
                                 <TextBlock Text="Hide while a full-screen app is in front" Style="{StaticResource Text.Label}" />
                                 <TextBlock Text="Games, videos and presentations are never covered." Style="{StaticResource Text.Hint}" />
                             </StackPanel>
                         </CheckBox>
+                        <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding NotchShelfEnabled}" Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Text="Shelf: drop things on the notch to keep them" Style="{StaticResource Text.Label}" />
+                                <TextBlock Text="Drag files, folders, apps, text, links or pictures onto the notch; hover it to see them and drag them out to copy them anywhere. Files stay where they are — the shelf only remembers them." Style="{StaticResource Text.Hint}" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </CheckBox>
+                        <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding NotchAiEnabled}">
+                            <StackPanel>
+                                <TextBlock Text="AI assistants on the notch" Style="{StaticResource Text.Label}" />
+                                <TextBlock Text="Claude and ChatGPT notifications appear briefly on the notch with the app's icon. Connected Claude Code and Codex ask for permission there: Allow, Deny, or answer in their own window." Style="{StaticResource Text.Hint}" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </CheckBox>
+                        <StackPanel IsEnabled="{Binding NotchAiEnabled}" Margin="52,10,0,0">
+                            <WrapPanel>
+                                <Button Content="{Binding ClaudeButton}" Command="{Binding ToggleClaudeCommand}" Margin="0,0,8,6" Padding="14,6" />
+                                <Button Content="{Binding CodexButton}" Command="{Binding ToggleCodexCommand}" Margin="0,0,8,6" Padding="14,6" />
+                            </WrapPanel>
+                            <TextBlock Text="Connecting adds IBOX's hooks to the assistant's own settings (a copy of the file is kept next to it); disconnecting removes them." Style="{StaticResource Text.Hint}" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding AssistantsNote}" Style="{StaticResource Text.Hint}" Foreground="{DynamicResource B.Accent}" TextWrapping="Wrap" Margin="0,6,0,0" />
+                        </StackPanel>
                     </StackPanel>
+                    <Grid Style="{StaticResource Row}" Margin="0,14,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="IBAR — the notch as an app of its own" Style="{StaticResource Text.Label}" />
+                            <TextBlock Text="On every monitor, with liquid glass, plugins (Alita…) and chat; it shows IBOX's connection while IBOX runs. Installs for you only, without administrator rights, and starts with Windows. While IBAR runs, IBOX's own notch steps aside." Style="{StaticResource Text.Hint}" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding IbarNote}" Style="{StaticResource Text.Hint}" Foreground="{DynamicResource B.Accent}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="Install IBAR" Command="{Binding InstallIbarCommand}" Padding="14,6" VerticalAlignment="Center" Margin="12,0,0,0" />
+                    </Grid>
                 </StackPanel>
             </v:ClaySurface>
 

@@ -190,9 +190,14 @@ public sealed class JackiVpnService : VpnService
                 .SetBlocking(false)!
                 .SetMetered(false)!;
             ApplyPerAppRouting(builder, options);
-            if (options.BypassLan && Build.VERSION.SdkInt >= BuildVersionCodes.Tiramisu)
+            if (Build.VERSION.SdkInt >= BuildVersionCodes.Tiramisu)
             {
-                foreach (var (address, prefix) in new[] { ("10.0.0.0", 8), ("172.16.0.0", 12), ("192.168.0.0", 16), ("169.254.0.0", 16) })
+                // The link to a car (wireless Android Auto runs over Wi-Fi Direct, 192.168.49.x; wired and others over
+                // link-local addresses) never enters the tunnel, whatever the LAN setting says.
+                var local = options.BypassLan
+                    ? new[] { ("10.0.0.0", 8), ("172.16.0.0", 12), ("192.168.0.0", 16), ("169.254.0.0", 16) }
+                    : new[] { ("192.168.49.0", 24), ("169.254.0.0", 16) };
+                foreach (var (address, prefix) in local)
                 {
                     builder.ExcludeRoute(new IpPrefix(Java.Net.InetAddress.GetByName(address)!, prefix));
                 }
@@ -209,6 +214,14 @@ public sealed class JackiVpnService : VpnService
     /// "All apps": everything except this app (and the excluded ones). Android cannot mix the two lists, and an
     /// allow-list that ends up empty would route every app — including this one — so it falls back to all apps.
     /// </summary>
+    /// <summary>Android Auto (phone app and its car services): always outside the VPN.</summary>
+    internal static readonly string[] CarApps =
+    [
+        "com.google.android.projection.gearhead",
+        "com.google.android.apps.automotive.templates.host",
+        "com.google.android.apps.auto.carservice",
+    ];
+
     private void ApplyPerAppRouting(Builder builder, TunnelOptions options)
     {
         var own = PackageName!;
@@ -238,6 +251,21 @@ public sealed class JackiVpnService : VpnService
         }
 
         builder.AddDisallowedApplication(own);
+
+        // Android Auto talks to the car itself and refuses to work through a VPN ("turn off your VPN"): its apps
+        // always use the phone's own network, every other app keeps the VPN at the same time.
+        foreach (var car in CarApps)
+        {
+            try
+            {
+                builder.AddDisallowedApplication(car);
+            }
+            catch (PackageManager.NameNotFoundException)
+            {
+                // not installed
+            }
+        }
+
         if (options.SplitMode == SplitTunnelMode.ExcludeSelected)
         {
             foreach (var p in packages)

@@ -3,7 +3,7 @@
     <TargetFramework>net10.0-windows</TargetFramework>
     <OutputType>Exe</OutputType>
     <RootNamespace>JackiVpn.Service</RootNamespace>
-    <AssemblyName>JackiVpn.Service</AssemblyName>
+    <AssemblyName>IBOX.Service</AssemblyName>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ServerGarbageCollection>false</ServerGarbageCollection>

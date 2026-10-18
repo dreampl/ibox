@@ -41,7 +41,6 @@ public sealed class BottomSheetHost : Grid
             VerticalOptions = LayoutOptions.End,
             Padding = new Thickness(0, 0, 0, 24),
             Content = new VerticalStackLayout { Children = { (_header = new VerticalStackLayout { BackgroundColor = Colors.Transparent, Children = { handle, _title } }), _body } },
-            Shadow = new Shadow { Brush = new SolidColorBrush(Colors.Black), Opacity = 0.5f, Radius = 30, Offset = new Point(0, -6) },
         };
 
         var tapOut = new TapGestureRecognizer();

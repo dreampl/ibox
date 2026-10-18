@@ -1,0 +1,7 @@
+{
+  "name": "com.jacki.ibar",
+  "description": "IBAR native host (browser downloads on the notch)",
+  "path": "ibar-host.exe",
+  "type": "stdio",
+  "allowed_extensions": ["ibar-downloads@jacki.app"]
+}

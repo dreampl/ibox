@@ -706,7 +706,8 @@ public sealed class NetworkPage(Shell shell) : OptionsPage(shell)
                 Row("Encrypted DNS for server names", "Resolves server addresses over DNS-over-HTTPS when the network's DNS is poisoned or blocked.", Toggle(Cur.Connectivity.SecureDnsRescue, v => Set(x => x with { Connectivity = x.Connectivity with { SecureDnsRescue = v } }))),
                 Row("Find clean Cloudflare addresses", "For CDN (WebSocket / gRPC / HTTP) configs whose usual address is filtered: tests Cloudflare ranges with the config's own TLS name.", Toggle(Cur.Connectivity.CleanIpScan, v => Set(x => x with { Connectivity = x.Connectivity with { CleanIpScan = v } }))),
                 Row("Try other TLS fingerprints", "When a REALITY/TLS handshake is blocked, tries the other browser fingerprints.", Toggle(Cur.Connectivity.FingerprintRotation, v => Set(x => x with { Connectivity = x.Connectivity with { FingerprintRotation = v } })))),
-            Section("Kill switch", "Not available on Linux yet: if the VPN drops, traffic is not blocked. Use TUN mode with smart connect for automatic failover."));
+            Section("When the connection drops", "IBOX keeps reconnecting until the connection is back or you disconnect.",
+                Row("Protect apps when the connection drops (recommended)", "Apps that use the desktop proxy (Claude, browsers, chat apps) wait instead of going out from your real address until IBOX is back.", Toggle(Cur.KillSwitch.ProtectOnDrop, v => Set(x => x with { KillSwitch = x.KillSwitch with { ProtectOnDrop = v } })))));
     }
 }
 
@@ -781,6 +782,8 @@ public sealed class SettingsPage(Shell shell) : OptionsPage(shell)
             new TextBox { Text = AgentConfig(), IsReadOnly = true, FontFamily = new FontFamily("monospace"), FontSize = 12, TextWrapping = TextWrapping.Wrap }),
         Section("Startup", null,
             Row("Connect automatically on start", "Uses smart selection or your default server, as configured.", Toggle(Cur.Startup.AutoConnect, v => Set(x => x with { Startup = x.Startup with { AutoConnect = v } })))),
+        Section("Friendly apps", "IBOX works with Alita instead of around it: never cuts, limits or slows it.",
+            Row("Let Alita use its own network path", "Turn this on when Alita handles its own connection: its traffic then goes outside IBOX. Applies on the next connect.", Toggle(Cur.Friends.Direct, v => Set(x => x with { Friends = x.Friends with { Direct = v } })))),
         Section("Notifications", null,
             Row("Warn when subscription traffic reaches (%)", null, Number(Cur.Notifications.TrafficWarningPercent, 50, 100, v => Set(x => x with { Notifications = x.Notifications with { TrafficWarningPercent = (int)v } })))),
         Section("Logging & privacy", null,
@@ -929,6 +932,7 @@ public sealed class AboutPage(Shell shell) : Page(shell)
                     {
                         T("IBOX", 22, FontWeight.SemiBold),
                         Caption("Version " + version + " · Linux"),
+                        Caption("Powered by JACKI"),
                         Hint("Install folder: " + AppContext.BaseDirectory),
                         Hint("Data folder: " + S.DataDir),
                     },

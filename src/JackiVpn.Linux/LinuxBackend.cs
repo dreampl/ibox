@@ -20,6 +20,11 @@ public sealed class LinuxBackend(SessionPlanFactory plans, ICoreEngine singBox, 
     private CancellationTokenSource? _trafficCts;
     private GnomeProxy? _proxy;
 
+    // Protect on drop: after a working session drops, the desktop proxy keeps pointing at the silent local port so
+    // proxy-aware apps wait instead of going out directly, until a reconnect or a disconnect.
+    private bool _protect;
+    private bool _held;
+
     public ConnectionMode Mode => mode;
 
     public event EventHandler<BackendFault>? Faulted;
@@ -31,6 +36,7 @@ public sealed class LinuxBackend(SessionPlanFactory plans, ICoreEngine singBox, 
         ArgumentNullException.ThrowIfNull(request);
         await StopRunnerAsync().ConfigureAwait(false);
         var s = request.Settings;
+        _protect = s.KillSwitch.ProtectOnDrop;
         var sbCaps = await singBox.GetCapabilitiesAsync(ct).ConfigureAwait(false);
         var xrCaps = xray is null ? null : await xray.GetCapabilitiesAsync(ct).ConfigureAwait(false);
         var plan = await plans.CreateAsync(new SessionRequest
@@ -62,6 +68,7 @@ public sealed class LinuxBackend(SessionPlanFactory plans, ICoreEngine singBox, 
             _proxy ??= GnomeProxy.Apply(proxyPort, logger);
         }
 
+        _held = false;
         _trafficCts = new CancellationTokenSource();
         _ = Task.Run(() => TrafficLoopAsync(runner, _trafficCts.Token), CancellationToken.None);
         return new BackendStartResult(plan.Selection.Core, plan.Chained, plan.Warnings.Concat(notes).ToArray(), proxyPort > 0 ? proxyPort : null);
@@ -78,12 +85,13 @@ public sealed class LinuxBackend(SessionPlanFactory plans, ICoreEngine singBox, 
 
     public async Task StopAsync(CancellationToken ct)
     {
+        _held = false;
         _proxy?.Restore();
         _proxy = null;
         await StopRunnerAsync().ConfigureAwait(false);
     }
 
-    public Task<bool> IsKillSwitchHoldingAsync(CancellationToken ct) => Task.FromResult(false);
+    public Task<bool> IsKillSwitchHoldingAsync(CancellationToken ct) => Task.FromResult(_held);
 
     private async Task StopRunnerAsync()
     {
@@ -99,9 +107,14 @@ public sealed class LinuxBackend(SessionPlanFactory plans, ICoreEngine singBox, 
 
     private void OnCoreExited(object? sender, CoreExitInfo info)
     {
-        _proxy?.Restore();
-        _proxy = null;
-        Faulted?.Invoke(this, new BackendFault($"{info.Core} exited unexpectedly: {info.LastOutput}", false, false));
+        _held = _protect && _proxy is not null;
+        if (!_held)
+        {
+            _proxy?.Restore();
+            _proxy = null;
+        }
+
+        Faulted?.Invoke(this, new BackendFault($"{info.Core} exited unexpectedly: {info.LastOutput}", false, _held));
     }
 
     private async Task TrafficLoopAsync(ISessionRunner runner, CancellationToken ct)

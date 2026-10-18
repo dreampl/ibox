@@ -25,6 +25,12 @@ const string Usage = """
     Ctrl+C disconnects.
     """;
 
+if (args is ["helper", ..])
+{
+    // Started by pkexec when the app opens: the session's privileged helper (see LinuxPrivilege).
+    return await JackiVpn.Linux.LinuxPrivilege.RunHelperAsync();
+}
+
 if (args.Length == 0 || args[0] == "gui")
 {
     if (Environment.GetEnvironmentVariable("DISPLAY") is null && Environment.GetEnvironmentVariable("WAYLAND_DISPLAY") is null)

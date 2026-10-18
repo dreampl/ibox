@@ -103,6 +103,8 @@ public sealed class LinuxServices : IAsyncDisposable
             NetworkKey = networkKey,
             BestDns = () => DnsFinder.BestForNetwork(),
             Traffic = () => Traffic?.CurrentPolicy(),
+            DualOnlyTraffic = () => Traffic?.CurrentPolicy(dualOnly: true),
+            BeforeMainConnect = ct => DualVpn.PrepareMainAsync(ct),
             Limits = () => Traffic?.CurrentLimits() ?? Domain.Usage.TrafficLimits.None,
             Rescue = Rescue,
             Settings = settings,
@@ -132,6 +134,8 @@ public sealed class LinuxServices : IAsyncDisposable
         Traffic = new Application.Traffic.TrafficController(Orchestrator, settings, Workplace, Usage, _loggerFactory.CreateLogger("JackiVpn.Traffic"));
         // A changed second VPN (names, subnets, its route) lives in the core configuration: reconnect to apply it.
         DualVpn.Changed += (_, _) => _ = Traffic.SettingsChangedAsync();
+        Traffic.DetectDual = DualVpn.Detect;
+        DualVpn.Attach(Orchestrator);
         RoutingWatcher = new Application.Routing.RoutingWatcher(Settings, Orchestrator, _loggerFactory.CreateLogger("JackiVpn.Routing"));
         RoutingEditor = new Application.Routing.RoutingEditorServer(Settings, _loggerFactory.CreateLogger("JackiVpn.RoutingEditor"));
         Agent = new Application.Agent.AgentPipeServer(
@@ -257,8 +261,19 @@ public sealed class LinuxServices : IAsyncDisposable
     }
 
     /// <summary>Before a whole-system (TUN) connect: the one-time setup so connecting does not ask for the password.</summary>
-    public Task PrepareTunAsync(CancellationToken ct) =>
-        Settings.Current.Connection.Mode == Domain.Connection.ConnectionMode.Tun ? LinuxTunAccess.EnsureAsync(_singBoxPath, Logger, ct) : Task.CompletedTask;
+    public async Task PrepareTunAsync(CancellationToken ct)
+    {
+        if (Settings.Current.Connection.Mode != Domain.Connection.ConnectionMode.Tun)
+        {
+            return;
+        }
+
+        // One password for the session (the helper); if that is declined or impossible, the earlier one-time setup.
+        if (!await LinuxPrivilege.EnsureAsync(Logger, ct).ConfigureAwait(false))
+        {
+            await LinuxTunAccess.EnsureAsync(_singBoxPath, Logger, ct).ConfigureAwait(false);
+        }
+    }
 
     /// <summary>Servers ordered by subscription (manual imports last), as the list shows them.</summary>
     public async Task<IReadOnlyList<ProxyProfile>> ServersAsync(CancellationToken ct) =>
@@ -271,6 +286,7 @@ public sealed class LinuxServices : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        LinuxPrivilege.Stop();
         await Accounts.SaveActiveAsync(CancellationToken.None).ConfigureAwait(false);
         await Agent.DisposeAsync().ConfigureAwait(false);
         await RoutingEditor.DisposeAsync().ConfigureAwait(false);

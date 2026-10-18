@@ -207,6 +207,13 @@ public sealed record KillSwitchSettings
 {
     public bool Enabled { get; init; }
     public bool AllowLan { get; init; } = true;
+
+    /// <summary>
+    /// When a working connection drops on its own, apps that use the system proxy (Claude, browsers, chat apps) wait
+    /// instead of going out directly — nothing is sent from your real address — until IBOX reconnects (it keeps
+    /// trying) or you disconnect. Lighter than the kill switch: never blocks a first connect that did not work.
+    /// </summary>
+    public bool ProtectOnDrop { get; init; } = true;
 }
 
 public sealed record ConnectionSettings
@@ -481,6 +488,12 @@ public sealed record NotchSettings
 
     /// <summary>A soft chime when the connection is made.</summary>
     public bool Sound { get; init; } = true;
+
+    /// <summary>The shelf: files, folders, text and links dropped on the notch are kept there to drag out later.</summary>
+    public bool Shelf { get; init; } = true;
+
+    /// <summary>Claude and ChatGPT notifications, and Claude Code / Codex permission requests, on the notch.</summary>
+    public bool AiAssistants { get; init; } = true;
 }
 
 public sealed record LoggingSettings
@@ -642,6 +655,9 @@ public sealed record AppSettings
 
     /// <summary>The standalone second VPN (Dual VPN) to a company or a server, in every mode.</summary>
     public SecondVpnSettings DualVpn { get; init; } = new();
+
+    /// <summary>Programs IBOX cooperates with (Alita): never cut or slowed, optionally their own network path.</summary>
+    public FriendAppsSettings Friends { get; init; } = new();
     public ConnectivitySettings Connectivity { get; init; } = new();
 
     /// <summary>Control by the command line and AI agents (MCP). Off by default.</summary>
@@ -657,4 +673,7 @@ public sealed record AgentSettings
     public bool Enabled { get; init; }
 
     public bool AllowChanges { get; init; }
+
+    /// <summary>IBAR (the IBOX notch app) may show and control the connection, also with agent control off.</summary>
+    public bool Ecosystem { get; init; } = true;
 }

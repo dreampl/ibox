@@ -16,7 +16,11 @@ public static class Ui
     public static Color CardHover => Look.P.CardHover;
     public static Color InputBg => Look.P.Input;
     public static Color TileBg => Look.P.Tile;
-    public static Color Border => Look.P.Border;
+    /// <summary>No outlines anywhere: surfaces are told apart by their fill.</summary>
+    public static Color Border => Colors.Transparent;
+
+    /// <summary>Thin separators, tracks and inactive dots.</summary>
+    public static Color Divider => Look.P.Border;
     public static Color Text => Look.P.Text;
     public static Color Text2 => Look.P.TextSecondary;
     public static Color Muted => Look.P.TextMuted;
@@ -34,6 +38,9 @@ public static class Ui
     public static readonly Color Streaming = Color.Parse("#38BDF8");
     public static readonly Color Violet = Color.Parse("#8B5CF6");
 
+    /// <summary>Off: sections, cards and buttons draw no shadow.</summary>
+    public static bool ShadowsOn { get; set; }
+
     public static IBrush B(Color c) => new SolidColorBrush(c);
 
     public static IBrush B(Color c, double alpha) => new SolidColorBrush(Color.FromArgb((byte)(alpha * 255), c.R, c.G, c.B));
@@ -42,14 +49,14 @@ public static class Ui
     {
         StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
         EndPoint = new RelativePoint(1, 1, RelativeUnit.Relative),
-        GradientStops = { new GradientStop(a, 0), new GradientStop(b, 1) },
+        GradientStops = { new GradientStop(a, 0), new GradientStop(a, 1) }, // one colour: no gradients in the look
     };
 
     public static LinearGradientBrush AccentGradient => new()
     {
         StartPoint = new RelativePoint(0, 0.5, RelativeUnit.Relative),
         EndPoint = new RelativePoint(1, 0.5, RelativeUnit.Relative),
-        GradientStops = { new GradientStop(Accent, 0), new GradientStop(Look.P.IsLight ? Accent : Accent2, 1) },
+        GradientStops = { new GradientStop(Accent, 0), new GradientStop(Accent, 1) },
     };
 
     /// <summary>Card fill: the surface with a hair of depth (lighter at the top).</summary>
@@ -57,7 +64,7 @@ public static class Ui
     {
         StartPoint = new RelativePoint(0.5, 0, RelativeUnit.Relative),
         EndPoint = new RelativePoint(0.5, 1, RelativeUnit.Relative),
-        GradientStops = { new GradientStop(Look.P.Card, 0), new GradientStop(Look.P.Card2, 1) },
+        GradientStops = { new GradientStop(Look.P.Card, 0), new GradientStop(Look.P.Card, 1) },
     };
 
     /// <summary>
@@ -66,6 +73,12 @@ public static class Ui
     /// </summary>
     public static BoxShadows ClayShadow(bool raised = false)
     {
+        // Flat sections: no shadows anywhere (the tour is a window of its own, shadowed by the desktop).
+        if (!ShadowsOn)
+        {
+            return default;
+        }
+
         var p = Look.P;
         var dark = new BoxShadow { OffsetY = raised ? 14 : 10, Blur = raised ? 36 : 28, Spread = -4, Color = WithAlpha(p.Shadow, p.ShadowOpacity * (raised ? 0.9 : 0.7)) };
         var light = p.IsLight
@@ -98,7 +111,6 @@ public static class Ui
         Background = B(TileBg),
         BorderBrush = B(Border, 0.7),
         BorderThickness = new Thickness(1),
-        BoxShadow = new BoxShadows(new BoxShadow { IsInset = true, OffsetY = 1, Color = Look.P.Highlight }),
         VerticalAlignment = VerticalAlignment.Center,
         Child = Icon(glyph, icon, color ?? Accent, 2),
     };

@@ -115,7 +115,7 @@ internal static class DualVpnWindow
         var window = DialogService.CreateWindow("Dual VPN", 520);
         var root = new StackPanel { Margin = new Thickness(24, 20, 24, 20) };
         root.Children.Add(new TextBlock { Text = "Dual VPN — a second VPN", FontSize = 17, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) });
-        root.Children.Add(Hint("Connect to your company (or another server) next to IBOX. Only the company's names and subnets you enter below go through the second VPN; everything else keeps the IBOX connection."));
+        root.Children.Add(Hint("A second VPN to your company or another server, with its own on/off. On its own it carries all your traffic; with IBOX on too, only the company's part goes through it and everything else keeps IBOX."));
 
         var name = new TextBox { Text = current.Name };
         root.Children.Add(Label("Name"));
@@ -208,17 +208,42 @@ internal static class DualVpnWindow
         ipsecType.SelectionChanged += (_, _) => Show();
         Show();
 
+        // With IBOX on too: what takes the second VPN.
+        var scope = new ComboBox
+        {
+            ItemsSource = new[] { "Smart — IBOX decides (recommended)", "Only the names and subnets below" },
+            SelectedIndex = (int)current.Scope,
+        };
+        root.Children.Add(Label("With IBOX on too, send through it"));
+        root.Children.Add(scope);
+        var scopeHint = Hint(string.Empty);
+        root.Children.Add(scopeHint);
+
         TextBox Box(IReadOnlyList<string> values) => new() { Text = string.Join(", ", values), TextWrapping = TextWrapping.Wrap };
         var domains = Box(current.Domains);
         var cidrs = Box(current.Cidrs);
         var dns = Box(current.Dns);
-        root.Children.Add(Label("Company names (corp.example.com, intranet.local …)"));
+        var domainsLabel = Label(string.Empty);
+        var cidrsLabel = Label(string.Empty);
+        root.Children.Add(domainsLabel);
         root.Children.Add(domains);
-        root.Children.Add(Label("Company subnets (10.20.0.0/16, 192.168.50.0/24 …)"));
+        root.Children.Add(cidrsLabel);
         root.Children.Add(cidrs);
         root.Children.Add(Label("Company DNS (optional)"));
         root.Children.Add(dns);
         root.Children.Add(Hint("Separate entries with commas. A name covers its subdomains."));
+        void ShowScope()
+        {
+            var smart = scope.SelectedIndex != (int)SecondVpnScope.Custom;
+            scopeHint.Text = smart
+                ? "The company's private addresses, and what the second VPN announces (its network, DNS and domain). Your own home or office network always stays direct."
+                : "Only what you list below; everything else keeps IBOX.";
+            domainsLabel.Text = smart ? "Also these names (optional)" : "Company names (corp.example.com, intranet.local …)";
+            cidrsLabel.Text = smart ? "Also these subnets (optional)" : "Company subnets (10.20.0.0/16, 192.168.50.0/24 …)";
+        }
+
+        scope.SelectionChanged += (_, _) => ShowScope();
+        ShowScope();
 
         var error = Hint(string.Empty);
         error.SetResourceReference(TextBlock.ForegroundProperty, "B.Danger");
@@ -264,6 +289,7 @@ internal static class DualVpnWindow
                 Domains = domains.Text,
                 Cidrs = cidrs.Text,
                 Dns = dns.Text,
+                Scope = (SecondVpnScope)Math.Max(0, scope.SelectedIndex),
             });
             save2.IsEnabled = true;
             if (problem is not null)

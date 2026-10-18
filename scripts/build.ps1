@@ -4,8 +4,8 @@
 
 .DESCRIPTION
   Output layout (default artifacts\JackiVpn):
-    JackiVpn.exe            desktop app (runs as the user)
-    JackiVpn.Service.exe    privileged service (install with: JackiVpn.Service.exe install, as admin)
+    IBOX.exe                desktop app (runs as the user)
+    IBOX.Service.exe        privileged service (install with: IBOX.Service.exe install, as admin)
     cores\                  sing-box, Xray, Wintun + manifest.json (SHA-256 per file)
   For real use copy the folder to a location only administrators can modify (e.g. C:\Program Files\JackiVpn);
   the service installer refuses user-writable locations unless --dev is given.
@@ -77,7 +77,7 @@ try {
 
     Write-Step 'Done'
     Write-Host "Output: $Output"
-    Write-Host 'Run:    JackiVpn.exe'
+    Write-Host 'Run:    IBOX.exe'
     Write-Host 'TUN:    install the service from the app (Network > Install / Repair service) after moving the folder to Program Files.'
 }
 finally {

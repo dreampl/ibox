@@ -66,7 +66,7 @@ public static partial class ThemeManager
         }
 
         IsLight = light;
-        var palette = new ResourceDictionary { Source = new Uri($"pack://application:,,,/JackiVpn;component/Themes/Colors.{(light ? "Light" : "Dark")}.xaml", UriKind.Absolute) };
+        var palette = new ResourceDictionary { Source = new Uri($"pack://application:,,,/IBOX;component/Themes/Colors.{(light ? "Light" : "Dark")}.xaml", UriKind.Absolute) };
         var dict = new ResourceDictionary();
         foreach (DictionaryEntry entry in palette)
         {
@@ -80,17 +80,20 @@ public static partial class ThemeManager
         Color C(string key) => (Color)palette[key];
         var shadowOpacity = (double)palette["ShadowOpacity"];
         var lightOpacity = (double)palette["ShadowLightOpacity"];
-        dict["B.AccentGradient"] = Gradient(C("C.Accent"), C("C.Accent2"));
-        dict["B.SuccessGradient"] = Gradient(C("C.Success"), C("C.Success2"));
-        dict["B.IdleGradient"] = Frozen(new LinearGradientBrush(C("C.Idle"), C("C.Idle2"), new Point(0.2, 0), new Point(0.8, 1)));
-        dict["B.DangerGradient"] = Gradient(C("C.Danger"), Color.FromArgb(0xFF, 0xB9, 0x1C, 0x1C));
-        dict["B.AccentGradientH"] = Frozen(new LinearGradientBrush(C("C.Accent"), C("C.Accent2"), new Point(0, 0.5), new Point(1, 0.5)));
-        dict["B.WindowGlow"] = Glow(C("C.Accent"), light ? (byte)0x10 : (byte)0x16, new Point(0.85, 0.0), 0.9);
-        dict["B.WindowFill"] = Frozen(new LinearGradientBrush(C("C.Window"), C("C.Window2"), new Point(0, 0), new Point(1, 1)));
-        dict["B.HeroGlowIdle"] = Glow(C("C.Accent"), 0x0C, new Point(0.2, 0.5), 0.7);
-        dict["B.HeroGlowBusy"] = Glow(C("C.Accent"), 0x22, new Point(0.2, 0.5), 0.7);
-        dict["B.HeroGlowOn"] = Glow(C("C.Success"), light ? (byte)0x1C : (byte)0x20, new Point(0.2, 0.5), 0.7);
-        dict["B.HeroGlowFail"] = Glow(C("C.Danger"), 0x20, new Point(0.2, 0.5), 0.7);
+        // One colour each, no gradients; no borders (surfaces are told apart by their fill alone).
+        dict["B.AccentGradient"] = Frozen(new SolidColorBrush(C("C.Accent")));
+        dict["B.SuccessGradient"] = Frozen(new SolidColorBrush(C("C.Success")));
+        dict["B.IdleGradient"] = Frozen(new SolidColorBrush(C("C.Idle")));
+        dict["B.DangerGradient"] = Frozen(new SolidColorBrush(C("C.Danger")));
+        dict["B.AccentGradientH"] = Frozen(new SolidColorBrush(C("C.Accent")));
+        dict["B.Divider"] = Frozen(new SolidColorBrush(C("C.Border")));
+        dict["B.Border"] = Brushes.Transparent;
+        dict["B.WindowGlow"] = Brushes.Transparent; // flat: one colour per surface
+        dict["B.WindowFill"] = Frozen(new SolidColorBrush(C("C.Window")));
+        dict["B.HeroGlowIdle"] = Brushes.Transparent;
+        dict["B.HeroGlowBusy"] = Brushes.Transparent;
+        dict["B.HeroGlowOn"] = Brushes.Transparent;
+        dict["B.HeroGlowFail"] = Brushes.Transparent;
         dict["B.SparkDown"] = Frozen(new LinearGradientBrush(WithAlpha(C("C.Chart1"), light ? (byte)0x55 : (byte)0x66), WithAlpha(C("C.Chart1"), 0x00), 90));
         dict["B.SparkUp"] = Frozen(new LinearGradientBrush(WithAlpha(C("C.Chart2"), light ? (byte)0x44 : (byte)0x55), WithAlpha(C("C.Chart2"), 0x00), 90));
         dict["B.HoverOverlay"] = Frozen(new SolidColorBrush(light ? Color.FromArgb(0x0C, 0x1E, 0x29, 0x3B) : Color.FromArgb(0x12, 0xFF, 0xFF, 0xFF)));
@@ -102,11 +105,9 @@ public static partial class ThemeManager
 
         // Clay: a matte surface that is a touch lighter at the top, a faint top-edge highlight instead of a border,
         // and two soft shadows (dark below-right, light above-left).
-        dict["B.CardFill"] = Frozen(new LinearGradientBrush(C("C.Card"), C("C.Card2"), new Point(0.5, 0), new Point(0.5, 1)));
-        dict["B.CardEdge"] = Frozen(new LinearGradientBrush(
-            [new GradientStop(C("C.Highlight"), 0), new GradientStop(WithAlpha(C("C.Highlight"), light ? (byte)0x80 : (byte)0x08), 0.35), new GradientStop(WithAlpha(C("C.Border"), light ? (byte)0xB0 : (byte)0x50), 1)],
-            new Point(0.5, 0), new Point(0.5, 1)));
-        dict["B.TileFill"] = Frozen(new LinearGradientBrush(C("C.CardHover"), C("C.Tile"), new Point(0.5, 0), new Point(0.5, 1)));
+        dict["B.CardFill"] = Frozen(new SolidColorBrush(C("C.Card")));
+        dict["B.CardEdge"] = Brushes.Transparent;
+        dict["B.TileFill"] = Frozen(new SolidColorBrush(C("C.Tile")));
         dict["B.OrbOn"] = Frozen(new RadialGradientBrush
         {
             GradientOrigin = new Point(0.38, 0.3),

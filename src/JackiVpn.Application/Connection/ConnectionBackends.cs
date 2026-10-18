@@ -28,6 +28,9 @@ public sealed class LocalProxyBackend : IConnectionBackend
     private bool _winHttpApplied;
     private bool _holdOnCrash;
 
+    // A session that worked: only then does a drop hold apps (a first connect that fails leaves the system as it was).
+    private bool _wasUp;
+
     public LocalProxyBackend(SessionPlanFactory plans, ICoreEngine singBox, ICoreEngine? xray, Func<ISessionRunner> runnerFactory, SystemProxyManager proxy, Func<IpcClient?> service, ILogger logger)
     {
         _plans = plans;
@@ -76,7 +79,7 @@ public sealed class LocalProxyBackend : IConnectionBackend
         runner.CoreExited += OnCoreExited;
         runner.SetTrafficLimits(request.Limits);
         _runner = runner;
-        _holdOnCrash = s.KillSwitch.Enabled;
+        _holdOnCrash = s.KillSwitch.Enabled || s.KillSwitch.ProtectOnDrop;
         IReadOnlyList<string> notes;
         try
         {
@@ -90,9 +93,9 @@ public sealed class LocalProxyBackend : IConnectionBackend
         }
         catch
         {
-            if (_holdOnCrash)
+            if (_holdOnCrash && (_wasUp || s.KillSwitch.Enabled))
             {
-                // Kill switch: a failed (re)start keeps proxy-aware apps pointed at the dead port.
+                // Kill switch / protect on drop: a failed restart keeps proxy-aware apps pointed at the dead port.
                 await StopRunnerAsync().ConfigureAwait(false);
             }
             else
@@ -103,6 +106,7 @@ public sealed class LocalProxyBackend : IConnectionBackend
             throw;
         }
 
+        _wasUp = true;
         _trafficCts = new CancellationTokenSource();
         _ = Task.Run(() => TrafficLoopAsync(runner, _trafficCts.Token), CancellationToken.None);
         return new BackendStartResult(plan.Selection.Core, plan.Chained, plan.Warnings.Concat(notes).ToArray(), plan.Frontend.ListenPort);
@@ -111,6 +115,7 @@ public sealed class LocalProxyBackend : IConnectionBackend
     public async Task StopAsync(CancellationToken ct)
     {
         _trafficCts?.Cancel();
+        _wasUp = false;
         // Restore the system proxy first so apps stop pointing at a dying port.
         _proxy.Restore();
         if (_winHttpApplied && _service() is { } svc)
@@ -154,7 +159,7 @@ public sealed class LocalProxyBackend : IConnectionBackend
     }
 
     public Task<bool> IsKillSwitchHoldingAsync(CancellationToken ct) =>
-        Task.FromResult(_holdOnCrash && _proxy.IsApplied && _runner is not { IsRunning: true });
+        Task.FromResult(_holdOnCrash && _wasUp && _proxy.IsApplied && _runner is not { IsRunning: true });
 
     public Task<Domain.Usage.CoreConnections?> GetConnectionsAsync(CancellationToken ct) =>
         _runner is { } r ? r.GetConnectionsAsync(ct) : Task.FromResult<Domain.Usage.CoreConnections?>(null);
@@ -170,12 +175,13 @@ public sealed class LocalProxyBackend : IConnectionBackend
         // The local proxy port is dead. With the kill switch on, proxy-aware apps keep pointing at the dead
         // port (their traffic fails instead of going out directly); otherwise restore direct connectivity.
         // Apps that ignore the system proxy are never covered in this mode; the UI says so.
-        if (!_holdOnCrash)
+        var hold = _holdOnCrash && _wasUp;
+        if (!hold)
         {
             _proxy.Restore();
         }
 
-        Faulted?.Invoke(this, new BackendFault($"{info.Core} exited unexpectedly: {info.LastOutput}", false, _holdOnCrash));
+        Faulted?.Invoke(this, new BackendFault($"{info.Core} exited unexpectedly: {info.LastOutput}", false, hold));
     }
 
     private async Task TrafficLoopAsync(ISessionRunner runner, CancellationToken ct)
@@ -209,6 +215,14 @@ public sealed class ServiceTunnelBackend(Func<CancellationToken, Task<IpcClient>
     private IpcClient? _client;
     private bool _proxyApplied;
 
+    // Protect on drop: after a working session fails, the system proxy points at the (now silent) local port, so
+    // proxy-aware apps wait instead of going out from the real address until a reconnect or a disconnect.
+    private bool _wasUp;
+    private bool _protect;
+    private bool _guarding;
+    private int _guardPort = ConnectionSettings.DefaultLocalProxyPort;
+    private string _bypass = new ConnectionSettings().ProxyBypassList;
+
     public ConnectionMode Mode => ConnectionMode.Tun;
 
     public event EventHandler<BackendFault>? Faulted;
@@ -241,12 +255,22 @@ public sealed class ServiceTunnelBackend(Func<CancellationToken, Task<IpcClient>
                 : 0,
         }, ct).ConfigureAwait(false);
 
+        _protect = s.KillSwitch.ProtectOnDrop;
+        _guardPort = s.Connection.LocalProxyPort > 0 ? s.Connection.LocalProxyPort : ConnectionSettings.DefaultLocalProxyPort;
+        _bypass = s.Connection.ProxyBypassList;
         if (!response.Started)
         {
-            RestoreSystemProxy();
+            // Still protecting after a drop: the guard stays until the tunnel is back or the user disconnects.
+            if (!_guarding)
+            {
+                RestoreSystemProxy();
+            }
+
             throw new BackendStartException(response.Error ?? "The service could not start the tunnel.");
         }
 
+        _guarding = false;
+        _wasUp = true;
         ApplySystemProxy(response.ProxyPort, s.Connection.ProxyBypassList);
         return new BackendStartResult(response.Core, response.Chained, response.Warnings, null);
     }
@@ -292,6 +316,8 @@ public sealed class ServiceTunnelBackend(Func<CancellationToken, Task<IpcClient>
 
     public async Task StopAsync(CancellationToken ct)
     {
+        _wasUp = false;
+        _guarding = false;
         RestoreSystemProxy();
         if (_client is null)
         {
@@ -346,6 +372,11 @@ public sealed class ServiceTunnelBackend(Func<CancellationToken, Task<IpcClient>
 
     public async Task<bool> IsKillSwitchHoldingAsync(CancellationToken ct)
     {
+        if (_guarding)
+        {
+            return true;
+        }
+
         try
         {
             var client = await EnsureClientAsync(ct).ConfigureAwait(false);
@@ -398,7 +429,7 @@ public sealed class ServiceTunnelBackend(Func<CancellationToken, Task<IpcClient>
 
         var client = await connect(ct).ConfigureAwait(false);
         client.EventReceived += OnEvent;
-        client.Disconnected += (_, _) => Faulted?.Invoke(this, new BackendFault("Lost connection to the service.", false, false));
+        client.Disconnected += (_, _) => Faulted?.Invoke(this, new BackendFault("Lost connection to the service.", false, Guard()));
         await client.SubscribeAsync(ct).ConfigureAwait(false);
         _client = client;
         return client;
@@ -420,16 +451,26 @@ public sealed class ServiceTunnelBackend(Func<CancellationToken, Task<IpcClient>
                 var st = IpcFraming.FromElement<ServiceStatus>(e.Payload);
                 if (st.State == TunnelState.Failed)
                 {
-                    if (!st.KillSwitchEngaged)
-                    {
-                        RestoreSystemProxy();
-                    }
-
-                    Faulted?.Invoke(this, new BackendFault(st.LastError ?? "Tunnel failed.", false, st.KillSwitchEngaged));
+                    var held = st.KillSwitchEngaged || Guard();
+                    Faulted?.Invoke(this, new BackendFault(st.LastError ?? "Tunnel failed.", false, held));
                 }
 
                 break;
         }
+    }
+
+    /// <summary>After a working session dropped: hold proxy-aware apps (true), or put the proxy back (false).</summary>
+    private bool Guard()
+    {
+        if (_protect && _wasUp && systemProxy is not null)
+        {
+            ApplySystemProxy(_guardPort, _bypass);
+            _guarding = _proxyApplied;
+            return _guarding;
+        }
+
+        RestoreSystemProxy();
+        return false;
     }
 
     public async ValueTask DisposeAsync()

@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "IBAR Downloads",
+  "short_name": "IBAR",
+  "version": "2.1.0",
+  "description": "Shows this browser's downloads on the IBAR notch (file name, size, speed — never addresses or history).",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvWUiC5ChekMcsZbrwql8eaLbzr4dppn9mGQT3ISuPqvnS5xYhkUHoaPDC9uQnqYc3aAcHyedd+uMnhWLDT9l0MutzekWFaVmjAWULNAM5KkHb2YvPAhTM+UTrTWa5vF9BtzF308cCMAyCuQ14t1qqh+Tpb/Wz+O6DntaSjGoY9M+qB8uSBezz1B4bE9399O0d/x63A4p1y/vKE/nqvAiX2+zFFq6LJ2SBu1rULbm7e6XyZ1W3lSVpz3Mz/rRHbjIyQwF53M0S5KecLOd69j33zztht5xUGU2XJhhnySPBUhHoblLqh7Cr7IYtzY7xyDEIDGWgND9W+IEtHCZ/BL1KQIDAQAB",
+  "minimum_chrome_version": "110",
+  "permissions": ["downloads", "nativeMessaging"],
+  "background": { "service_worker": "background.js" },
+  "icons": { "16": "icons/16.png", "48": "icons/48.png", "128": "icons/128.png" }
+}

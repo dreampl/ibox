@@ -100,9 +100,6 @@
         <Setter Property="Background" Value="{StaticResource PrimaryGradient}" />
         <Setter Property="BorderWidth" Value="0" />
         <Setter Property="TextColor" Value="White" />
-        <Setter Property="Shadow">
-            <Shadow Brush="#5B6CFF" Offset="0,8" Radius="22" Opacity="0.45" />
-        </Setter>
     </Style>
     <Style x:Key="Ghost" TargetType="Button">
         <Setter Property="BackgroundColor" Value="Transparent" />
@@ -110,8 +107,8 @@
         <Setter Property="TextColor" Value="{StaticResource Primary2}" />
     </Style>
     <Style x:Key="Pill" TargetType="Button">
-        <Setter Property="BackgroundColor" Value="Transparent" />
-        <Setter Property="BorderColor" Value="#33FFFFFF" />
+        <Setter Property="BorderColor" Value="Transparent" />
+        <Setter Property="BackgroundColor" Value="#14FFFFFF" />
         <Setter Property="BorderWidth" Value="1" />
         <Setter Property="CornerRadius" Value="16" />
         <Setter Property="FontSize" Value="13" />

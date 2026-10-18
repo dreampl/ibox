@@ -26,6 +26,7 @@ public static class AgentCli
           {exe} dns manual ADDRESS [--doh HOST] a DNS of your own
           {exe} speedtest                      download / upload / ping through the VPN
           {exe} mcp                            MCP server on stdin/stdout for AI agents (Claude, …)
+          {exe} hook claude|codex              Claude Code / Codex hook: requests and notifications on the notch
 
           --json   print the raw answer
         """;
@@ -45,6 +46,13 @@ public static class AgentCli
         {
             await new McpServer(pipeName).RunAsync(Console.OpenStandardInput(), Console.OpenStandardOutput(), CancellationToken.None).ConfigureAwait(false);
             return 0;
+        }
+
+        if (args is ["hook", var source, ..])
+        {
+            // Claude Code / Codex hooks: the request is answered on the IBOX notch (or by the assistant itself).
+            using var stdin = new StreamReader(Console.OpenStandardInput(), new System.Text.UTF8Encoding(false));
+            return await NotchHook.RunAsync(source, stdin, output, null, CancellationToken.None).ConfigureAwait(false);
         }
 
         var json = args.Contains("--json");

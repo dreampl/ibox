@@ -1,0 +1,44 @@
+IBAR 2.1 — install
+==================
+
+1. IBAR
+   Run IBAR-2.1.0-win-x64.msi. It installs for your user only (no administrator prompt) into
+   %LOCALAPPDATA%\Programs\IBAR, starts with Windows and adds IBAR to the Start menu. It upgrades an older IBAR.
+   Settings: the tray icon (left click).
+
+2. Browser downloads with exact sizes (optional)
+   Without the extension IBAR still sees browser downloads (from their temporary files: size so far and speed,
+   no percentage). With it, the browser itself reports name, size, progress and speed.
+   The installer already registered IBAR's native host for Chrome, Edge, Opera, Brave and Firefox (current user).
+
+   Chrome / Edge / Opera / Brave
+     IBAR settings > Tasks on the notch > "Install extension · <browser>" opens the browser's extensions page and the
+     extension folder (%LOCALAPPDATA%\Programs\IBAR\extensions\chromium). Turn on "Developer mode", click
+     "Load unpacked" and pick that folder. (The same files are in ibar-downloads-chromium-2.1.0.zip.)
+     Its id is fixed: nhcbmjechdfcppfefbmhmanmbepahnpi — IBAR's host accepts only this extension.
+
+   Firefox
+     The extension is not signed by Mozilla, so release Firefox loads it only until it restarts:
+     about:debugging > This Firefox > Load Temporary Add-on > ibar-downloads-firefox-2.1.0.xpi.
+     Firefox Developer Edition / Nightly can keep it (xpinstall.signatures.required = false).
+
+   What the extension sends: file name (not its folder), sizes, state, speed, browser and the source's domain.
+   Never a full address, never history. It talks only to IBAR's host on this computer (no network, no local port).
+
+3. Adobe bridge (optional, experimental)
+   ibar-adobe-bridge-2.1.0.zip: an unsigned CEP extension (After Effects / Premiere render queue state, Photoshop
+   save / export). See README.md inside. Unsigned CEP extensions need Adobe's PlayerDebugMode switch — your choice.
+   Without it IBAR still follows Adobe apps' progress windows and Media Encoder's log.
+
+4. Windows notifications on the notch (optional)
+   IBAR settings > Windows notifications. Apps appear in the list after their first notification; tick the ones to
+   show. Windows must allow apps to read notifications (Settings > Privacy > Notifications).
+
+5. Chat
+   Uses your own Claude Code or Codex. If chat says Claude Code is not signed in, press "Sign in" once (a console
+   opens; type /login).
+
+6. For developers
+   IBAR-API.md: how other apps (Alita…) show tasks, notifications and sounds on the notch (Python / Go / Rust).
+
+Remove: Settings > Apps > IBAR > Uninstall (removes the host registration too).

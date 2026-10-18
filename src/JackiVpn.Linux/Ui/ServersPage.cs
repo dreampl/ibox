@@ -102,7 +102,7 @@ public sealed class ServersPage(Shell shell) : Page(shell)
 
         var status = Caption(d.IsConfigured
             ? d.KindLabel + " · " + S.DualVpn.Describe(state)
-            : "Add a second VPN to your company or another server — WireGuard, IPsec (IKEv2 / L2TP) or Kerio — next to IBOX.");
+            : "A second VPN to your company or another server — WireGuard, IPsec (IKEv2 / L2TP) or Kerio. It works on its own or next to IBOX.");
         status.TextWrapping = TextWrapping.Wrap;
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, VerticalAlignment = VerticalAlignment.Center };
         if (d is { Enabled: true, Kind: Domain.Usage.SecondVpnKind.Ipsec } && !active)
@@ -122,7 +122,11 @@ public sealed class ServersPage(Shell shell) : Page(shell)
         {
             actions.Children.Add(Toggle(d.Enabled, on => _ = Guard(async () =>
             {
-                await S.DualVpn.SetEnabledAsync(on, Shell.Lifetime.Token);
+                if (await S.DualVpn.SetEnabledAsync(on, Shell.Lifetime.Token) is { } problem)
+                {
+                    Shell.Toast("Dual VPN", problem, warning: true);
+                }
+
                 RenderDual();
             })));
         }
@@ -330,13 +334,13 @@ public sealed class ServersPage(Shell shell) : Page(shell)
         Grid.SetColumn(more, 4);
         grid.Children.Add(more);
 
-        IBrush Rest() => active ? B(Success, Look.P.IsLight ? 0.07 : 0.1) : CardFill;
+        IBrush Rest() => active ? B(Success, Look.P.IsLight ? 0.07 : 0.1) : isDefault ? B(Accent, Look.P.IsLight ? 0.06 : 0.09) : CardFill;
         // Rows are flat (a border, no blurred shadow): a long list scrolls without redrawing a shadow per row.
         var row = new Border
         {
             Background = Rest(),
-            BorderBrush = B(active ? Success : isDefault ? Accent : Ui.Border, active || isDefault ? 0.7 : (Look.P.IsLight ? 0.9 : 0.55)),
-            BorderThickness = new Thickness(active || isDefault ? 1.5 : 1),
+            BorderBrush = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
             CornerRadius = new CornerRadius(18),
             Padding = new Thickness(14, 10),
             Margin = new Thickness(0, 0, 0, 4),

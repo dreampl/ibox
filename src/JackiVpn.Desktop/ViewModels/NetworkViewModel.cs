@@ -74,6 +74,12 @@ public sealed partial class NetworkViewModel : SettingsPageViewModel
         set => Set(s => s with { KillSwitch = s.KillSwitch with { Enabled = value } });
     }
 
+    public bool ProtectOnDrop
+    {
+        get => S.KillSwitch.ProtectOnDrop;
+        set => Set(s => s with { KillSwitch = s.KillSwitch with { ProtectOnDrop = value } });
+    }
+
     public bool AllowLan
     {
         get => S.KillSwitch.AllowLan;

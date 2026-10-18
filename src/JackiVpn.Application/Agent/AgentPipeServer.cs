@@ -32,10 +32,31 @@ public sealed class AgentPipeServer : IAsyncDisposable
 
     public string PipeName => _pipeName;
 
+    /// <summary>
+    /// Recognises the ecosystem app (IBAR) on the other end of a connection: it may read and act without "AI agents"
+    /// being on. Null = no ecosystem client on this platform.
+    /// </summary>
+    public Func<NamedPipeServerStream, bool>? IsTrustedClient { get; init; }
+
+    /// <summary>Ecosystem clients are welcome (listening even with agent control off).</summary>
+    public Func<bool> EcosystemOn { get; init; } = () => false;
+
+    /// <summary>Something IBAR shows may have changed (the server pushes eco.status to watchers).</summary>
+    public void NotifyChanged() => Changed?.Invoke(this, EventArgs.Empty);
+
+    private event EventHandler? Changed;
+
+    private int _yielding;
+
+    /// <summary>True while IBAR shows the notch (IBOX hides its own); raised on a background thread.</summary>
+    public event EventHandler<bool>? NotchYieldChanged;
+
+    public bool NotchYielded => Volatile.Read(ref _yielding) > 0;
+
     /// <summary>Starts or stops listening to follow the setting.</summary>
     public void Sync()
     {
-        var enabled = _settings().Enabled;
+        var enabled = _settings().Enabled || EcosystemOn();
         lock (_gate)
         {
             if (enabled && _listening is null)
@@ -67,7 +88,7 @@ public sealed class AgentPipeServer : IAsyncDisposable
             {
                 await using var pipe = new NamedPipeServerStream(_pipeName, PipeDirection.InOut, MaxClients, PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
                 await pipe.WaitForConnectionAsync(ct).ConfigureAwait(false);
-                await ServeAsync(pipe, ct).ConfigureAwait(false);
+                await ServeAsync(pipe, IsTrustedClient?.Invoke(pipe) == true, ct).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
@@ -81,7 +102,7 @@ public sealed class AgentPipeServer : IAsyncDisposable
         }
     }
 
-    private async Task ServeAsync(Stream pipe, CancellationToken ct)
+    private async Task ServeAsync(Stream pipe, bool trusted, CancellationToken ct)
     {
         using var reader = new StreamReader(pipe, Encoding.UTF8, false, 4096, leaveOpen: true);
         await using var writer = new StreamWriter(pipe, new UTF8Encoding(false), 4096, leaveOpen: true) { AutoFlush = true, NewLine = "\n" };
@@ -112,11 +133,11 @@ public sealed class AgentPipeServer : IAsyncDisposable
             {
                 response = new AgentResponse(request.Id, false, null, "Unknown method.");
             }
-            else if (!_settings().Enabled)
+            else if (!trusted && !_settings().Enabled)
             {
                 response = new AgentResponse(request.Id, false, null, "Agent control is off in IBOX settings.");
             }
-            else if (AgentMethods.Changing.Contains(request.Method) && !_settings().AllowChanges)
+            else if (!trusted && AgentMethods.Changing.Contains(request.Method) && !_settings().AllowChanges)
             {
                 response = new AgentResponse(request.Id, false, null, "IBOX allows agents to read only. Turn on \"Allow changes\" in IBOX settings to let them connect or change rules.");
             }
@@ -127,6 +148,84 @@ public sealed class AgentPipeServer : IAsyncDisposable
             }
 
             await writer.WriteLineAsync(JsonSerializer.Serialize(response, AgentProtocol.Json)).ConfigureAwait(false);
+            if (trusted && response.Ok && request?.Method is AgentMethods.Watch or AgentMethods.NotchYield)
+            {
+                // IBAR stays connected: it hears every change, and IBOX keeps its own notch hidden meanwhile.
+                await StreamAsync(reader, writer, request.Method == AgentMethods.NotchYield, ct).ConfigureAwait(false);
+                return;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Pushes eco.status to IBAR whenever something it shows changed (at most once a second, nothing while idle)
+    /// until IBAR closes the connection; a yielding connection keeps IBOX's own notch hidden meanwhile.
+    /// </summary>
+    private async Task StreamAsync(StreamReader reader, StreamWriter writer, bool yield, CancellationToken ct)
+    {
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var signal = new SemaphoreSlim(0, 1);
+        void OnChanged(object? sender, EventArgs e)
+        {
+            if (signal.CurrentCount == 0)
+            {
+                signal.Release();
+            }
+        }
+
+        Changed += OnChanged;
+        if (yield && Interlocked.Increment(ref _yielding) == 1)
+        {
+            NotchYieldChanged?.Invoke(this, true);
+        }
+
+        var closed = Task.Run(async () =>
+        {
+            var buffer = new char[64];
+            try
+            {
+                while (await reader.ReadAsync(buffer.AsMemory(), stop.Token).ConfigureAwait(false) > 0)
+                {
+                    // nothing else is expected on a stream
+                }
+            }
+            catch (Exception ex) when (ex is IOException or OperationCanceledException or ObjectDisposedException)
+            {
+                // closed
+            }
+
+            await stop.CancelAsync().ConfigureAwait(false);
+        }, CancellationToken.None);
+
+        string? last = null;
+        try
+        {
+            while (!stop.IsCancellationRequested)
+            {
+                await signal.WaitAsync(stop.Token).ConfigureAwait(false);
+                var json = JsonSerializer.Serialize(new AgentResponse(0, true, JsonSerializer.SerializeToElement(_controller.Eco(), AgentProtocol.Json)), AgentProtocol.Json);
+                if (json != last)
+                {
+                    last = json;
+                    await writer.WriteLineAsync(json.AsMemory(), stop.Token).ConfigureAwait(false);
+                }
+
+                await Task.Delay(1000, stop.Token).ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or OperationCanceledException or ObjectDisposedException)
+        {
+            // IBAR went away
+        }
+        finally
+        {
+            Changed -= OnChanged;
+            await stop.CancelAsync().ConfigureAwait(false);
+            await closed.ConfigureAwait(false);
+            if (yield && Interlocked.Decrement(ref _yielding) == 0)
+            {
+                NotchYieldChanged?.Invoke(this, false);
+            }
         }
     }
 

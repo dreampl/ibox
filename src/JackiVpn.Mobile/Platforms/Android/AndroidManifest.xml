@@ -28,7 +28,6 @@
 	<uses-permission android:name="android.permission.CAMERA" />
 	<uses-feature android:name="android.hardware.camera" android:required="false" />
 	<!-- Optional dynamic island over other apps (the user grants "Display over other apps" from the island settings). -->
-	<uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 	<!-- No PACKAGE_USAGE_STATS (Play Protect counts it against VPN apps): per-app totals are left to Android's own
 	     data-usage screen; the Usage page shows the sites that went through the VPN. -->
 	<!-- In-app updates: the verified APK is handed to Android's installer (the user confirms). -->

@@ -48,6 +48,7 @@ public sealed class AccountTransfer(
         public DateTimeOffset ExportedUtc { get; init; }
         public string Name { get; init; } = "Me";
         public int Color { get; init; }
+        public string? Avatar { get; init; }
         public string? Picture { get; init; }
         public string? PictureExt { get; init; }
         public AppSettings Settings { get; init; } = new();
@@ -106,6 +107,7 @@ public sealed class AccountTransfer(
             ExportedUtc = DateTimeOffset.UtcNow,
             Name = account?.Name ?? "Me",
             Color = account?.Color ?? 0,
+            Avatar = account?.Avatar,
             Picture = picture,
             PictureExt = ext,
             Settings = current with { DualVpn = current.DualVpn with { Secret = null } },
@@ -208,7 +210,7 @@ public sealed class AccountTransfer(
         if (accounts is not null)
         {
             var name = UniqueName(payload.Name);
-            if (await accounts.ImportAsync(name, payload.Color, payload.Picture is { } pic ? Convert.FromBase64String(pic) : null, payload.PictureExt, merged, ct).ConfigureAwait(false) is { } problem)
+            if (await accounts.ImportAsync(name, payload.Color, payload.Picture is { } pic ? Convert.FromBase64String(pic) : null, payload.PictureExt, merged, ct, payload.Avatar).ConfigureAwait(false) is { } problem)
             {
                 return (null, problem);
             }

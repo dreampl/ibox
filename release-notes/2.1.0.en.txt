@@ -1,0 +1,17 @@
+IBOX 2.1.0 — stability
+
+Fixed
+- Android: connecting failed with "The information requested is unavailable on the current platform" (since 1.7.0). Connecting works again.
+
+Safer when the connection drops
+- Protect apps when the connection drops (on by default): if a working connection drops, apps that use the system proxy (Claude, browsers, chat apps) wait instead of going out from your real address, in both TUN and system-proxy mode (Windows; Linux with the desktop proxy).
+- IBOX no longer gives up on a connection that was working: it keeps trying (every few seconds, at most once a minute) until it is back or you disconnect, and tells you what is happening.
+
+Lighter
+- In the tray IBOX now uses about 20 MB of memory (measured: 21.5 MB) and practically no CPU; the memory is handed back again every two minutes while it stays there or is minimized.
+- Only the last three pages stay built; nothing is built ahead in the background; precompiled code (ReadyToRun) on Windows and Linux.
+- Linux: memory is handed back when the window is minimized.
+
+Look
+- Flat and calm: no borders, no shadows on sections (only the first-start tour has one), one colour instead of the purple gradients — Windows, Linux and Android.
+- Android: the dynamic island is removed (and with it the "display over other apps" permission).

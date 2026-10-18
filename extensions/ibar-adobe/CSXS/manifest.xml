@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- IBAR Bridge: an invisible CEP extension that reports render / export state to IBAR's notch (status only — no
+     project content, no file paths). Starts with the app, runs nothing while nothing renders. -->
+<ExtensionManifest Version="7.0" ExtensionBundleId="app.jacki.ibar.bridge" ExtensionBundleVersion="2.1.0" ExtensionBundleName="IBAR Bridge">
+  <ExtensionList>
+    <Extension Id="app.jacki.ibar.bridge.main" Version="2.1.0" />
+  </ExtensionList>
+  <ExecutionEnvironment>
+    <HostList>
+      <Host Name="AEFT" Version="[18.0,99.9]" />
+      <Host Name="PPRO" Version="[22.0,99.9]" />
+      <Host Name="PHXS" Version="[23.0,99.9]" />
+      <Host Name="PHSP" Version="[23.0,99.9]" />
+      <Host Name="ILST" Version="[26.0,99.9]" />
+      <Host Name="AME" Version="[22.0,99.9]" />
+    </HostList>
+    <LocaleList>
+      <Locale Code="All" />
+    </LocaleList>
+    <RequiredRuntimeList>
+      <RequiredRuntime Name="CSXS" Version="11.0" />
+    </RequiredRuntimeList>
+  </ExecutionEnvironment>
+  <DispatchInfoList>
+    <Extension Id="app.jacki.ibar.bridge.main">
+      <DispatchInfo>
+        <Resources>
+          <MainPath>./index.html</MainPath>
+          <ScriptPath>./host.jsx</ScriptPath>
+          <CEFCommandLine>
+            <Parameter>--enable-nodejs</Parameter>
+            <Parameter>--mixed-context</Parameter>
+          </CEFCommandLine>
+        </Resources>
+        <Lifecycle>
+          <AutoVisible>false</AutoVisible>
+          <StartOn>
+            <Event>applicationActivate</Event>
+            <Event>com.adobe.csxs.events.ApplicationActivate</Event>
+          </StartOn>
+        </Lifecycle>
+        <UI>
+          <Type>Custom</Type>
+          <Geometry>
+            <Size>
+              <Height>1</Height>
+              <Width>1</Width>
+            </Size>
+          </Geometry>
+        </UI>
+      </DispatchInfo>
+    </Extension>
+  </DispatchInfoList>
+</ExtensionManifest>

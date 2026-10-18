@@ -1,0 +1,17 @@
+<Project Sdk="WixToolset.Sdk/5.0.2">
+  <!--
+    IBAR: per-user MSI (no administrator rights, no UAC). Built by scripts\package.ps1:
+      dotnet build installer\ibar\IBAR.Installer.wixproj -c Release -p:PayloadDir=<published IBAR> -p:ProductVersion=<x.y.z>
+  -->
+  <PropertyGroup>
+    <OutputName>IBAR-$(ProductVersion)-win-x64</OutputName>
+    <InstallerPlatform>x64</InstallerPlatform>
+    <DefineConstants>PayloadDir=$(PayloadDir);ProductVersion=$(ProductVersion);IconFile=$(MSBuildThisFileDirectory)..\..\src\JackiVpn.Desktop\Assets\jacki.ico</DefineConstants>
+    <!-- Per-user files under LocalAppData with HKCU keypaths: ICE38/64/91 assume a roaming / all-users layout. -->
+    <SuppressIces>ICE38;ICE64;ICE91</SuppressIces>
+  </PropertyGroup>
+  <Target Name="CheckInputs" BeforeTargets="Build">
+    <Error Condition="'$(PayloadDir)' == '' or !Exists('$(PayloadDir)\IBAR.exe')" Text="PayloadDir must point to the published IBAR (IBAR.exe)." />
+    <Error Condition="'$(ProductVersion)' == ''" Text="ProductVersion is required." />
+  </Target>
+</Project>

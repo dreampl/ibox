@@ -70,6 +70,7 @@ public class SecondVpnAndAccountTests
         Interface = kind is SecondVpnKind.Kerio or SecondVpnKind.App ? "Kerio Virtual Network" : null,
         Host = kind == SecondVpnKind.Ipsec ? "vpn.acme.example" : null,
         GatewayIps = kind == SecondVpnKind.Ipsec ? ["198.51.100.7"] : [],
+        Scope = SecondVpnScope.Custom,
         Domains = ["acme.local"],
         Cidrs = ["10.20.0.0/16"],
         Dns = ["10.20.0.53"],
@@ -95,6 +96,127 @@ public class SecondVpnAndAccountTests
     {
         TrafficPolicyBuilder.Build(new AppSettings { DualVpn = Dual(SecondVpnKind.WireGuard) with { Enabled = false } }, new TrafficContext()).WorkRoute.Should().Be(WorkRoute.Off);
         TrafficPolicyBuilder.Build(new AppSettings { DualVpn = Dual(SecondVpnKind.WireGuard) with { Domains = [], Cidrs = [] } }, new TrafficContext()).WorkRoute.Should().Be(WorkRoute.Off);
+        TrafficPolicyBuilder.Build(new AppSettings { DualVpn = Dual(SecondVpnKind.WireGuard) with { ServerId = null, Scope = SecondVpnScope.Smart } }, new TrafficContext()).WorkRoute.Should().Be(WorkRoute.Off);
+    }
+
+    [Fact]
+    public void Smart_scope_takes_what_the_second_vpn_announces_and_company_ranges_but_not_this_network()
+    {
+        var found = new SecondVpnDetected
+        {
+            Domains = ["corp.acme.example"],
+            Cidrs = ["10.66.0.0/16"],
+            Dns = ["10.66.0.1"],
+            LocalSubnets = ["192.168.1.0/24"],
+        };
+        var smart = Dual(SecondVpnKind.WireGuard) with { Scope = SecondVpnScope.Smart, Domains = [], Cidrs = [], Dns = [] };
+
+        var policy = TrafficPolicyBuilder.Build(new AppSettings { DualVpn = smart }, new TrafficContext { DualDetected = found });
+
+        policy.WorkRoute.Should().Be(WorkRoute.Server, "smart needs no list");
+        policy.InternalDomains.Should().Equal("corp.acme.example");
+        policy.InternalCidrs.Should().StartWith("10.66.0.0/16").And.Contain(TrafficPolicyBuilder.CompanyRanges);
+        policy.InternalDns.Should().Equal("10.66.0.1");
+        policy.WorkLocal.Should().Equal("192.168.1.0/24");
+
+        // The user's own lists still count, and their own resolvers win over the announced ones.
+        var both = TrafficPolicyBuilder.Build(new AppSettings { DualVpn = smart with { Domains = ["acme.local"], Dns = ["10.20.0.53"] } }, new TrafficContext { DualDetected = found });
+        both.InternalDomains.Should().Equal("acme.local", "corp.acme.example");
+        both.InternalDns.Should().Equal("10.20.0.53");
+
+        // Custom: only the lists, nothing detected.
+        var custom = TrafficPolicyBuilder.Build(new AppSettings { DualVpn = Dual(SecondVpnKind.WireGuard) }, new TrafficContext { DualDetected = found });
+        custom.InternalCidrs.Should().Equal("10.20.0.0/16");
+        custom.InternalDomains.Should().Equal("acme.local");
+    }
+
+    [Fact]
+    public void Alone_the_second_vpn_carries_everything()
+    {
+        var policy = TrafficPolicyBuilder.Build(new AppSettings { DualVpn = Dual(SecondVpnKind.WireGuard) }, new TrafficContext { DualOnly = true });
+
+        policy.WorkRoute.Should().Be(WorkRoute.Off, "its server is the main outbound; nothing is split");
+        policy.InternalDomains.Should().BeEmpty();
+        policy.InternalCidrs.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void A_work_server_with_company_ranges_keeps_only_this_network_out_of_the_tun()
+    {
+        var plan = new DnsAndTunPolicyTests.CoreSessionPlanBuilder().Plan with
+        {
+            Kind = SessionKind.Tun,
+            Routing = new RoutingSettings { BypassLan = true },
+            Traffic = new TrafficPolicy
+            {
+                InternalCidrs = ["10.66.0.0/16", .. TrafficPolicyBuilder.CompanyRanges],
+                WorkRoute = WorkRoute.Server,
+                WorkServerId = "dualvpn-1",
+                WorkServer = TestSupport.Link("trojan://pw-work@vpn.acme.example:443?sni=vpn.acme.example#Acme") with { Id = "dualvpn-1" },
+                WorkLocal = ["192.168.1.0/24"],
+            },
+        };
+        var config = SingBoxConfigBuilder.Build(plan, GoldenConfigTests.SingBox114).Config;
+
+        var tun = config["inbounds"]!.AsArray().OfType<JsonObject>().Single(i => i["type"]!.GetValue<string>() == "tun");
+        var excluded = tun["route_exclude_address"]!.AsArray().Select(a => a!.GetValue<string>()).ToList();
+        excluded.Should().Contain("192.168.1.0/24").And.NotContain(["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"], "the company may live in any private range");
+
+        var rules = config["route"]!["rules"]!.AsArray().OfType<JsonObject>().ToList();
+        var local = rules.FindIndex(r => r["ip_cidr"] is JsonArray a && a.Any(v => v!.GetValue<string>() == "192.168.1.0/24"));
+        var company = rules.FindIndex(r => r["ip_cidr"] is JsonArray a && a.Any(v => v!.GetValue<string>() == "10.0.0.0/8"));
+        local.Should().BeGreaterThan(-1);
+        rules[local]["outbound"]!.GetValue<string>().Should().Be("direct");
+        rules[company]["outbound"]!.GetValue<string>().Should().Be(SingBoxConfigBuilder.WorkTag);
+        local.Should().BeLessThan(company, "this device's own network wins over the company ranges");
+    }
+
+    [Fact]
+    public void Alita_is_never_cut_and_takes_its_own_path_when_allowed()
+    {
+        var settings = new AppSettings
+        {
+            Traffic = new TrafficControlSettings { Apps = [new AppRule { App = "Alita.exe", Blocked = true }, new AppRule { App = "torrent.exe", Blocked = true }] },
+            Friends = new FriendAppsSettings { Direct = true },
+        };
+
+        TrafficPolicyBuilder.LimitedApps(settings, null).Should().Equal("torrent.exe");
+        var direct = settings with { Traffic = settings.Traffic with { SmartControl = false } };
+        TrafficPolicyBuilder.Build(direct, new TrafficContext()).BlockedApps.Should().Equal("torrent.exe");
+
+        var policy = TrafficPolicyBuilder.Build(settings, new TrafficContext());
+        policy.Friends.Should().Equal("alita");
+        policy.FriendsDirect.Should().BeTrue();
+        TrafficPolicyBuilder.Build(settings, new TrafficContext { ProcessAware = false }).FriendsDirect.Should().BeFalse("Android has no per-process rules");
+
+        var pattern = new System.Text.RegularExpressions.Regex(SingBoxConfigBuilder.FriendPattern("alita")!);
+        pattern.IsMatch(@"C:\Program Files\Alita\Alita.exe").Should().BeTrue();
+        pattern.IsMatch("/opt/alita/alita-agent").Should().BeTrue();
+        pattern.IsMatch(@"C:\Alita\chrome.exe").Should().BeFalse("only the program's own name counts, not its folder");
+        SingBoxConfigBuilder.FriendPattern("a|b").Should().BeNull();
+
+        var plan = new DnsAndTunPolicyTests.CoreSessionPlanBuilder().Plan with { Kind = SessionKind.Tun, Traffic = policy };
+        var rules = SingBoxConfigBuilder.Build(plan, GoldenConfigTests.SingBox114).Config["route"]!["rules"]!.AsArray().OfType<JsonObject>().ToList();
+        var friend = rules.FindIndex(r => r["process_path_regex"] is JsonArray a && a.Any(v => v!.GetValue<string>().Contains("alita", StringComparison.Ordinal)));
+        friend.Should().BeGreaterThan(-1);
+        rules[friend]["outbound"]!.GetValue<string>().Should().Be("direct");
+        friend.Should().BeLessThan(rules.FindIndex(r => r["action"]?.GetValue<string>() == "hijack-dns"), "its own name lookups go its own way too");
+
+        FluentActions.Invoking(() => TunnelSessionManager.ValidateTraffic(new TrafficPolicy { Friends = ["alita"], FriendsDirect = true })).Should().NotThrow();
+        FluentActions.Invoking(() => TunnelSessionManager.ValidateTraffic(new TrafficPolicy { Friends = ["a|.*"], FriendsDirect = true })).Should().Throw<TunnelRequestException>();
+    }
+
+    [Fact]
+    public void Ten_distinct_avatars_and_a_free_one_for_each_new_account()
+    {
+        JackiVpn.Domain.Visuals.Avatars.All.Should().HaveCount(10);
+        JackiVpn.Domain.Visuals.Avatars.All.Select(a => a.Id).Should().OnlyHaveUniqueItems();
+        JackiVpn.Domain.Visuals.Avatars.All.Should().OnlyContain(a => a.Layers.Count > 0);
+
+        var first = JackiVpn.Domain.Visuals.Avatars.NextFree([]);
+        JackiVpn.Domain.Visuals.Avatars.NextFree([first]).Should().NotBe(first);
+        JackiVpn.Domain.Visuals.Avatars.Find(first).Should().NotBeNull();
+        JackiVpn.Domain.Visuals.Avatars.Find("nope").Should().BeNull();
     }
 
     [Fact]
@@ -135,6 +257,40 @@ public class SecondVpnAndAccountTests
         config["route"]!["rules"]!.AsArray().OfType<JsonObject>()
             .Where(r => r["ip_cidr"] is JsonArray a && a.Any(v => v!.GetValue<string>() == "198.51.100.7/32"))
             .Should().ContainSingle().Which["outbound"]!.GetValue<string>().Should().Be("direct");
+    }
+
+    [Fact]
+    public void On_the_workplace_network_its_own_dns_answers_internal_and_direct_names()
+    {
+        // No DNS suffix announced, a manual direct rule for an internal name, and IBOX's own tunnel resolver mixed into the
+        // saved resolvers: the company resolver still answers, the tunnel's never does.
+        var rule = new JackiVpn.Domain.Routing.RoutingRule { Id = "r", Name = "intranet", Action = JackiVpn.Domain.Routing.RuleAction.Direct, Conditions = [new JackiVpn.Domain.Routing.RuleCondition(JackiVpn.Domain.Routing.RuleConditionType.DomainSuffix, ["intra.soha"])] };
+        var plan = new DnsAndTunPolicyTests.CoreSessionPlanBuilder().Plan with
+        {
+            Kind = SessionKind.Tun,
+            Routing = new RoutingSettings { Rules = [rule] },
+            Traffic = new TrafficPolicy { InternalCidrs = ["10.10.0.0/16"], InternalDns = ["172.19.0.2", "10.10.0.5"] },
+        };
+        var config = SingBoxConfigBuilder.Build(plan, GoldenConfigTests.SingBox114).Config;
+
+        var servers = config["dns"]!["servers"]!.AsArray().OfType<JsonObject>().ToList();
+        servers.Should().ContainSingle(s => s["tag"]!.GetValue<string>() == SingBoxConfigBuilder.DnsInternal).Which["server"]!.GetValue<string>().Should().Be("10.10.0.5");
+        config["dns"]!["rules"]!.AsArray().OfType<JsonObject>()
+            .Should().Contain(r => r["domain_suffix"] != null && r["domain_suffix"]![0]!.GetValue<string>() == "intra.soha" && r["server"]!.GetValue<string>() == SingBoxConfigBuilder.DnsInternal);
+
+        SingBoxConfigBuilder.CompanyResolver(new TrafficPolicy { InternalDns = ["172.19.0.2", "198.18.0.1"] }).Should().BeNull();
+
+        // Names the core dials itself (system proxy, fast DNS) go out through the company resolver too.
+        config["outbounds"]!.AsArray().OfType<JsonObject>().Single(o => o["tag"]!.GetValue<string>() == "direct")["domain_resolver"]!.GetValue<string>().Should().Be(SingBoxConfigBuilder.DnsInternal);
+    }
+
+    [Fact]
+    public void The_networks_current_dns_backs_up_a_workplace_saved_without_one()
+    {
+        var work = new WorkplaceProfile { Name = "Soha", InternalCidrs = ["10.10.0.0/16"], InternalDns = ["172.19.0.2"] };
+        var policy = TrafficPolicyBuilder.Build(new AppSettings(), new TrafficContext { Workplace = work, SiteDns = ["10.10.0.5", "8.8.8.8"] });
+        policy.InternalDns.Should().Equal("172.19.0.2", "10.10.0.5");
+        SingBoxConfigBuilder.CompanyResolver(policy).Should().Be("10.10.0.5");
     }
 
     [Fact]

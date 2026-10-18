@@ -38,6 +38,25 @@ Linux (Ubuntu / Debian, 64-bit)
 3. Add your subscription link under Subscriptions and connect.
 Uninstall: sudo apt remove jackivpn
 
+New in 2.1.0
+------------
+- Stability: apps are protected when the connection drops, and IBOX keeps reconnecting until it is back.
+- About 20 MB of memory in the tray; flat look without borders, shadows or gradients; Android connects again.
+
+New in 2.0.0
+------------
+- IBAR: the notch as an app of its own, on every monitor (glass, plugins, chat, Claude / ChatGPT circles).
+  Install it from IBOX → Settings → Notch → Install IBAR, or run IBAR-2.0.0-win-x64.msi (no administrator rights).
+- Linux: whole-system mode asks for the password once, when IBOX opens.
+- IBOX uses about a third of its former memory while in the tray.
+
+New in 1.7.0
+------------
+- Dual VPN can be on alone (it then carries all traffic); with IBOX on too, only the company's part takes it.
+  Smart scope (IBOX decides) or your own list of names and subnets: Servers > Dual VPN > Edit.
+- 10 cartoon avatars for profiles (Windows, Linux); Alita is treated as a friend (Settings).
+- Android: the notch reaches the camera hole.
+
 New in 1.6.0
 ------------
 - Dual VPN on its own (WireGuard, IPsec, Kerio, or the company's VPN app): Servers > Add Dual VPN.

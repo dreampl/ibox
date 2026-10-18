@@ -1,14 +1,15 @@
 <UserControl x:Class="JackiVpn.Desktop.Views.AboutView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:v="clr-namespace:JackiVpn.Desktop.Views">
+             xmlns:v="clr-namespace:JackiVpn.Desktop.Views" xmlns:k="clr-namespace:JackiVpn.Desktop.Views;assembly=JackiVpn.NotchKit">
     <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="32,26,32,26" v:Motion.StaggerChildren="True">
+        <StackPanel Margin="32,26,32,26" k:Motion.StaggerChildren="True">
             <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
-                <Image Source="pack://application:,,,/JackiVpn;component/Assets/jacki.ico" Width="64" Height="64" />
+                <Image Source="pack://application:,,,/IBOX;component/Assets/jacki.ico" Width="64" Height="64" />
                 <StackPanel Margin="16,0,0,0" VerticalAlignment="Center">
                     <TextBlock Text="{Binding ProductName, Mode=OneTime}" FontSize="26" FontWeight="SemiBold" />
                     <TextBlock Style="{StaticResource Text.Caption}" FontSize="13"><Run Text="Version " /><Run Text="{Binding Version, Mode=OneTime}" /></TextBlock>
+                    <TextBlock Style="{StaticResource Text.Caption}" FontSize="12" Margin="0,2,0,0" Text="Powered by JACKI" />
                 </StackPanel>
             </StackPanel>
 

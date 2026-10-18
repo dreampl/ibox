@@ -127,6 +127,7 @@ public sealed class AppServices : IAsyncDisposable
         Background = new Application.Background.BackgroundPolicy(new Services.WindowsDeviceConditions(), UserBusy, LoggerFactory.CreateLogger("JackiVpn.Background"));
         SubscriptionService.Background = Background;
         Updates.WaitForUpkeep = ct => Background.WaitUntilAllowedAsync(Application.Background.BackgroundWork.Upkeep, ct);
+        PortKeeper = new Services.ProxyPortKeeper(LoggerFactory.CreateLogger("JackiVpn.ProxyPort"));
         Orchestrator = new ConnectionOrchestrator(new OrchestratorDependencies
         {
             Background = Background,
@@ -135,6 +136,12 @@ public sealed class AppServices : IAsyncDisposable
             NetworkKey = networkKey,
             BestDns = () => DnsFinder.BestForNetwork(),
             Traffic = () => Traffic?.CurrentPolicy(),
+            DualOnlyTraffic = () => Traffic?.CurrentPolicy(dualOnly: true),
+            BeforeMainConnect = ct =>
+            {
+                PortKeeper.Stop(); // IBOX's own core takes the proxy port now
+                return DualVpn.PrepareMainAsync(ct);
+            },
             Limits = () => Traffic?.CurrentLimits() ?? Domain.Usage.TrafficLimits.None,
             Rescue = Rescue,
             Settings = settings,
@@ -175,6 +182,8 @@ public sealed class AppServices : IAsyncDisposable
         Traffic = new Application.Traffic.TrafficController(Orchestrator, settings, Workplace, Usage, LoggerFactory.CreateLogger("JackiVpn.Traffic"));
         // A changed second VPN (names, subnets, its route) lives in the core configuration: reconnect to apply it.
         DualVpn.Changed += (_, _) => _ = Traffic.SettingsChangedAsync();
+        Traffic.DetectDual = DualVpn.Detect;
+        DualVpn.Attach(Orchestrator);
         RoutingWatcher = new Application.Routing.RoutingWatcher(Settings, Orchestrator, LoggerFactory.CreateLogger("JackiVpn.Routing"));
         RoutingEditor = new Application.Routing.RoutingEditorServer(Settings, LoggerFactory.CreateLogger("JackiVpn.RoutingEditor"));
         Agent = new Application.Agent.AgentPipeServer(
@@ -188,10 +197,41 @@ public sealed class AppServices : IAsyncDisposable
                 DnsFinder = DnsFinder,
                 SpeedTest = SpeedTest,
                 Logger = LoggerFactory.CreateLogger("JackiVpn.Agent"),
+                Eco = () => Services.Ecosystem.Extras(this),
+                SetTraffic = mode => Services.Ecosystem.SetTraffic(this, mode),
+                SetDualVpn = (on, ct) => DualVpn.SetEnabledAsync(on, ct),
             }),
             () => Settings.Current.Agent,
-            LoggerFactory.CreateLogger("JackiVpn.Agent"));
-        Settings.Changed += (_, _) => Agent.Sync();
+            LoggerFactory.CreateLogger("JackiVpn.Agent"),
+            Environment.GetEnvironmentVariable("JACKIVPN_DATA_ROOT") is { Length: > 0 } && Environment.GetEnvironmentVariable("JACKIVPN_AGENT_PIPE") is { Length: > 0 } testPipe ? testPipe : null)
+        {
+            // IBAR, recognised by its program, sees and controls the connection (IBOX → Settings can turn it off).
+            IsTrustedClient = Services.Ecosystem.IsIbar,
+            EcosystemOn = () => Settings.Current.Agent.Ecosystem,
+        };
+        Settings.Changed += (_, _) =>
+        {
+            Agent.Sync();
+            Agent.NotifyChanged();
+        };
+        Orchestrator.StatusChanged += (_, _) => Agent.NotifyChanged();
+
+        // Disconnected on purpose: the proxy port keeps answering for apps that remember it (Claude …). Never while a
+        // drop is being protected (held), never for a test copy on its own data folder.
+        if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable(AppPaths.DataRootVariable)))
+        {
+            void Keep()
+            {
+                if (Orchestrator.Status.State == Domain.Connection.ConnectionState.Disconnected)
+                {
+                    PortKeeper.Start(Settings.Current.Connection.LocalProxyPort > 0 ? Settings.Current.Connection.LocalProxyPort : Domain.Settings.ConnectionSettings.DefaultLocalProxyPort);
+                }
+            }
+
+            Orchestrator.StatusChanged += (_, _) => Keep();
+            Keep();
+        }
+        Traffic.Changed += (_, _) => Agent.NotifyChanged();
     }
 
     public Application.Connectivity.DnsFinder DnsFinder { get; }
@@ -255,6 +295,8 @@ public sealed class AppServices : IAsyncDisposable
 
     /// <summary>Control by the command line and AI agents (MCP), when the user turns it on.</summary>
     public Application.Agent.AgentPipeServer Agent { get; }
+
+    public Services.ProxyPortKeeper PortKeeper { get; }
 
     public AppPaths Paths { get; }
     public LogBuffer LogBuffer { get; }

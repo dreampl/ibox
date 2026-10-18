@@ -27,9 +27,6 @@
                 </Path>
                 <Border x:Name="Core" WidthRequest="84" HeightRequest="84" StrokeShape="RoundRectangle 42" StrokeThickness="1" Stroke="{StaticResource GlassRim}"
                         Background="{StaticResource AccentGradient}" HorizontalOptions="Center" VerticalOptions="Center">
-                    <Border.Shadow>
-                        <Shadow Brush="#3B82F6" Radius="26" Opacity="0.55" Offset="0,0" />
-                    </Border.Shadow>
                     <Label Text="⇄" FontSize="34" TextColor="White" HorizontalOptions="Center" VerticalOptions="Center" />
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnScanTapped" />

@@ -64,6 +64,14 @@ internal sealed class WindowsIpsec : ISecondVpnSystem
     /// <summary>A Windows VPN connection's adapter carries its name.</summary>
     public string? AdapterOf(string entry) => entry;
 
+    /// <summary>Split tunnelling off = Windows sends all traffic through it (the Dual VPN alone).</summary>
+    public async Task<string?> SetFullTunnelAsync(string entry, bool full, CancellationToken ct)
+    {
+        var (code, output) = await RunAsync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", "-"],
+            $"Set-VpnConnection -Name {Quote(entry)} -SplitTunneling ${(full ? "false" : "true")} -Force -WarningAction SilentlyContinue; 'ok'", ct).ConfigureAwait(false);
+        return code == 0 && output.Contains("ok", StringComparison.Ordinal) ? null : "Windows could not change the VPN connection: " + Last(output);
+    }
+
     private static string Quote(string value) => "'" + value.Replace("'", "''", StringComparison.Ordinal) + "'";
 
     private static string Last(string output) =>

@@ -48,6 +48,12 @@ public sealed class LinuxIpsec : ISecondVpnSystem
 
     public Task RemoveAsync(string entry, CancellationToken ct) => NmcliAsync(ct, "connection", "delete", "id", entry);
 
+    /// <summary>Full tunnel = the connection may become the default route (the Dual VPN alone).</summary>
+    public async Task<string?> SetFullTunnelAsync(string entry, bool full, CancellationToken ct) =>
+        await NmcliAsync(ct, "connection", "modify", "id", entry, "ipv4.never-default", full ? "no" : "yes", "ipv6.never-default", full ? "no" : "yes").ConfigureAwait(false) is null
+            ? "NetworkManager could not change the VPN connection."
+            : null;
+
     /// <summary>L2TP brings up a ppp interface; IKEv2 is policy-based (no interface).</summary>
     public string? AdapterOf(string entry)
     {
@@ -57,6 +63,13 @@ public sealed class LinuxIpsec : ISecondVpnSystem
 
     private static async Task<string?> NmcliAsync(CancellationToken ct, params string[] args)
     {
+        if (LinuxPrivilege.Nmcli(args, ct) is { } elevated)
+        {
+            // The session's helper runs it as root: no polkit prompt.
+            var (code, text) = await elevated.ConfigureAwait(false);
+            return code == 0 ? text : null;
+        }
+
         try
         {
             var psi = new ProcessStartInfo("nmcli") { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };

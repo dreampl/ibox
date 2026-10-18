@@ -5,7 +5,7 @@
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>JackiVpn.Desktop</RootNamespace>
-    <AssemblyName>JackiVpn</AssemblyName>
+    <AssemblyName>IBOX</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\jacki.ico</ApplicationIcon>
     <!-- WinForms is only used for the tray icon; keep WPF's implicit usings unambiguous. -->
@@ -13,10 +13,16 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!-- WFO0003: the DPI manifest entry is for WPF (Per-Monitor V2); WinForms is only used for the tray icon. -->
     <NoWarn>$(NoWarn);WFO1000;WFO0003</NoWarn>
+    <!-- 2.0: a quieter runtime — no background GC thread, a memory-conserving heap, no tiered PGO instrumentation. -->
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <TieredPGO>false</TieredPGO>
   </PropertyGroup>
   <ItemGroup>
+    <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="5" />
+    <RuntimeHostConfigurationOption Include="System.GC.RetainVM" Value="false" />
     <ProjectReference Include="..\JackiVpn.Application\JackiVpn.Application.csproj" />
     <ProjectReference Include="..\JackiVpn.Infrastructure\JackiVpn.Infrastructure.csproj" />
+    <ProjectReference Include="..\JackiVpn.NotchKit\JackiVpn.NotchKit.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" />

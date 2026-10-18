@@ -30,6 +30,14 @@ public sealed partial class DashboardViewModel : ObservableObject
     private CancellationTokenSource? _speedCts;
 
     [ObservableProperty] private ConnectionState _state;
+
+    /// <summary>The Dual VPN runs alone (the main VPN is off): the big button shows the main VPN, so it reads "off".</summary>
+    [ObservableProperty] private bool _isDualOnly;
+
+    /// <summary>What the big button shows: the main VPN's state.</summary>
+    public ConnectionState ButtonState => IsDualOnly ? ConnectionState.Disconnected : State;
+
+    partial void OnIsDualOnlyChanged(bool value) => OnPropertyChanged(nameof(ButtonState));
     [ObservableProperty] private string _statusTitle = "Not connected";
     [ObservableProperty] private string _statusDetail = "Tap to connect";
     [ObservableProperty] private string _serverName = "—";
@@ -288,6 +296,7 @@ public sealed partial class DashboardViewModel : ObservableObject
 
     partial void OnStateChanged(ConnectionState value)
     {
+        OnPropertyChanged(nameof(ButtonState));
         OnPropertyChanged(nameof(IsIdle));
         OnPropertyChanged(nameof(IsBusy));
         OnPropertyChanged(nameof(IsConnected));
@@ -316,6 +325,15 @@ public sealed partial class DashboardViewModel : ObservableObject
             var status = _s.Orchestrator.Status;
             var ours = status.State == ConnectionState.Connected && status.Mode == ConnectionMode.SystemProxy ? status.LocalProxyPort : null;
             var finding = await Networking.SystemProxy.SystemProxyInspector.InspectAsync(_s.WinInet, ours, _s.Lifetime);
+            if (finding is { Health: Networking.SystemProxy.SystemProxyHealth.ForeignLive, Port: { } port }
+                && Networking.Probes.PortOwner.Find(port) is { } owner
+                && Domain.Usage.TrafficCatalog.IsFriend(owner.ProcessName, _s.Settings.Current.Friends.Apps))
+            {
+                // A friendly app (Alita) runs the system proxy on purpose: nothing to warn about.
+                (ProxyBanner, CanFixProxy) = (null, false);
+                return;
+            }
+
             (ProxyBanner, CanFixProxy) = finding.Health switch
             {
                 Networking.SystemProxy.SystemProxyHealth.ForeignDead =>
@@ -357,6 +375,13 @@ public sealed partial class DashboardViewModel : ObservableObject
         var state = _s.Orchestrator.State;
         if (state == ConnectionState.Disconnecting)
         {
+            return;
+        }
+
+        // The Dual VPN alone is not the main VPN: the button turns the main VPN on (the traffic is then split).
+        if (state == ConnectionState.Connected && _s.Orchestrator.Status.DualOnly)
+        {
+            await _s.Orchestrator.ConnectAsync(new ConnectRequest(), _s.Lifetime);
             return;
         }
 
@@ -510,6 +535,7 @@ public sealed partial class DashboardViewModel : ObservableObject
         }
 
         State = st.State;
+        IsDualOnly = st.State == ConnectionState.Connected && st.DualOnly;
         LastError = st.State == ConnectionState.Connected ? null : st.LastError;
         KillSwitchEngaged = st.KillSwitchEngaged;
         JackiSmartActive = st.JackiSmartConnectActive;
@@ -524,10 +550,15 @@ public sealed partial class DashboardViewModel : ObservableObject
             ConnectionState.Reconnecting => ("Reconnecting…", st.LastError ?? "Restoring the connection"),
             ConnectionState.SwitchingServer => ("Switching server…", "Moving to a healthier server"),
             ConnectionState.Disconnecting => ("Disconnecting…", "Restoring network settings"),
-            ConnectionState.Faulted => ("Connection failed", st.KillSwitchEngaged ? "Kill switch is blocking traffic. Disconnect to restore internet." : "Tap to try again"),
+            ConnectionState.Faulted => ("Connection failed", st.KillSwitchEngaged ? "Your apps are held so nothing leaks. Disconnect to use the internet without the VPN." : "Tap to try again"),
             ConnectionState.Recovering => ("Recovering…", "Cleaning up after an unexpected exit"),
             _ => (st.State.ToString(), string.Empty),
         };
+        if (IsDualOnly)
+        {
+            (StatusTitle, StatusDetail) = ("Dual VPN only", "All traffic goes through " + _s.DualVpn.Current.Name + ". Press the button to turn IBOX on too: then only the company's part uses it.");
+        }
+
 
         if (st.State == ConnectionState.Connected)
         {

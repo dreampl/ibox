@@ -23,7 +23,8 @@ public sealed class CoreStartException(string message, IReadOnlyList<string> rec
 public sealed partial class CoreProcess : IAsyncDisposable
 {
     private const int RingSize = 300;
-    private readonly System.Diagnostics.Process _process;
+    private readonly System.Diagnostics.Process? _process;
+    private readonly IHostedProcess? _hosted;
     private readonly JobObject? _job;
     private readonly ILogger _logger;
     private readonly Queue<string> _ring = new();
@@ -31,10 +32,12 @@ public sealed partial class CoreProcess : IAsyncDisposable
     private readonly IReadOnlyList<string> _secrets;
     private int _stopping;
 
-    private CoreProcess(CoreKind kind, System.Diagnostics.Process process, JobObject? job, ILogger logger, IReadOnlyList<string> secrets)
+    private CoreProcess(CoreKind kind, System.Diagnostics.Process? process, JobObject? job, ILogger logger, IReadOnlyList<string> secrets, IHostedProcess? hosted = null, string? path = null)
     {
         Kind = kind;
         _process = process;
+        _hosted = hosted;
+        _path = path ?? process?.StartInfo.FileName ?? string.Empty;
         _job = job;
         _logger = logger;
         _secrets = secrets;
@@ -45,7 +48,9 @@ public sealed partial class CoreProcess : IAsyncDisposable
 
     public int ProcessId { get; private set; }
 
-    public string ExecutablePath => _process.StartInfo.FileName;
+    private readonly string _path;
+
+    public string ExecutablePath => _path;
 
     public DateTimeOffset StartedUtc { get; }
 
@@ -114,6 +119,28 @@ public sealed partial class CoreProcess : IAsyncDisposable
         {
             SecretRedactor.Register(s);
         }
+
+        if (CoreHosting.Host?.Invoke(spec, config) is { } hosted)
+        {
+            // Run by a host (Linux: the privileged helper the user approved once at start-up).
+            var remote = new CoreProcess(spec.Kind, null, null, logger, config.Secrets, hosted, binary.ExecutablePath);
+            hosted.Line += remote.OnLine;
+            hosted.Exited += remote.OnExited;
+            try
+            {
+                await hosted.StartAsync(config.Json, ct).ConfigureAwait(false);
+                remote.ProcessId = hosted.Id;
+            }
+            catch (Exception ex) when (ex is IOException or InvalidOperationException)
+            {
+                await remote.DisposeAsync().ConfigureAwait(false);
+                throw new CoreStartException("Failed to start the core: " + SecretRedactor.Redact(ex.Message), remote.RecentOutput);
+            }
+
+            logger.LogInformation("{Core} started by the helper (pid {Pid}).", spec.Kind, remote.ProcessId);
+            return remote;
+        }
+
 
         // Windows: kill-on-close job object. Android/Linux: the core dies with our process group / is killed on dispose.
         var job = OperatingSystem.IsWindows() ? new JobObject() : null;
@@ -212,7 +239,14 @@ public sealed partial class CoreProcess : IAsyncDisposable
         {
             try
             {
-                _process.Kill(entireProcessTree: true);
+                if (_hosted is not null)
+                {
+                    _hosted.Kill();
+                }
+                else
+                {
+                    _process?.Kill(entireProcessTree: true);
+                }
             }
             catch (InvalidOperationException)
             {
@@ -260,7 +294,7 @@ public sealed partial class CoreProcess : IAsyncDisposable
         int code;
         try
         {
-            code = _process.ExitCode;
+            code = _hosted?.ExitCode ?? _process!.ExitCode;
         }
         catch (InvalidOperationException)
         {
@@ -278,7 +312,8 @@ public sealed partial class CoreProcess : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await StopAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
-        _process.Dispose();
+        _process?.Dispose();
+        _hosted?.Dispose();
         _job?.Dispose();
         foreach (var s in _secrets)
         {

@@ -212,7 +212,7 @@ public partial class ConnectButton : UserControl
             var normal = Mode == VisualMode.Normal && TryFindResource("C.Success") is Color success;
             var haloColor = Mode == VisualMode.Normal && TryFindResource("C.Success") is Color s ? s : Argb(main);
             Halo.Fill = Glow(haloColor);
-            OnRing.Stroke = normal ? new SolidColorBrush(Color.FromArgb(0x90, haloColor.R, haloColor.G, haloColor.B)) : new LinearGradientBrush(Argb(light), Argb(main), 45);
+            OnRing.Stroke = normal ? new SolidColorBrush(Color.FromArgb(0x90, haloColor.R, haloColor.G, haloColor.B)) : new SolidColorBrush(Argb(main));
         }
         else
         {

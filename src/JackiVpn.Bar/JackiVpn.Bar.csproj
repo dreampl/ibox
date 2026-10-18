@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- IBAR: the notch as an app of its own (per-user, starts with Windows). Built for a small, quiet footprint:
+       workstation GC without the background GC thread, memory-conserving heap, no tiered PGO instrumentation,
+       ReadyToRun code at publish (no JIT work at start-up). -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <OutputType>WinExe</OutputType>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>JackiVpn.Bar</RootNamespace>
+    <AssemblyName>IBAR</AssemblyName>
+    <Product>IBAR</Product>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ApplicationManifest>..\JackiVpn.Desktop\app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\JackiVpn.Desktop\Assets\jacki.ico</ApplicationIcon>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <TieredPGO>false</TieredPGO>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+  <ItemGroup>
+    <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="7" />
+    <RuntimeHostConfigurationOption Include="System.GC.RetainVM" Value="false" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\JackiVpn.NotchKit\JackiVpn.NotchKit.csproj" />
+    <ProjectReference Include="..\JackiVpn.Agent\JackiVpn.Agent.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="..\JackiVpn.Desktop\Assets\jacki.ico" Link="Assets\ibar.ico" />
+  </ItemGroup>
+</Project>

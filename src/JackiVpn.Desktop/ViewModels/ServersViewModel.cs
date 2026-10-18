@@ -261,7 +261,10 @@ public sealed partial class ServersViewModel : ObservableObject
     {
         try
         {
-            await _s.DualVpn.SetEnabledAsync(on, _s.Lifetime);
+            if (await _s.DualVpn.SetEnabledAsync(on, _s.Lifetime) is { } problem)
+            {
+                _dialogs.Info("Dual VPN", problem);
+            }
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
@@ -279,7 +282,7 @@ public sealed partial class ServersViewModel : ObservableObject
         DualVpnTitle = d.IsConfigured ? $"Dual VPN · {d.Name}" : "Dual VPN";
         DualVpnStatus = d.IsConfigured
             ? $"{d.KindLabel} · {_s.DualVpn.Describe(state)}"
-            : "Add a second VPN to your company or another server — WireGuard, IPsec (IKEv2 / L2TP) or Kerio — next to IBOX.";
+            : "A second VPN to your company or another server — WireGuard, IPsec (IKEv2 / L2TP) or Kerio. It works on its own or next to IBOX.";
         DualVpnActive = _s.DualVpn.IsActive(state);
         DualVpnCanDial = d is { Enabled: true, Kind: Domain.Usage.SecondVpnKind.Ipsec } && !DualVpnActive;
         _dualVpnEnabled = d.Enabled;

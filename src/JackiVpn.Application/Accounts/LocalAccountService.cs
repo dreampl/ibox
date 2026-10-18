@@ -19,8 +19,11 @@ public sealed record LocalAccount
     /// <summary>Index into <see cref="LocalAccountService.AvatarColors"/> (initials avatar).</summary>
     public int Color { get; init; }
 
-    /// <summary>File name of a picture in the profiles folder, or null for the initials avatar.</summary>
+    /// <summary>File name of a picture in the profiles folder (wins over <see cref="Avatar"/>), or null.</summary>
     public string? Picture { get; init; }
+
+    /// <summary>The cartoon avatar chosen (<see cref="Domain.Visuals.Avatars"/> id); null = initials on <see cref="Color"/>.</summary>
+    public string? Avatar { get; init; }
 
     /// <summary>PBKDF2 salt (base64) when the profile is locked with a PIN; its settings then need the PIN.</summary>
     public string? PinSalt { get; init; }
@@ -100,9 +103,25 @@ public sealed class LocalAccountService
             }
         }
 
+        // Profiles from before the cartoon avatars (initials on a colour) get one each; a picture still wins.
+        if (_state.Accounts.Any(a => a.Avatar is null))
+        {
+            var used = new List<string?>();
+            _state = _state with
+            {
+                Accounts = _state.Accounts.Select(a =>
+                {
+                    var next = a.Avatar is null ? a with { Avatar = Domain.Visuals.Avatars.NextFree(used.Concat(_state.Accounts.Select(x => x.Avatar))) } : a;
+                    used.Add(next.Avatar);
+                    return next;
+                }).ToList(),
+            };
+            await SaveListAsync(ct).ConfigureAwait(false);
+        }
+
         if (_state.Accounts.Count == 0 || Active is null)
         {
-            var me = new LocalAccount { Id = NewId(), Name = Environment.UserName is { Length: > 0 } u ? Capitalize(u) : "Me", CreatedUtc = DateTimeOffset.UtcNow };
+            var me = new LocalAccount { Id = NewId(), Name = Environment.UserName is { Length: > 0 } u ? Capitalize(u) : "Me", CreatedUtc = DateTimeOffset.UtcNow, Avatar = Domain.Visuals.Avatars.All[0].Id };
             _state = new State([.. _state.Accounts, me], me.Id);
             await WriteSettingsAsync(me, _settings.Current, ct).ConfigureAwait(false);
             await SaveListAsync(ct).ConfigureAwait(false);
@@ -124,7 +143,7 @@ public sealed class LocalAccountService
     }
 
     /// <summary>Adds a profile, starting from the default settings or a copy of the current ones.</summary>
-    public async Task<(LocalAccount? Account, string? Problem)> CreateAsync(string name, int color, bool copyCurrent, string? pin, CancellationToken ct)
+    public async Task<(LocalAccount? Account, string? Problem)> CreateAsync(string name, int color, bool copyCurrent, string? pin, CancellationToken ct, string? avatar = null)
     {
         if (Problem(name) is { } problem)
         {
@@ -144,7 +163,14 @@ public sealed class LocalAccountService
         await _gate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            var account = new LocalAccount { Id = NewId(), Name = name.Trim(), Color = Math.Clamp(color, 0, AvatarColors.Count - 1), CreatedUtc = DateTimeOffset.UtcNow };
+            var account = new LocalAccount
+            {
+                Id = NewId(),
+                Name = name.Trim(),
+                Color = Math.Clamp(color, 0, AvatarColors.Count - 1),
+                CreatedUtc = DateTimeOffset.UtcNow,
+                Avatar = Domain.Visuals.Avatars.Find(avatar)?.Id ?? Domain.Visuals.Avatars.NextFree(_state.Accounts.Select(a => a.Avatar)),
+            };
             if (pin is not null)
             {
                 account = WithPin(account, pin, out var key);
@@ -219,14 +245,22 @@ public sealed class LocalAccountService
         }
     }
 
-    public async Task<string?> RenameAsync(string id, string name, int color, CancellationToken ct)
+    /// <summary>Name and colour; with <paramref name="avatar"/> also the cartoon avatar (which replaces a picture).</summary>
+    public async Task<string?> RenameAsync(string id, string name, int color, CancellationToken ct, string? avatar = null)
     {
         if (Problem(name) is { } problem)
         {
             return problem;
         }
 
-        await UpdateAsync(id, a => a with { Name = name.Trim(), Color = Math.Clamp(color, 0, AvatarColors.Count - 1) }, ct).ConfigureAwait(false);
+        var art = Domain.Visuals.Avatars.Find(avatar)?.Id;
+        await UpdateAsync(id, a => a with
+        {
+            Name = name.Trim(),
+            Color = Math.Clamp(color, 0, AvatarColors.Count - 1),
+            Avatar = art ?? a.Avatar,
+            Picture = art is not null && art != a.Avatar ? null : a.Picture,
+        }, ct).ConfigureAwait(false);
         return null;
     }
 
@@ -349,7 +383,7 @@ public sealed class LocalAccountService
     /// An account brought from another device (see <see cref="AccountTransfer"/>): a new profile with those settings and
     /// picture, made active (the current settings are saved to the current profile first).
     /// </summary>
-    public async Task<string?> ImportAsync(string name, int color, byte[]? picture, string? pictureExt, AppSettings settings, CancellationToken ct)
+    public async Task<string?> ImportAsync(string name, int color, byte[]? picture, string? pictureExt, AppSettings settings, CancellationToken ct, string? avatar = null)
     {
         if (Problem(name) is { } problem)
         {
@@ -364,7 +398,14 @@ public sealed class LocalAccountService
         await _gate.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            var account = new LocalAccount { Id = NewId(), Name = name.Trim(), Color = Math.Clamp(color, 0, AvatarColors.Count - 1), CreatedUtc = DateTimeOffset.UtcNow };
+            var account = new LocalAccount
+            {
+                Id = NewId(),
+                Name = name.Trim(),
+                Color = Math.Clamp(color, 0, AvatarColors.Count - 1),
+                CreatedUtc = DateTimeOffset.UtcNow,
+                Avatar = Domain.Visuals.Avatars.Find(avatar)?.Id ?? Domain.Visuals.Avatars.NextFree(_state.Accounts.Select(a => a.Avatar)),
+            };
             if (picture is { Length: > 0 and <= MaxPictureBytes } && pictureExt is ".png" or ".jpg")
             {
                 await File.WriteAllBytesAsync(Path.Combine(_dir, account.Id + pictureExt), picture, ct).ConfigureAwait(false);

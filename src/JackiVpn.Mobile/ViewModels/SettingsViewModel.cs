@@ -361,9 +361,6 @@ public sealed partial class SettingsViewModel : ObservableObject
     private static Task OpenUsageAsync() => Shell.Current.GoToAsync("usage");
 
     [RelayCommand]
-    private static Task OpenIslandAsync() => Shell.Current.GoToAsync("island");
-
-    [RelayCommand]
     private static void OpenVpnSettings()
     {
         var intent = new global::Android.Content.Intent(global::Android.Provider.Settings.ActionVpnSettings)

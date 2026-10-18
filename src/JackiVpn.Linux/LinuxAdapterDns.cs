@@ -116,6 +116,13 @@ public sealed class LinuxAdapterDns : IAdapterDnsControl
     /// <summary>Runs nmcli; null when it is missing or fails.</summary>
     private static async Task<string?> NmcliAsync(CancellationToken ct, params string[] args)
     {
+        if (LinuxPrivilege.Nmcli(args, ct) is { } elevated)
+        {
+            // The session's helper runs it as root: no polkit prompt.
+            var (code, text) = await elevated.ConfigureAwait(false);
+            return code == 0 ? text : null;
+        }
+
         try
         {
             var psi = new ProcessStartInfo("nmcli") { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };

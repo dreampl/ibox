@@ -30,7 +30,7 @@ public sealed record PortOwnerInfo(int ProcessId, string ProcessName, string? Pa
     ];
 
     /// <summary>A core started by IBOX itself (an earlier session that did not close in time).</summary>
-    public bool IsIbox => Path is { } p && (p.Contains("JackiVpn", StringComparison.OrdinalIgnoreCase) || p.Contains("Jacki VPN", StringComparison.OrdinalIgnoreCase));
+    public bool IsIbox => Path is { } p && (p.Contains("JackiVpn", StringComparison.OrdinalIgnoreCase) || p.Contains("Jacki VPN", StringComparison.OrdinalIgnoreCase) || p.Contains(@"IBOX\", StringComparison.OrdinalIgnoreCase));
 
     /// <summary>"v2rayN (v2rayN.exe, process 4120)".</summary>
     public string Describe()

@@ -59,7 +59,7 @@ public static class TourDialog
             dots.Children.Clear();
             for (var i = 0; i < Tour.Steps.Count; i++)
             {
-                dots.Children.Add(new Rectangle { Height = 7, Width = i == step ? 22 : 7, RadiusX = 3.5, RadiusY = 3.5, Fill = B(i == step ? Accent : Ui.Border) });
+                dots.Children.Add(new Rectangle { Height = 7, Width = i == step ? 22 : 7, RadiusX = 3.5, RadiusY = 3.5, Fill = B(i == step ? Accent : Ui.Divider) });
             }
 
             content.Opacity = 1;

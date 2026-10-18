@@ -1,0 +1,6 @@
+IBOX 2.1.3 (Windows, Linux)
+
+Fixed
+- Internal sites on the workplace network (also with your own direct rules): what IBOX dials directly itself (system proxy, and fast DNS in TUN mode) was looked up with the public resolver, which only knows a company's public names (checked on a real network: dc01.<company> → not found; now → its internal address). On the workplace network the company DNS now answers these too.
+- Claude (and other apps that remember the proxy when they start) no longer fail with "request failed" after IBOX disconnects: while IBOX is open but disconnected, its proxy port keeps answering and passes connections on to what the system uses without IBOX (another app's proxy, or direct). Never while a drop is being protected.
+- Editing several routing rules in a row restarts the connection once instead of after every edit.

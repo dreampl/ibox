@@ -15,9 +15,39 @@ using JackiVpn.Domain.Connection;
 
 namespace JackiVpn.Desktop.Views;
 
-/// <summary>A round profile avatar: the picture, or the initials on the profile's colour.</summary>
+/// <summary>A round profile avatar: the picture, the cartoon avatar, or the initials on the profile's colour.</summary>
 public sealed class AvatarView : FrameworkElement
 {
+    public static readonly DependencyProperty AvatarIdProperty = DependencyProperty.Register(
+        nameof(AvatarId), typeof(string), typeof(AvatarView), new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    private static readonly System.Collections.Generic.Dictionary<string, Drawing> Drawn = new(StringComparer.Ordinal);
+
+    public string? AvatarId { get => (string?)GetValue(AvatarIdProperty); set => SetValue(AvatarIdProperty, value); }
+
+    /// <summary>A cartoon avatar as a frozen drawing on a 100 × 100 canvas (built once per avatar).</summary>
+    public static Drawing Art(Domain.Visuals.AvatarArt art)
+    {
+        if (Drawn.TryGetValue(art.Id, out var cached))
+        {
+            return cached;
+        }
+
+        static Color C(uint argb) => Color.FromArgb((byte)(argb >> 24), (byte)(argb >> 16), (byte)(argb >> 8), (byte)argb);
+        var circle = new EllipseGeometry(new Point(50, 50), 50, 50);
+        var group = new DrawingGroup { ClipGeometry = circle };
+        group.Children.Add(new GeometryDrawing(new SolidColorBrush(C(art.Background)), null, circle));
+        foreach (var layer in art.Layers)
+        {
+            var pen = layer.Stroke == 0 ? null : new Pen(new SolidColorBrush(C(layer.Stroke)), layer.StrokeWidth) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
+            group.Children.Add(new GeometryDrawing(layer.Fill == 0 ? null : new SolidColorBrush(C(layer.Fill)), pen, Geometry.Parse(layer.Data)));
+        }
+
+        group.Freeze();
+        Drawn[art.Id] = group;
+        return group;
+    }
+
     public static readonly DependencyProperty InitialsProperty = DependencyProperty.Register(
         nameof(Initials), typeof(string), typeof(AvatarView), new FrameworkPropertyMetadata(string.Empty, FrameworkPropertyMetadataOptions.AffectsRender));
 
@@ -39,6 +69,7 @@ public sealed class AvatarView : FrameworkElement
         Height = size,
         Initials = account?.Initials ?? string.Empty,
         ColorIndex = account?.Color ?? 0,
+        AvatarId = account?.Avatar,
         PicturePath = account is null ? null : accounts.PicturePath(account),
     };
 
@@ -72,6 +103,16 @@ public sealed class AvatarView : FrameworkElement
             {
                 // initials below
             }
+        }
+
+        if (Domain.Visuals.Avatars.Find(AvatarId) is { } art)
+        {
+            dc.PushTransform(new TranslateTransform(center.X - (size / 2), center.Y - (size / 2)));
+            dc.PushTransform(new ScaleTransform(size / 100, size / 100));
+            dc.DrawDrawing(Art(art));
+            dc.Pop();
+            dc.Pop();
+            return;
         }
 
         var argb = LocalAccountService.AvatarColors[Math.Clamp(ColorIndex, 0, LocalAccountService.AvatarColors.Count - 1)];
@@ -289,43 +330,49 @@ internal sealed class ProfilesWindow
         root.Children.Add(Label("Name"));
         root.Children.Add(name);
         var color = account?.Color ?? _s.Accounts.Accounts.Count % LocalAccountService.AvatarColors.Count;
-        var swatches = new StackPanel { Orientation = Orientation.Horizontal };
-        void ShowSwatches()
+
+        // The face of the profile: ten cartoon avatars to pick from (or a picture of your own below).
+        var avatar = account?.Avatar ?? Domain.Visuals.Avatars.NextFree(_s.Accounts.Accounts.Select(a => a.Avatar));
+        var faces = new WrapPanel { Margin = new Thickness(-4, 0, 0, 0) };
+        void ShowFaces()
         {
-            swatches.Children.Clear();
-            for (var i = 0; i < LocalAccountService.AvatarColors.Count; i++)
+            faces.Children.Clear();
+            foreach (var art in Domain.Visuals.Avatars.All)
             {
-                var index = i;
-                var argb = LocalAccountService.AvatarColors[i];
-                var swatch = new Border
+                var id = art.Id;
+                var chosen = id == avatar;
+                var face = new Border
                 {
-                    Width = 26,
-                    Height = 26,
-                    CornerRadius = new CornerRadius(13),
-                    Margin = new Thickness(0, 0, 8, 0),
+                    Width = 58,
+                    Height = 58,
+                    CornerRadius = new CornerRadius(29),
+                    Margin = new Thickness(4),
+                    Padding = new Thickness(3),
                     Cursor = Cursors.Hand,
-                    Background = new SolidColorBrush(Color.FromArgb((byte)(argb >> 24), (byte)(argb >> 16), (byte)(argb >> 8), (byte)argb)),
-                    BorderThickness = new Thickness(index == color ? 2.5 : 0),
+                    BorderThickness = new Thickness(chosen ? 2.5 : 1),
+                    ToolTip = art.Name,
+                    Child = new AvatarView { AvatarId = id, Width = 48, Height = 48 },
                 };
-                swatch.SetResourceReference(Border.BorderBrushProperty, "B.Text");
-                swatch.MouseLeftButtonUp += (_, _) =>
+                face.SetResourceReference(Border.BorderBrushProperty, chosen ? "B.Accent" : "B.Border");
+                System.Windows.Automation.AutomationProperties.SetName(face, "Avatar " + art.Name);
+                face.MouseLeftButtonUp += (_, _) =>
                 {
-                    color = index;
-                    ShowSwatches();
+                    avatar = id;
+                    ShowFaces();
                 };
-                swatches.Children.Add(swatch);
+                faces.Children.Add(face);
             }
         }
 
-        ShowSwatches();
-        root.Children.Add(Label("Colour"));
-        root.Children.Add(swatches);
+        ShowFaces();
+        root.Children.Add(Label("Avatar"));
+        root.Children.Add(faces);
         string? picture = null;
-        var pictureButton = new Button { Content = "Choose picture…", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 0), Visibility = account is null ? Visibility.Collapsed : Visibility.Visible };
+        var pictureButton = new Button { Content = "Or use a picture of your own…", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 8, 0, 0), Visibility = account is null ? Visibility.Collapsed : Visibility.Visible };
         pictureButton.Click += (_, _) =>
         {
             picture = new DialogService().OpenFile("Pictures|*.png;*.jpg;*.jpeg");
-            pictureButton.Content = picture is null ? "Choose picture…" : Path.GetFileName(picture);
+            pictureButton.Content = picture is null ? "Or use a picture of your own…" : Path.GetFileName(picture);
         };
         root.Children.Add(pictureButton);
         var copy = DialogService.Styled(new CheckBox { IsChecked = true, Margin = new Thickness(0, 12, 0, 0), Content = new TextBlock { Text = "Start from my current settings" }, Visibility = account is null ? Visibility.Visible : Visibility.Collapsed }, "Toggle");
@@ -370,11 +417,11 @@ internal sealed class ProfilesWindow
             string? problem;
             if (account is null)
             {
-                (_, problem) = await _s.Accounts.CreateAsync(name.Text, color, copy.IsChecked == true, pin, CancellationToken.None);
+                (_, problem) = await _s.Accounts.CreateAsync(name.Text, color, copy.IsChecked == true, pin, CancellationToken.None, avatar);
             }
             else
             {
-                problem = await _s.Accounts.RenameAsync(account.Id, name.Text, color, CancellationToken.None);
+                problem = await _s.Accounts.RenameAsync(account.Id, name.Text, color, CancellationToken.None, picture is null && avatar != account.Avatar ? avatar : null);
                 if (problem is null && picture is not null)
                 {
                     problem = await _s.Accounts.SetPictureAsync(account.Id, picture, CancellationToken.None);

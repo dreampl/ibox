@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- ibar-ctl: plugins and scripts talk to IBAR (register, notify, chip, panel), and the Claude Code / Codex hooks. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>JackiVpn.BarCtl</RootNamespace>
+    <AssemblyName>ibar-ctl</AssemblyName>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\JackiVpn.Agent\JackiVpn.Agent.csproj" />
+  </ItemGroup>
+</Project>

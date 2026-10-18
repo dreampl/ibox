@@ -75,6 +75,7 @@ internal sealed class TourWindow : Window
         _content.Children.Add(_title);
         _content.Children.Add(_body);
         var card = new ClaySurface { CornerRadius = new CornerRadius(24), Padding = new Thickness(34, 30, 34, 24), Margin = new Thickness(22) };
+        SoftShadow.SetAllowed(this, true); // the tour is the one place with a shadow
         card.Content = new StackPanel { Children = { _content, _dots, buttons } };
         Content = card;
 
@@ -133,7 +134,7 @@ internal sealed class TourWindow : Window
         for (var i = 0; i < Tour.Steps.Count; i++)
         {
             var dot = new Rectangle { Height = 7, Width = i == _step ? 22 : 7, RadiusX = 3.5, RadiusY = 3.5, Margin = new Thickness(3, 0, 3, 0) };
-            dot.SetResourceReference(Shape.FillProperty, i == _step ? "B.Accent" : "B.Border");
+            dot.SetResourceReference(Shape.FillProperty, i == _step ? "B.Accent" : "B.Divider");
             _dots.Children.Add(dot);
         }
 

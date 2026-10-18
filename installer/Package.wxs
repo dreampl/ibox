@@ -2,7 +2,7 @@
 <!--
   IBOX — per-machine MSI.
   * Installs to Program Files (the privileged service refuses user-writable folders).
-  * Registers and starts the service through its own installer (`JackiVpn.Service.exe install`), which pins the
+  * Registers and starts the service through its own installer (`IBOX.Service.exe install`), which pins the
     app's path and hashes so only this exact app can talk to it; re-run on every upgrade.
   * Stops the service before files are replaced or removed; uninstall removes the service and its registration.
 -->
@@ -25,7 +25,7 @@
     <Property Id="ARPNOREPAIR" Value="1" />
 
     <StandardDirectory Id="ProgramFiles64Folder">
-      <Directory Id="INSTALLFOLDER" Name="Jacki VPN" />
+      <Directory Id="INSTALLFOLDER" Name="IBOX" />
     </StandardDirectory>
 
     <Feature Id="Main" Title="IBOX" Level="1">
@@ -37,11 +37,11 @@
     </Feature>
 
     <!-- Sync device: the app answers scans from the user's own devices on the same LAN. Windows marks most new Wi-Fi
-         networks "Public", so the rule covers every profile, but only for the local subnet and only JackiVpn.exe on TCP 50456
+         networks "Public", so the rule covers every profile, but only for the local subnet and only IBOX.exe on TCP 50456
          (an incoming subscription still needs the user's approval with a matching code). -->
     <Component Id="SyncDeviceFirewall" Directory="INSTALLFOLDER">
       <RegistryValue Root="HKLM" Key="SOFTWARE\JackiVpn\Installer" Name="SyncDeviceFirewall" Type="integer" Value="1" KeyPath="yes" />
-      <fw:FirewallException Id="SyncDeviceTcp" Name="IBOX Sync device" Program="[INSTALLFOLDER]JackiVpn.exe" Port="50456" Protocol="tcp" Scope="localSubnet" Profile="all" />
+      <fw:FirewallException Id="SyncDeviceTcp" Name="IBOX Sync device" Program="[INSTALLFOLDER]IBOX.exe" Port="50456" Protocol="tcp" Scope="localSubnet" Profile="all" />
     </Component>
 
     <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
@@ -55,25 +55,25 @@
     </Component>
 
     <Component Id="StartMenuShortcut" Directory="ProgramMenuFolder">
-      <Shortcut Id="StartMenuJacki" Name="IBOX" Description="Secure VPN client" Target="[INSTALLFOLDER]JackiVpn.exe" WorkingDirectory="INSTALLFOLDER" Icon="jacki.ico" />
+      <Shortcut Id="StartMenuJacki" Name="IBOX" Description="Secure VPN client" Target="[INSTALLFOLDER]IBOX.exe" WorkingDirectory="INSTALLFOLDER" Icon="jacki.ico" />
       <!-- Works even when the main window hangs: stops the tunnel (forced if needed) and gives the network back. -->
       <Shortcut Id="StartMenuEmergency" Name="IBOX - Emergency network restore" Description="Stop the VPN and restore normal internet access"
-                Target="[INSTALLFOLDER]JackiVpn.exe" Arguments="--emergency-restore" WorkingDirectory="INSTALLFOLDER" Icon="jacki.ico" />
+                Target="[INSTALLFOLDER]IBOX.exe" Arguments="--emergency-restore" WorkingDirectory="INSTALLFOLDER" Icon="jacki.ico" />
       <RegistryValue Root="HKLM" Key="SOFTWARE\JackiVpn\Installer" Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
     </Component>
 
     <Component Id="DesktopShortcut" Directory="DesktopFolder">
-      <Shortcut Id="DesktopJacki" Name="IBOX" Description="Secure VPN client" Target="[INSTALLFOLDER]JackiVpn.exe" WorkingDirectory="INSTALLFOLDER" Icon="jacki.ico" />
+      <Shortcut Id="DesktopJacki" Name="IBOX" Description="Secure VPN client" Target="[INSTALLFOLDER]IBOX.exe" WorkingDirectory="INSTALLFOLDER" Icon="jacki.ico" />
       <RegistryValue Root="HKLM" Key="SOFTWARE\JackiVpn\Installer" Name="DesktopShortcut" Type="integer" Value="1" KeyPath="yes" />
     </Component>
 
     <!-- Service registration runs as LocalSystem (deferred, not impersonated) after the files are in place. -->
     <CustomAction Id="InstallService" Directory="INSTALLFOLDER" Execute="deferred" Impersonate="no" Return="check"
-                  ExeCommand="&quot;[INSTALLFOLDER]JackiVpn.Service.exe&quot; install --client &quot;[INSTALLFOLDER]JackiVpn.exe&quot;" />
+                  ExeCommand="&quot;[INSTALLFOLDER]IBOX.Service.exe&quot; install --client &quot;[INSTALLFOLDER]IBOX.exe&quot;" />
     <CustomAction Id="InstallServiceRollback" Directory="INSTALLFOLDER" Execute="rollback" Impersonate="no" Return="ignore"
-                  ExeCommand="&quot;[INSTALLFOLDER]JackiVpn.Service.exe&quot; uninstall" />
+                  ExeCommand="&quot;[INSTALLFOLDER]IBOX.Service.exe&quot; uninstall" />
     <CustomAction Id="UninstallService" Directory="INSTALLFOLDER" Execute="deferred" Impersonate="no" Return="ignore"
-                  ExeCommand="&quot;[INSTALLFOLDER]JackiVpn.Service.exe&quot; uninstall" />
+                  ExeCommand="&quot;[INSTALLFOLDER]IBOX.Service.exe&quot; uninstall" />
 
     <InstallExecuteSequence>
       <Custom Action="UninstallService" Before="RemoveFiles" Condition="REMOVE~=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
@@ -84,7 +84,7 @@
     <!-- Launch the app (as the user, not elevated) from the last page. -->
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch IBOX" />
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
-    <SetProperty Id="WixShellExecTarget" Value="[INSTALLFOLDER]JackiVpn.exe" After="CostFinalize" Sequence="ui" />
+    <SetProperty Id="WixShellExecTarget" Value="[INSTALLFOLDER]IBOX.exe" After="CostFinalize" Sequence="ui" />
     <CustomAction Id="LaunchApp" BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)" DllEntry="WixShellExec" Impersonate="yes" />
 
     <!-- Welcome → Install → Finish: the folder is fixed (Program Files) and there is no click-through EULA. -->

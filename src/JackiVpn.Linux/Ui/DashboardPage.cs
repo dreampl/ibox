@@ -57,8 +57,8 @@ public sealed class ConnectOrb : Grid
             BorderThickness = new Thickness(1),
             BoxShadow = ClayShadow(raised: true),
         };
-        var track = new Ellipse { Width = 200, Height = 200, Stroke = B(Ui.Border), StrokeThickness = 2 };
-        var depth = new Border { Width = 176, Height = 176, CornerRadius = new CornerRadius(88), BoxShadow = new BoxShadows(new BoxShadow { OffsetY = 8, Blur = 20, Spread = -2, Color = WithAlpha(Look.P.Shadow, Look.P.ShadowOpacity) }) };
+        var track = new Ellipse { Width = 200, Height = 200, Stroke = B(Ui.Divider), StrokeThickness = 2 };
+        var depth = new Border { Width = 176, Height = 176, CornerRadius = new CornerRadius(88) };
         var sheen = new Ellipse
         {
             Width = 176,
@@ -392,8 +392,8 @@ public sealed class DashboardPage(Shell shell) : Page(shell)
         var tun = S.Settings.Current.Connection.Mode == ConnectionMode.Tun;
         foreach (var (tile, on) in new[] { (_modeTun, tun), (_modeProxy, !tun) })
         {
-            tile.BorderBrush = on ? B(Accent) : B(Ui.Border, Look.P.IsLight ? 0.9 : 0.55);
-            tile.BorderThickness = new Thickness(on ? 1.5 : 1);
+            tile.BorderBrush = Brushes.Transparent;
+            tile.BorderThickness = new Thickness(0);
             tile.Background = on ? B(Accent, Look.P.IsLight ? 0.08 : 0.12) : CardFill;
         }
 
@@ -567,6 +567,14 @@ public sealed class DashboardPage(Shell shell) : Page(shell)
                 return;
             }
 
+            // The Dual VPN alone is not the main VPN: the button turns the main VPN on (the traffic is then split).
+            if (state == ConnectionState.Connected && S.Orchestrator.Status.DualOnly)
+            {
+                await S.PrepareTunAsync(Shell.Lifetime.Token);
+                await S.Orchestrator.ConnectAsync(new ConnectRequest(), Shell.Lifetime.Token);
+                return;
+            }
+
             // While connecting this cancels.
             if (!ConnectionStateRules.IsIdle(state))
             {
@@ -593,7 +601,9 @@ public sealed class DashboardPage(Shell shell) : Page(shell)
         var p = Look.P;
         var connected = st.State == ConnectionState.Connected;
         var busy = !ConnectionStateRules.IsIdle(st.State) && !connected;
-        _orb.SetState(st.State, connected ? st.Activity : ActivityProfile.Normal);
+        // The big orb is the main VPN: while the Dual VPN runs alone it reads "off".
+        var alone = connected && st.DualOnly;
+        _orb.SetState(alone ? ConnectionState.Disconnected : st.State, connected && !alone ? st.Activity : ActivityProfile.Normal);
         var tint = connected ? p.Success : busy ? p.Accent : st.State == ConnectionState.Faulted ? p.Danger : p.TextMuted;
         _glow.Fill = new RadialGradientBrush
         {
@@ -613,6 +623,11 @@ public sealed class DashboardPage(Shell shell) : Page(shell)
         _detail.Text = connected
             ? st.ProfileName ?? string.Empty
             : st.State == ConnectionState.Disconnected ? "Choose a server or let smart connect pick the fastest." : st.ProfileName ?? "Click the orb to cancel.";
+        if (alone)
+        {
+            _title.Text = "Dual VPN only";
+            _detail.Text = "All traffic goes through " + S.DualVpn.Current.Name + ". Click the orb to turn IBOX on too: then only the company's part uses it.";
+        }
         // The chips change rarely; the status arrives every second (traffic): rebuild them only when they differ.
         var dual = S.DualVpn.Current;
         var dualShown = dual is { Enabled: true, IsConfigured: true };

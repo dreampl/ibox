@@ -1,10 +1,10 @@
 <UserControl x:Class="JackiVpn.Desktop.Views.SubscriptionsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:v="clr-namespace:JackiVpn.Desktop.Views"
+             xmlns:v="clr-namespace:JackiVpn.Desktop.Views" xmlns:k="clr-namespace:JackiVpn.Desktop.Views;assembly=JackiVpn.NotchKit"
              xmlns:vm="clr-namespace:JackiVpn.Desktop.ViewModels">
     <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="32,26,32,26" v:Motion.StaggerChildren="True">
+        <StackPanel Margin="32,26,32,26" k:Motion.StaggerChildren="True">
             <DockPanel>
                 <Button DockPanel.Dock="Right" Content="Update all" Command="{Binding RefreshAllCommand}" VerticalAlignment="Top" />
                 <Button DockPanel.Dock="Right" Style="{StaticResource Button.Primary}" Click="OnSyncDeviceClick" VerticalAlignment="Top" Margin="0,0,8,0"
@@ -24,7 +24,7 @@
             <v:ClaySurface>
                 <StackPanel>
                     <DockPanel>
-                        <v:OrbView DockPanel.Dock="Right" State="Weaving" Width="24" Height="24" IsRunning="{Binding IsBusy}" Visibility="{Binding IsBusy, Converter={StaticResource Bool2Vis}}" />
+                        <k:OrbView DockPanel.Dock="Right" State="Weaving" Width="24" Height="24" IsRunning="{Binding IsBusy}" Visibility="{Binding IsBusy, Converter={StaticResource Bool2Vis}}" />
                         <TextBlock Text="Add subscription" Style="{StaticResource Text.Section}" />
                     </DockPanel>
                     <Grid>

@@ -1,0 +1,11 @@
+IBOX 1.7.0
+
+New
+- Dual VPN on its own: turn the second VPN on from Servers without connecting IBOX. Alone, it carries all your traffic. Connect IBOX as well and the traffic is split: the company's part takes the second VPN, everything else takes IBOX. Disconnect IBOX and the second VPN carries everything again.
+- Choose what takes the second VPN: Smart (IBOX decides: the private addresses companies use and what the second VPN announces, its network, DNS and domain; your own home or office network always stays direct) or only the names and subnets you list. Servers > Dual VPN > Edit.
+- Profile avatars: pick one of 10 cartoon faces for each profile, or your own picture (Windows and Linux). An account moved with an .ibox file keeps its face.
+- Alita is a friend: IBOX never cuts, limits or slows it and does not warn about its proxy. Optionally Alita takes its own network path, outside IBOX and the kill switch: Settings > Let Alita use its own network path.
+
+Fixed
+- Android: the notch can now be moved all the way up, onto the camera hole; the new up/down buttons move it one step at a time.
+- Windows: PIN and password fields were white in the dark theme.

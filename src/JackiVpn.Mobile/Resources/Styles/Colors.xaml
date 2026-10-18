@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="UTF-8" ?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <ResourceDictionary xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
     <!-- The shared IBOX dark token set (same values as the Windows and Linux apps): deep navy-slate matte surfaces,
@@ -8,12 +8,14 @@
     <Color x:Key="Surface">#161F33</Color>
     <Color x:Key="Surface2">#19233A</Color>
     <Color x:Key="Surface3">#1D2840</Color>
-    <Color x:Key="Stroke">#263350</Color>
+    <Color x:Key="Stroke">#00263350</Color>
+    <!-- No outlines: surfaces are told apart by their fill. Thin separators keep this colour. -->
+    <Color x:Key="Divider">#263350</Color>
     <Color x:Key="Text">#F1F5F9</Color>
     <Color x:Key="Text2">#94A3B8</Color>
     <Color x:Key="Text3">#64748B</Color>
     <Color x:Key="Primary">#3B82F6</Color>
-    <Color x:Key="Primary2">#7C6CF6</Color>
+    <Color x:Key="Primary2">#3B82F6</Color>
     <Color x:Key="Teal">#22C55E</Color>
     <Color x:Key="Teal2">#10B981</Color>
     <Color x:Key="Gaming">#F43F7A</Color>
@@ -31,74 +33,74 @@
     <Color x:Key="Sidebar">#111930</Color>
     <Color x:Key="Card">#161F33</Color>
     <Color x:Key="Input">#19233A</Color>
-    <Color x:Key="Border">#263350</Color>
+    <Color x:Key="Border">#00263350</Color>
     <Color x:Key="TextSecondary">#94A3B8</Color>
     <Color x:Key="TextMuted">#64748B</Color>
     <Color x:Key="Accent">#3B82F6</Color>
-    <Color x:Key="Accent2">#7C6CF6</Color>
+    <Color x:Key="Accent2">#3B82F6</Color>
     <Color x:Key="Success">#22C55E</Color>
     <Color x:Key="Warning">#F59E0B</Color>
     <Color x:Key="AccentSoft">#263B82F6</Color>
 
     <LinearGradientBrush x:Key="PageGradient" StartPoint="0.5,0" EndPoint="0.5,1">
-        <GradientStop Color="#111A2C" Offset="0" />
+        <GradientStop Color="#0D1322" Offset="0" />
         <GradientStop Color="#0D1322" Offset="0.55" />
-        <GradientStop Color="#0B101C" Offset="1" />
+        <GradientStop Color="#0D1322" Offset="1" />
     </LinearGradientBrush>
     <LinearGradientBrush x:Key="PrimaryGradient" StartPoint="0,0" EndPoint="1,1">
         <GradientStop Color="#3B82F6" Offset="0" />
-        <GradientStop Color="#7C6CF6" Offset="1" />
+        <GradientStop Color="#3B82F6" Offset="1" />
     </LinearGradientBrush>
     <LinearGradientBrush x:Key="TealGradient" StartPoint="0,0" EndPoint="1,1">
-        <GradientStop Color="#A7F3D0" Offset="0" />
-        <GradientStop Color="#34D399" Offset="0.45" />
-        <GradientStop Color="#0E9F6E" Offset="1" />
+        <GradientStop Color="#22C55E" Offset="0" />
+        <GradientStop Color="#22C55E" Offset="0.45" />
+        <GradientStop Color="#22C55E" Offset="1" />
     </LinearGradientBrush>
     <!-- Connected button per mode: gaming magenta-red, streaming blue, eco light green, work medium blue. -->
     <LinearGradientBrush x:Key="GamingGradient" StartPoint="0,0" EndPoint="1,1">
-        <GradientStop Color="#FFE4EE" Offset="0" />
-        <GradientStop Color="#FB7199" Offset="0.45" />
-        <GradientStop Color="#E11D48" Offset="1" />
+        <GradientStop Color="#F43F7A" Offset="0" />
+        <GradientStop Color="#F43F7A" Offset="0.45" />
+        <GradientStop Color="#F43F7A" Offset="1" />
     </LinearGradientBrush>
     <LinearGradientBrush x:Key="EcoGradient" StartPoint="0,0" EndPoint="1,1">
-        <GradientStop Color="#F0FFF4" Offset="0" />
-        <GradientStop Color="#A7F3C0" Offset="0.45" />
+        <GradientStop Color="#4ADE80" Offset="0" />
+        <GradientStop Color="#4ADE80" Offset="0.45" />
         <GradientStop Color="#4ADE80" Offset="1" />
     </LinearGradientBrush>
     <LinearGradientBrush x:Key="WorkGradient" StartPoint="0,0" EndPoint="1,1">
-        <GradientStop Color="#E3EEFF" Offset="0" />
-        <GradientStop Color="#6EA4FA" Offset="0.45" />
-        <GradientStop Color="#2563EB" Offset="1" />
+        <GradientStop Color="#3B82F6" Offset="0" />
+        <GradientStop Color="#3B82F6" Offset="0.45" />
+        <GradientStop Color="#3B82F6" Offset="1" />
     </LinearGradientBrush>
     <LinearGradientBrush x:Key="StreamingGradient" StartPoint="0,0" EndPoint="1,1">
-        <GradientStop Color="#E0F2FF" Offset="0" />
-        <GradientStop Color="#60BDFC" Offset="0.45" />
-        <GradientStop Color="#0284C7" Offset="1" />
+        <GradientStop Color="#38BDF8" Offset="0" />
+        <GradientStop Color="#38BDF8" Offset="0.45" />
+        <GradientStop Color="#38BDF8" Offset="1" />
     </LinearGradientBrush>
     <LinearGradientBrush x:Key="AccentGradientH" StartPoint="0,0.5" EndPoint="1,0.5">
         <GradientStop Color="#3B82F6" Offset="0" />
-        <GradientStop Color="#7C6CF6" Offset="1" />
+        <GradientStop Color="#3B82F6" Offset="1" />
     </LinearGradientBrush>
     <LinearGradientBrush x:Key="AccentGradient" StartPoint="0,0" EndPoint="1,1">
         <GradientStop Color="#3B82F6" Offset="0" />
-        <GradientStop Color="#7C6CF6" Offset="1" />
+        <GradientStop Color="#3B82F6" Offset="1" />
     </LinearGradientBrush>
     <LinearGradientBrush x:Key="GlassFill" StartPoint="0,0" EndPoint="1,1">
-        <GradientStop Color="#14FFFFFF" Offset="0" />
-        <GradientStop Color="#08FFFFFF" Offset="1" />
+        <GradientStop Color="#10FFFFFF" Offset="0" />
+        <GradientStop Color="#10FFFFFF" Offset="1" />
     </LinearGradientBrush>
     <LinearGradientBrush x:Key="GlassFillStrong" StartPoint="0,0" EndPoint="1,1">
-        <GradientStop Color="#1FFFFFFF" Offset="0" />
-        <GradientStop Color="#0DFFFFFF" Offset="1" />
+        <GradientStop Color="#16FFFFFF" Offset="0" />
+        <GradientStop Color="#16FFFFFF" Offset="1" />
     </LinearGradientBrush>
     <LinearGradientBrush x:Key="GlassRim" StartPoint="0,0" EndPoint="1,1">
-        <GradientStop Color="#33FFFFFF" Offset="0" />
-        <GradientStop Color="#0AFFFFFF" Offset="0.5" />
-        <GradientStop Color="#1AFFFFFF" Offset="1" />
+        <GradientStop Color="#00FFFFFF" Offset="0" />
+        <GradientStop Color="#00FFFFFF" Offset="0.5" />
+        <GradientStop Color="#00FFFFFF" Offset="1" />
     </LinearGradientBrush>
     <LinearGradientBrush x:Key="GlassRimAccent" StartPoint="0,0" EndPoint="1,1">
-        <GradientStop Color="#CC3B82F6" Offset="0" />
-        <GradientStop Color="#CC22C55E" Offset="1" />
+        <GradientStop Color="#003B82F6" Offset="0" />
+        <GradientStop Color="#003B82F6" Offset="1" />
     </LinearGradientBrush>
     <!-- Content fades into the midnight floor under the navigation bar. -->
     <LinearGradientBrush x:Key="BottomScrim" StartPoint="0.5,0" EndPoint="0.5,1">

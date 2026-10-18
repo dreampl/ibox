@@ -119,6 +119,24 @@ public static class DualVpnDialog
         var domains = Box(current.Domains);
         var cidrs = Box(current.Cidrs);
         var dns = Box(current.Dns);
+
+        // With IBOX on too: what takes the second VPN.
+        var scope = new ComboBox { ItemsSource = new[] { "Smart — IBOX decides (recommended)", "Only the names and subnets below" }, SelectedIndex = (int)current.Scope, HorizontalAlignment = HorizontalAlignment.Stretch };
+        var scopeHint = Wrap(Hint(string.Empty));
+        var domainsLabel = Label(string.Empty);
+        var cidrsLabel = Label(string.Empty);
+        void ShowScope()
+        {
+            var smart = scope.SelectedIndex != (int)SecondVpnScope.Custom;
+            scopeHint.Text = smart
+                ? "The company's private addresses, and what the second VPN announces (its network, DNS and domain). Your own home or office network always stays direct."
+                : "Only what you list below; everything else keeps IBOX.";
+            domainsLabel.Text = smart ? "Also these names (optional)" : "Company names (corp.example.com, intranet.local …)";
+            cidrsLabel.Text = smart ? "Also these subnets (optional)" : "Company subnets (10.20.0.0/16, 192.168.50.0/24 …)";
+        }
+
+        scope.SelectionChanged += (_, _) => ShowScope();
+        ShowScope();
         var error = T(string.Empty, 12, color: Danger);
         error.TextWrapping = TextWrapping.Wrap;
 
@@ -148,6 +166,7 @@ public static class DualVpnDialog
                     Domains = domains.Text,
                     Cidrs = cidrs.Text,
                     Dns = dns.Text,
+                    Scope = (SecondVpnScope)Math.Max(0, scope.SelectedIndex),
                 }, shell.Lifetime.Token);
             }
             catch (Exception ex) when (ex is not OutOfMemoryException)
@@ -194,11 +213,12 @@ public static class DualVpnDialog
                 Children =
                 {
                     T("Dual VPN — a second VPN", 17, FontWeight.SemiBold),
-                    Wrap(Hint("Connect to your company (or another server) next to IBOX. Only the company's names and subnets you enter below go through the second VPN; everything else keeps the IBOX connection.")),
+                    Wrap(Hint("A second VPN to your company or another server, with its own on/off. On its own it carries all your traffic; with IBOX on too, only the company's part goes through it and everything else keeps IBOX.")),
                     Label("Name"), name, Label("Type"), kind,
                     wgPanel, ipsecPanel, adapterPanel, serverPanel,
-                    Label("Company names (corp.example.com, intranet.local …)"), domains,
-                    Label("Company subnets (10.20.0.0/16, 192.168.50.0/24 …)"), cidrs,
+                    Label("With IBOX on too, send through it"), scope, scopeHint,
+                    domainsLabel, domains,
+                    cidrsLabel, cidrs,
                     Label("Company DNS (optional)"), dns,
                     Hint("Separate entries with commas. A name covers its subdomains."),
                     error,
