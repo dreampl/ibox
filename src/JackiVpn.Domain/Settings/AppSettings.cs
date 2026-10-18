@@ -207,6 +207,13 @@ public sealed record KillSwitchSettings
 {
     public bool Enabled { get; init; }
     public bool AllowLan { get; init; } = true;
+
+    /// <summary>
+    /// When a working connection drops on its own, apps that use the system proxy (Claude, browsers, chat apps) wait
+    /// instead of going out directly — nothing is sent from your real address — until IBOX reconnects (it keeps
+    /// trying) or you disconnect. Lighter than the kill switch: never blocks a first connect that did not work.
+    /// </summary>
+    public bool ProtectOnDrop { get; init; } = true;
 }
 
 public sealed record ConnectionSettings
@@ -398,6 +405,9 @@ public sealed record UiSettings
 {
     public AppTheme Theme { get; init; } = AppTheme.System;
 
+    /// <summary>The first-start tour was shown (or skipped); it can be opened again from About.</summary>
+    public bool TourSeen { get; init; }
+
     /// <summary>Where the node editor placed each node (rules "r:{id}", conditions "c:{id}:{n}", actions "a:{type}").</summary>
     public IReadOnlyDictionary<string, NodePoint> RoutingLayout { get; init; } = new Dictionary<string, NodePoint>(StringComparer.Ordinal);
     public bool CloseToTray { get; init; } = true;
@@ -467,6 +477,9 @@ public sealed record NotchSettings
     /// <summary>Horizontal position on the top edge, 0 = left … 1 = right.</summary>
     public double Position { get; init; } = 0.5;
 
+    /// <summary>The monitor it sits on ("x,y" of that monitor's top-left corner); null = the main one.</summary>
+    public string? Display { get; init; }
+
     /// <summary>Seconds without the pointer before it fades out of the way (0 = never).</summary>
     public int FadeAfterSeconds { get; init; } = 6;
 
@@ -475,6 +488,12 @@ public sealed record NotchSettings
 
     /// <summary>A soft chime when the connection is made.</summary>
     public bool Sound { get; init; } = true;
+
+    /// <summary>The shelf: files, folders, text and links dropped on the notch are kept there to drag out later.</summary>
+    public bool Shelf { get; init; } = true;
+
+    /// <summary>Claude and ChatGPT notifications, and Claude Code / Codex permission requests, on the notch.</summary>
+    public bool AiAssistants { get; init; } = true;
 }
 
 public sealed record LoggingSettings
@@ -633,6 +652,12 @@ public sealed record AppSettings
     public UsageSettings Usage { get; init; } = new();
     public TrafficControlSettings Traffic { get; init; } = new();
     public WorkplaceSettings Workplace { get; init; } = new();
+
+    /// <summary>The standalone second VPN (Dual VPN) to a company or a server, in every mode.</summary>
+    public SecondVpnSettings DualVpn { get; init; } = new();
+
+    /// <summary>Programs IBOX cooperates with (Alita): never cut or slowed, optionally their own network path.</summary>
+    public FriendAppsSettings Friends { get; init; } = new();
     public ConnectivitySettings Connectivity { get; init; } = new();
 
     /// <summary>Control by the command line and AI agents (MCP). Off by default.</summary>
@@ -648,4 +673,7 @@ public sealed record AgentSettings
     public bool Enabled { get; init; }
 
     public bool AllowChanges { get; init; }
+
+    /// <summary>IBAR (the IBOX notch app) may show and control the connection, also with agent control off.</summary>
+    public bool Ecosystem { get; init; } = true;
 }

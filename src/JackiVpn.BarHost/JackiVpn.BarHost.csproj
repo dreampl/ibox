@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- ibar-host: IBAR's native host for the browser extension (Native Messaging) and the Adobe panel's bridge.
+       Small and quiet: it lives as long as the browser keeps it, so it is built to sit idle in a few megabytes. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>JackiVpn.BarHost</RootNamespace>
+    <AssemblyName>ibar-host</AssemblyName>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <TieredPGO>false</TieredPGO>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+  <ItemGroup>
+    <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="9" />
+    <RuntimeHostConfigurationOption Include="System.GC.RetainVM" Value="false" />
+    <RuntimeHostConfigurationOption Include="System.GC.HeapHardLimit" Value="33554432" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\JackiVpn.Domain\JackiVpn.Domain.csproj" />
+  </ItemGroup>
+</Project>

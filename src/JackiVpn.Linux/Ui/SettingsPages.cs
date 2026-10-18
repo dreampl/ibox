@@ -105,7 +105,7 @@ public sealed class RoutingPage : OptionsPage
         S.Settings.Changed += changed;
         Track(() => S.Settings.Changed -= changed);
         return Stack(
-            Header("Routing", "Rules are checked top to bottom; the first match wins.", actions),
+            Header("Routing", "Decide which sites and apps go through the VPN, go direct or are blocked. Rules are checked from the top; the first match wins.", actions),
             Section("Preset", "Rule = everything through VPN except BitTorrent; Global = everything through VPN; Direct = nothing through VPN; Iran friendly = Iranian sites and IPs direct, the rest through VPN (every preset rule is editable).",
                 Row("Preset", null, preset),
                 Row("Unmatched traffic", "What happens to traffic that matches no rule.", final),
@@ -656,7 +656,7 @@ public sealed class DnsPage(Shell shell) : OptionsPage(shell)
             leak.IsVisible = v is DnsMode.System or DnsMode.Local;
         });
         return Stack(
-            Header("DNS", "How domain names are resolved while connected. The default keeps every lookup encrypted and inside the tunnel."),
+            Header("DNS", "How site names are looked up. The default (Smart) keeps every lookup encrypted and inside the VPN — usually nothing to change here."),
             Section("DNS mode", null, Row("Mode", null, mode), leak),
             Section("Which DNS", "The resolver used outside the tunnel: for VPN server addresses, and for direct sites if you turn that on. Names inside the tunnel use the encrypted resolver.", _choice),
             search,
@@ -693,7 +693,7 @@ public sealed class NetworkPage(Shell shell) : OptionsPage(shell)
         var c = Cur.Connection;
         var mode = Combo([(ConnectionMode.Tun, "TUN (all apps)"), (ConnectionMode.SystemProxy, "System proxy")], c.Mode, v => Set(x => x with { Connection = x.Connection with { Mode = v } }));
         return Stack(
-            Header("Network", "Connection mode and network options."),
+            Header("Network", "How IBOX connects: the whole system (TUN) or only apps that use the proxy, plus network options."),
             Section("Connection mode", "TUN captures all traffic through a virtual network device (sing-box gets the network permission when the package is installed). System proxy only covers apps that honor the desktop proxy settings (GNOME/Ubuntu: set automatically while connected).",
                 Row("Mode", null, mode),
                 Row("IPv6", "Auto enables IPv6 only when the server is proven to carry it; otherwise IPv6 is blocked inside the tunnel so it cannot leak.", EnumCombo(Cur.Ipv6, v => Set(x => x with { Ipv6 = v }))),
@@ -706,7 +706,8 @@ public sealed class NetworkPage(Shell shell) : OptionsPage(shell)
                 Row("Encrypted DNS for server names", "Resolves server addresses over DNS-over-HTTPS when the network's DNS is poisoned or blocked.", Toggle(Cur.Connectivity.SecureDnsRescue, v => Set(x => x with { Connectivity = x.Connectivity with { SecureDnsRescue = v } }))),
                 Row("Find clean Cloudflare addresses", "For CDN (WebSocket / gRPC / HTTP) configs whose usual address is filtered: tests Cloudflare ranges with the config's own TLS name.", Toggle(Cur.Connectivity.CleanIpScan, v => Set(x => x with { Connectivity = x.Connectivity with { CleanIpScan = v } }))),
                 Row("Try other TLS fingerprints", "When a REALITY/TLS handshake is blocked, tries the other browser fingerprints.", Toggle(Cur.Connectivity.FingerprintRotation, v => Set(x => x with { Connectivity = x.Connectivity with { FingerprintRotation = v } })))),
-            Section("Kill switch", "Not available on Linux yet: if the VPN drops, traffic is not blocked. Use TUN mode with smart connect for automatic failover."));
+            Section("When the connection drops", "IBOX keeps reconnecting until the connection is back or you disconnect.",
+                Row("Protect apps when the connection drops (recommended)", "Apps that use the desktop proxy (Claude, browsers, chat apps) wait instead of going out from your real address until IBOX is back.", Toggle(Cur.KillSwitch.ProtectOnDrop, v => Set(x => x with { KillSwitch = x.KillSwitch with { ProtectOnDrop = v } })))));
     }
 }
 
@@ -722,7 +723,7 @@ public sealed class AdvancedPage(Shell shell) : OptionsPage(shell)
         var f = Cur.Smart.Failover;
         var probe = Cur.Probe;
         return Stack(
-            Header("Advanced", "Engines, multiplexing, smart selection and server tests. Defaults are tuned for stability."),
+            Header("Advanced", "For experts: engines, multiplexing, server selection and tests. The defaults already work well."),
             Section("Speed & handshake", "Base ping is set by the distance to the server. These settings remove the extra waiting on top of it.",
                 Row("Auto-tune each server", "Measures TLS record vs TCP fragmentation, WebSocket 0-RTT and MUX on real handshakes and keeps the fastest variant that works.", Toggle(p.AutoTune, v => Set(x => x with { Performance = x.Performance with { AutoTune = v } }))),
                 Row("Fast DNS (FakeIP, TUN)", "Tunneled names are answered instantly and resolved by the server.", Toggle(Cur.Dns.FakeIpEnabled, v => Set(x => x with { Dns = x.Dns with { FakeIpEnabled = v } }))),
@@ -763,7 +764,7 @@ public sealed class SettingsPage(Shell shell) : OptionsPage(shell)
     public override string Glyph => Icons.Settings;
 
     protected override Control Build() => Stack(
-        Header("Settings", "Appearance, startup, notifications and logging."),
+        Header("Settings", "Look (light / dark), start-up, the notch, notifications and AI agents."),
         Section("Appearance", null,
             Row("Theme", "System follows the desktop's light or dark setting. Changes apply at once.", Combo(
                 [(AppTheme.System, "System"), (AppTheme.Light, "Light"), (AppTheme.Dark, "Dark")],
@@ -781,6 +782,8 @@ public sealed class SettingsPage(Shell shell) : OptionsPage(shell)
             new TextBox { Text = AgentConfig(), IsReadOnly = true, FontFamily = new FontFamily("monospace"), FontSize = 12, TextWrapping = TextWrapping.Wrap }),
         Section("Startup", null,
             Row("Connect automatically on start", "Uses smart selection or your default server, as configured.", Toggle(Cur.Startup.AutoConnect, v => Set(x => x with { Startup = x.Startup with { AutoConnect = v } })))),
+        Section("Friendly apps", "IBOX works with Alita instead of around it: never cuts, limits or slows it.",
+            Row("Let Alita use its own network path", "Turn this on when Alita handles its own connection: its traffic then goes outside IBOX. Applies on the next connect.", Toggle(Cur.Friends.Direct, v => Set(x => x with { Friends = x.Friends with { Direct = v } })))),
         Section("Notifications", null,
             Row("Warn when subscription traffic reaches (%)", null, Number(Cur.Notifications.TrafficWarningPercent, 50, 100, v => Set(x => x with { Notifications = x.Notifications with { TrafficWarningPercent = (int)v } })))),
         Section("Logging & privacy", null,
@@ -921,6 +924,7 @@ public sealed class AboutPage(Shell shell) : Page(shell)
             Children =
             {
                 Header("About"),
+                Section("Getting started", "A one-minute walk through adding servers, choosing how to connect and the eye button.", Ghost("Show the tour", () => _ = Shell.ShowTourAsync())),
                 Card(new StackPanel
                 {
                     Spacing = 6,
@@ -928,6 +932,7 @@ public sealed class AboutPage(Shell shell) : Page(shell)
                     {
                         T("IBOX", 22, FontWeight.SemiBold),
                         Caption("Version " + version + " · Linux"),
+                        Caption("Powered by JACKI"),
                         Hint("Install folder: " + AppContext.BaseDirectory),
                         Hint("Data folder: " + S.DataDir),
                     },

@@ -1,7 +1,7 @@
 <UserControl x:Class="JackiVpn.Desktop.Views.AdvancedView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:v="clr-namespace:JackiVpn.Desktop.Views">
+             xmlns:v="clr-namespace:JackiVpn.Desktop.Views" xmlns:k="clr-namespace:JackiVpn.Desktop.Views;assembly=JackiVpn.NotchKit">
     <UserControl.Resources>
         <Style x:Key="NumBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
             <Setter Property="Width" Value="110" />
@@ -10,8 +10,8 @@
         </Style>
     </UserControl.Resources>
     <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="32,26,32,26" v:Motion.StaggerChildren="True">
-            <TextBlock Text="Engines, multiplexing, smart selection and ownership verification. Defaults are tuned for stability." Style="{StaticResource Text.PageSubtitle}" />
+        <StackPanel Margin="32,26,32,26" k:Motion.StaggerChildren="True">
+            <TextBlock Text="For experts: engines, multiplexing, server selection and verification. The defaults already work well." Style="{StaticResource Text.PageSubtitle}" />
 
             <!-- Speed & handshake -->
             <v:ClaySurface>

@@ -19,6 +19,7 @@ namespace JackiVpn.Linux.Ui;
 public sealed class ServersPage(Shell shell) : Page(shell)
 {
     private readonly StackPanel _list = new() { Spacing = 4 };
+    private readonly Border _dual = Clay(new Panel(), new Thickness(16, 12), 16);
     private readonly TextBox _search = new() { PlaceholderText = "Search servers", Width = 320 };
     private readonly TextBlock _count = Caption(string.Empty);
     private readonly HashSet<string> _collapsed = new(StringComparer.Ordinal);
@@ -64,18 +65,94 @@ public sealed class ServersPage(Shell shell) : Page(shell)
         EventHandler<Application.Subscriptions.SubscriptionUpdateReport> updated = (_, _) => Dispatcher.UIThread.Post(() => _ = LoadAsync());
         S.SubscriptionService.Updated += updated;
         Track(() => S.SubscriptionService.Updated -= updated);
+        EventHandler dualChanged = (_, _) => Dispatcher.UIThread.Post(RenderDual);
+        S.DualVpn.Changed += dualChanged;
+        Track(() => S.DualVpn.Changed -= dualChanged);
+        RenderDual();
         return new StackPanel
         {
             Children =
             {
-                Header("Servers", "Subscriptions and imported configs. Double-click a server to connect.", actions),
+                Header("Servers", "All your servers, grouped by subscription. Press Connect (or double-click) to use one; the green dot shows the one in use.", actions),
+                _dual,
                 new DockPanel { Margin = new Thickness(0, 0, 0, 12), LastChildFill = false, Children = { Right(_count), _search } },
                 _list,
             },
         };
     }
 
-    public override void OnShown() => _ = LoadAsync();
+    public override void OnShown()
+    {
+        RenderDual();
+        _ = LoadAsync();
+    }
+
+    /// <summary>Dual VPN: a second VPN to a company or another server, next to IBOX (set up, on/off, status).</summary>
+    private void RenderDual()
+    {
+        _dual.Margin = new Thickness(0, 0, 0, 12);
+        var d = S.DualVpn.Current;
+        var state = S.Orchestrator.State;
+        var active = S.DualVpn.IsActive(state);
+        var title = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { T(d.IsConfigured ? "Dual VPN · " + d.Name : "Dual VPN", 14, FontWeight.SemiBold) } };
+        if (active)
+        {
+            title.Children.Add(new Avalonia.Controls.Shapes.Ellipse { Width = 8, Height = 8, Fill = B(Success), VerticalAlignment = VerticalAlignment.Center });
+        }
+
+        var status = Caption(d.IsConfigured
+            ? d.KindLabel + " · " + S.DualVpn.Describe(state)
+            : "A second VPN to your company or another server — WireGuard, IPsec (IKEv2 / L2TP) or Kerio. It works on its own or next to IBOX.");
+        status.TextWrapping = TextWrapping.Wrap;
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, VerticalAlignment = VerticalAlignment.Center };
+        if (d is { Enabled: true, Kind: Domain.Usage.SecondVpnKind.Ipsec } && !active)
+        {
+            actions.Children.Add(Ghost("Connect", () => _ = Guard(async () =>
+            {
+                if (await S.DualVpn.ConnectAsync(Shell.Lifetime.Token) is { } problem)
+                {
+                    Shell.Toast("Dual VPN", problem, warning: true);
+                }
+
+                RenderDual();
+            })));
+        }
+
+        if (d.IsConfigured)
+        {
+            actions.Children.Add(Toggle(d.Enabled, on => _ = Guard(async () =>
+            {
+                if (await S.DualVpn.SetEnabledAsync(on, Shell.Lifetime.Token) is { } problem)
+                {
+                    Shell.Toast("Dual VPN", problem, warning: true);
+                }
+
+                RenderDual();
+            })));
+        }
+
+        actions.Children.Add(d.IsConfigured ? Ghost("Edit", () => _ = EditDualAsync()) : Primary("+ Add Dual VPN", () => _ = EditDualAsync()));
+        var row = new DockPanel { LastChildFill = true };
+        var tile = IconTile(Icons.Shield, Accent, 40, 17);
+        tile.Margin = new Thickness(0, 0, 14, 0);
+        DockPanel.SetDock(tile, Dock.Left);
+        DockPanel.SetDock(actions, Dock.Right);
+        row.Children.Add(tile);
+        row.Children.Add(actions);
+        row.Children.Add(new StackPanel { VerticalAlignment = VerticalAlignment.Center, Spacing = 2, Children = { title, status } });
+        _dual.Child = row;
+    }
+
+    private async Task EditDualAsync() => await Guard(async () =>
+    {
+        var servers = (await S.ServersAsync(Shell.Lifetime.Token)).ToList();
+        if (await DualVpnDialog.EditAsync(Shell, S.DualVpn, servers))
+        {
+            Shell.Toast("Dual VPN", S.DualVpn.Current.IsConfigured ? S.DualVpn.Describe(S.Orchestrator.State) : "Removed.");
+        }
+
+        RenderDual();
+    });
 
     public async Task LoadAsync() => await Guard(async () =>
     {
@@ -257,16 +334,16 @@ public sealed class ServersPage(Shell shell) : Page(shell)
         Grid.SetColumn(more, 4);
         grid.Children.Add(more);
 
-        IBrush Rest() => active ? B(Success, Look.P.IsLight ? 0.07 : 0.1) : CardFill;
+        IBrush Rest() => active ? B(Success, Look.P.IsLight ? 0.07 : 0.1) : isDefault ? B(Accent, Look.P.IsLight ? 0.06 : 0.09) : CardFill;
+        // Rows are flat (a border, no blurred shadow): a long list scrolls without redrawing a shadow per row.
         var row = new Border
         {
             Background = Rest(),
-            BorderBrush = B(active ? Success : isDefault ? Accent : Ui.Border, active || isDefault ? 0.7 : (Look.P.IsLight ? 0.9 : 0.55)),
-            BorderThickness = new Thickness(active || isDefault ? 1.5 : 1),
+            BorderBrush = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
             CornerRadius = new CornerRadius(18),
             Padding = new Thickness(14, 10),
             Margin = new Thickness(0, 0, 0, 4),
-            BoxShadow = ClayShadow(),
             Child = grid,
             ContextMenu = Menu(p, isDefault),
         };
@@ -342,6 +419,7 @@ public sealed class ServersPage(Shell shell) : Page(shell)
         else if (ConnectionStateRules.IsIdle(S.Orchestrator.State))
         {
             Shell.Navigate(Shell.Dashboard);
+            await S.PrepareTunAsync(Shell.Lifetime.Token);
             await S.Orchestrator.ConnectAsync(new ConnectRequest { ProfileId = p.Id, Smart = false }, Shell.Lifetime.Token);
         }
     });

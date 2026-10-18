@@ -20,7 +20,7 @@
     <Color x:Key="C.TextMuted">#FF94A3B8</Color>
     <Color x:Key="C.Accent">#FF3B82F6</Color>
     <Color x:Key="C.AccentHover">#FF2F74E8</Color>
-    <Color x:Key="C.Accent2">#FF6A8DF8</Color>
+    <Color x:Key="C.Accent2">#FF3B82F6</Color>
     <Color x:Key="C.OnAccent">#FFFFFFFF</Color>
     <Color x:Key="C.Success">#FF22C55E</Color>
     <Color x:Key="C.Success2">#FF34D399</Color>

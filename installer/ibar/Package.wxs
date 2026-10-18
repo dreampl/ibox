@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  IBAR — per-user MSI. Installs to %LOCALAPPDATA%\Programs\IBAR for the current user only (no UAC, no service:
+  IBAR has a UI and runs in the user's session), starts with Windows through HKCU\...\Run, and adds a Start menu
+  entry. IBOX's "Install IBAR" runs this package silently (msiexec /i IBAR-setup.msi /qn).
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="IBAR"
+           Manufacturer="Jacki"
+           Version="$(var.ProductVersion)"
+           UpgradeCode="6B0F1E2A-4C51-4E0B-9B7E-2D1A8E3F5C77"
+           Scope="perUser"
+           Compressed="yes">
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of IBAR is already installed." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+    <Launch Condition="Installed OR VersionNT64" Message="IBAR requires 64-bit Windows 10 or Windows 11." />
+
+    <Icon Id="ibar.ico" SourceFile="$(var.IconFile)" />
+    <Property Id="ARPPRODUCTICON" Value="ibar.ico" />
+    <Property Id="ARPNOREPAIR" Value="1" />
+
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="ProgramsFolder" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="IBAR" />
+      </Directory>
+    </StandardDirectory>
+
+    <Feature Id="Main" Title="IBAR" Level="1">
+      <ComponentGroupRef Id="AppFiles" />
+      <ComponentRef Id="Autostart" />
+      <ComponentRef Id="StartMenu" />
+      <ComponentRef Id="NativeHost" />
+    </Feature>
+
+    <!-- The browser extension's native host, for this user only: each browser's key points at a manifest in IBAR's
+         folder that allows exactly one extension (Chromium: by its fixed id; Firefox: by its add-on id). Opera reads
+         Chrome's key. Removed with IBAR. -->
+    <Component Id="NativeHost" Directory="INSTALLFOLDER">
+      <RegistryValue Root="HKCU" Key="Software\Google\Chrome\NativeMessagingHosts\com.jacki.ibar" Type="string" Value="[INSTALLFOLDER]com.jacki.ibar.json" KeyPath="yes" />
+      <RegistryValue Root="HKCU" Key="Software\Microsoft\Edge\NativeMessagingHosts\com.jacki.ibar" Type="string" Value="[INSTALLFOLDER]com.jacki.ibar.json" />
+      <RegistryValue Root="HKCU" Key="Software\Chromium\NativeMessagingHosts\com.jacki.ibar" Type="string" Value="[INSTALLFOLDER]com.jacki.ibar.json" />
+      <RegistryValue Root="HKCU" Key="Software\BraveSoftware\Brave-Browser\NativeMessagingHosts\com.jacki.ibar" Type="string" Value="[INSTALLFOLDER]com.jacki.ibar.json" />
+      <RegistryValue Root="HKCU" Key="Software\Mozilla\NativeMessagingHosts\com.jacki.ibar" Type="string" Value="[INSTALLFOLDER]com.jacki.ibar.firefox.json" />
+    </Component>
+
+    <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
+      <Files Include="$(var.PayloadDir)\**" />
+    </ComponentGroup>
+
+    <Component Id="Autostart" Directory="INSTALLFOLDER">
+      <RegistryValue Root="HKCU" Key="Software\Microsoft\Windows\CurrentVersion\Run" Name="IBAR" Type="string" Value="&quot;[INSTALLFOLDER]IBAR.exe&quot; --startup" KeyPath="yes" />
+      <RemoveFolder Id="RemoveInstallFolder" Directory="INSTALLFOLDER" On="uninstall" />
+      <RemoveFolder Id="RemovePrograms" Directory="ProgramsFolder" On="uninstall" />
+    </Component>
+
+    <Component Id="StartMenu" Directory="ProgramMenuFolder">
+      <Shortcut Id="StartMenuIbar" Name="IBAR" Description="The IBOX notch" Target="[INSTALLFOLDER]IBAR.exe" WorkingDirectory="INSTALLFOLDER" Icon="ibar.ico" />
+      <RegistryValue Root="HKCU" Key="Software\Jacki\IBAR" Name="StartMenu" Type="integer" Value="1" KeyPath="yes" />
+    </Component>
+
+    <!-- Start IBAR right after an interactive install (the silent install from IBOX starts it itself). -->
+    <CustomAction Id="LaunchIbar" Directory="INSTALLFOLDER" ExeCommand="&quot;[INSTALLFOLDER]IBAR.exe&quot; --startup" Return="asyncNoWait" />
+    <InstallExecuteSequence>
+      <Custom Action="LaunchIbar" After="InstallFinalize" Condition="NOT Installed AND UILevel &gt;= 5" />
+    </InstallExecuteSequence>
+  </Package>
+</Wix>

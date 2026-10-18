@@ -26,7 +26,7 @@ public sealed partial class TrayService : INotificationSink, IDisposable
     public TrayService(Func<bool> windowVisible)
     {
         _windowVisible = windowVisible;
-        using (var stream = System.Windows.Application.GetResourceStream(new Uri("pack://application:,,,/JackiVpn;component/Assets/jacki.ico")).Stream)
+        using (var stream = System.Windows.Application.GetResourceStream(new Uri("pack://application:,,,/IBOX;component/Assets/jacki.ico")).Stream)
         {
             _base = new Icon(stream, SystemInformation.SmallIconSize);
         }

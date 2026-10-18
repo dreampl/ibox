@@ -46,7 +46,7 @@ public sealed class SubscriptionsPage(Shell shell) : Page(shell)
             Spacing = 16,
             Children =
             {
-                Header("Subscriptions", "PasarGuard panels are detected automatically. Subscription links are stored encrypted and never shown or logged in full.", Ghost("Update all", () => _ = UpdateAllAsync())),
+                Header("Subscriptions", "Paste the link your provider gave you; IBOX adds its servers and keeps them up to date. Links are stored encrypted.", Ghost("Update all", () => _ = UpdateAllAsync())),
                 addCard,
                 _list,
             },

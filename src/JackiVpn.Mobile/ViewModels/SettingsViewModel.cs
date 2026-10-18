@@ -361,9 +361,6 @@ public sealed partial class SettingsViewModel : ObservableObject
     private static Task OpenUsageAsync() => Shell.Current.GoToAsync("usage");
 
     [RelayCommand]
-    private static Task OpenIslandAsync() => Shell.Current.GoToAsync("island");
-
-    [RelayCommand]
     private static void OpenVpnSettings()
     {
         var intent = new global::Android.Content.Intent(global::Android.Provider.Settings.ActionVpnSettings)
@@ -433,6 +430,63 @@ public sealed partial class SettingsViewModel : ObservableObject
         {
             IsDownloadingUpdate = false;
         }
+    }
+
+    // ------------------------------------------------------------------ account (to and from another device)
+
+    [RelayCommand]
+    private async Task ExportAccountAsync()
+    {
+        var password = await Shell.Current.DisplayPromptAsync(L.Get("Set_Export"), L.Get("Acc_Password"), L.Get("Ok"), L.Get("Cancel"), maxLength: 128);
+        if (password is null)
+        {
+            return;
+        }
+
+        if (JackiVpn.Application.Accounts.AccountTransfer.PasswordProblem(password) is { } problem)
+        {
+            await Shell.Current.DisplayAlertAsync(L.Get("Set_Export"), problem, L.Get("Ok"));
+            return;
+        }
+
+        var file = Path.Combine(FileSystem.CacheDirectory, _s.AccountTransfer.SuggestedFileName());
+        await File.WriteAllBytesAsync(file, await _s.AccountTransfer.ExportAsync(password, CancellationToken.None));
+        await Share.Default.RequestAsync(new ShareFileRequest { Title = L.Get("Set_Export"), File = new ShareFile(file, "application/octet-stream") });
+    }
+
+    [RelayCommand]
+    private async Task ImportAccountAsync()
+    {
+        var picked = await FilePicker.Default.PickAsync(new PickOptions { PickerTitle = L.Get("Set_Import") });
+        if (picked is null)
+        {
+            return;
+        }
+
+        byte[] bytes;
+        await using (var stream = await picked.OpenReadAsync())
+        {
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            bytes = ms.ToArray();
+        }
+
+        var password = await Shell.Current.DisplayPromptAsync(L.Get("Set_Import"), L.Get("Acc_PasswordOpen"), L.Get("Ok"), L.Get("Cancel"), maxLength: 128);
+        if (string.IsNullOrEmpty(password))
+        {
+            return;
+        }
+
+        if (_s.Orchestrator.State != ConnectionState.Disconnected)
+        {
+            await _s.Orchestrator.DisconnectAsync();
+        }
+
+        var (result, error) = await _s.AccountTransfer.ImportAsync(bytes, password, CancellationToken.None);
+        await Shell.Current.DisplayAlertAsync(
+            result is null ? L.Get("Acc_Failed") : L.Get("Acc_Imported"),
+            result is null ? error ?? string.Empty : string.Format(System.Globalization.CultureInfo.CurrentCulture, L.Get("Acc_ImportedText"), result.Subscriptions, result.Servers) + (result.Notes.Count > 0 ? "\n\n" + string.Join("\n", result.Notes) : string.Empty),
+            L.Get("Ok"));
     }
 
     // ------------------------------------------------------------------ about

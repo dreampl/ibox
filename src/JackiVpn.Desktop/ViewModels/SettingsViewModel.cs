@@ -94,6 +94,106 @@ public sealed partial class SettingsViewModel : SettingsPageViewModel
 
     public bool NotchShowNowPlaying { get => S.Ui.Notch.ShowNowPlaying; set => SetNotch(n => n with { ShowNowPlaying = value }); }
 
+    public bool NotchShelfEnabled { get => S.Ui.Notch.Shelf; set => SetNotch(n => n with { Shelf = value }); }
+
+    public bool NotchAiEnabled { get => S.Ui.Notch.AiAssistants; set => SetNotch(n => n with { AiAssistants = value }); }
+
+    // ------------------------------------------------------------------ Claude Code / Codex on the notch
+
+    public bool ClaudeConnected => AgentHooksSetup.ClaudeConnected;
+
+    public bool CodexConnected => AgentHooksSetup.CodexConnected;
+
+    public string ClaudeButton => ClaudeConnected ? "Disconnect Claude Code" : "Connect Claude Code";
+
+    public string CodexButton => CodexConnected ? "Disconnect Codex" : "Connect Codex";
+
+    private string? _assistantsNote;
+
+    /// <summary>What happened on the last connect / disconnect (or what is still needed).</summary>
+    public string? AssistantsNote
+    {
+        get => _assistantsNote;
+        private set => SetProperty(ref _assistantsNote, value);
+    }
+
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    private void ToggleClaude()
+    {
+        var connect = !ClaudeConnected;
+        var problem = connect ? AgentHooksSetup.ConnectClaude() : AgentHooksSetup.DisconnectClaude();
+        AssistantsNote = problem ?? (connect
+            ? "Claude Code is connected: its permission requests and notifications now come to the notch (new sessions)."
+            : "Claude Code is disconnected; it asks in its own window again.");
+        RaiseAssistants();
+    }
+
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    private void ToggleCodex()
+    {
+        var connect = !CodexConnected;
+        var problem = connect ? AgentHooksSetup.ConnectCodex() : AgentHooksSetup.DisconnectCodex();
+        AssistantsNote = problem ?? (connect
+            ? "Codex is connected. Once, in Codex, type /hooks and trust IBOX's two hooks — Codex runs new hooks only after that."
+            : "Codex is disconnected; it asks in its own window again.");
+        RaiseAssistants();
+    }
+
+    private string? _ibarNote;
+
+    public string? IbarNote
+    {
+        get => _ibarNote;
+        private set => SetProperty(ref _ibarNote, value);
+    }
+
+    /// <summary>Runs IBAR's own per-user installer (shipped with IBOX) silently, then starts IBAR.</summary>
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    private async System.Threading.Tasks.Task InstallIbar()
+    {
+        var msi = System.IO.Path.Combine(AppContext.BaseDirectory, "IBAR", "IBAR-setup.msi");
+        if (!System.IO.File.Exists(msi))
+        {
+            IbarNote = "IBAR's installer is not part of this build.";
+            return;
+        }
+
+        IbarNote = "Installing IBAR…";
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo("msiexec.exe") { UseShellExecute = false, CreateNoWindow = true };
+            foreach (var a in new[] { "/i", msi, "/qn", "/norestart" })
+            {
+                psi.ArgumentList.Add(a);
+            }
+
+            using var setup = System.Diagnostics.Process.Start(psi)!;
+            await setup.WaitForExitAsync();
+            var exe = System.IO.Path.Combine(Ecosystem.IbarFolder, "IBAR.exe");
+            if (setup.ExitCode is 0 or 3010 && System.IO.File.Exists(exe))
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe, "--startup") { UseShellExecute = false });
+                IbarNote = "IBAR is installed and running.";
+            }
+            else
+            {
+                IbarNote = $"The installer stopped (code {setup.ExitCode}).";
+            }
+        }
+        catch (System.ComponentModel.Win32Exception ex)
+        {
+            IbarNote = ex.Message;
+        }
+    }
+
+    private void RaiseAssistants()
+    {
+        OnPropertyChanged(nameof(ClaudeConnected));
+        OnPropertyChanged(nameof(CodexConnected));
+        OnPropertyChanged(nameof(ClaudeButton));
+        OnPropertyChanged(nameof(CodexButton));
+    }
+
     public bool NotchHideInFullScreen { get => S.Ui.Notch.HideInFullScreen; set => SetNotch(n => n with { HideInFullScreen = value }); }
 
     public bool NotchSound
@@ -127,6 +227,13 @@ public sealed partial class SettingsViewModel : SettingsPageViewModel
     {
         get => S.Ui.CloseToTray;
         set => Set(s => s with { Ui = s.Ui with { CloseToTray = value } });
+    }
+
+    /// <summary>Friendly apps (Alita) take their own network path instead of IBOX's (applies on the next connect).</summary>
+    public bool FriendsDirect
+    {
+        get => S.Friends.Direct;
+        set => Set(s => s with { Friends = s.Friends with { Direct = value } });
     }
 
     public bool ReduceMotion

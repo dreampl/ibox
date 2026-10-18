@@ -25,6 +25,13 @@ public sealed record AgentDependencies
 
     public DnsFinder? DnsFinder { get; init; }
     public SpeedTestService? SpeedTest { get; init; }
+
+    /// <summary>Ecosystem extras (traffic mode, usage, Dual VPN, network); null where the platform has none.</summary>
+    public Func<AgentEco>? Eco { get; init; }
+
+    public Func<string, string?>? SetTraffic { get; init; }
+
+    public Func<bool, CancellationToken, Task<string?>>? SetDualVpn { get; init; }
     public required ILogger Logger { get; init; }
 }
 
@@ -53,6 +60,9 @@ public sealed class AgentController(AgentDependencies d)
                 AgentMethods.GetDns => Dns(),
                 AgentMethods.SetDns => SetDns(Parse<AgentDnsRequest>(request) ?? throw new AgentException("dns.set needs a selection (smart, system or manual).")),
                 AgentMethods.SpeedTest => await SpeedTestAsync(ct).ConfigureAwait(false),
+                AgentMethods.EcoStatus or AgentMethods.Watch or AgentMethods.NotchYield => Eco(),
+                AgentMethods.SetTraffic => (d.SetTraffic ?? throw new AgentException("Not available here."))(Param<string>(request, "mode") ?? "normal") is { } problem ? throw new AgentException(problem) : Eco(),
+                AgentMethods.SetDualVpn => await (d.SetDualVpn ?? throw new AgentException("Not available here."))(Param<bool>(request, "on"), ct).ConfigureAwait(false) is { } dualProblem ? throw new AgentException(dualProblem) : Eco(),
                 _ => throw new AgentException("Unknown method."),
             };
             return new AgentResponse(request.Id, true, JsonSerializer.SerializeToElement(result, AgentProtocol.Json));
@@ -66,6 +76,9 @@ public sealed class AgentController(AgentDependencies d)
             return new AgentResponse(request.Id, false, null, Security.SecretRedactor.Redact(ex.Message));
         }
     }
+
+    /// <summary>The status plus the platform's extras (IBAR shows them all).</summary>
+    public AgentEco Eco() => d.Eco?.Invoke() is { } eco ? eco with { Status = Status() } : new AgentEco { Status = Status() };
 
     private AgentStatus Status()
     {

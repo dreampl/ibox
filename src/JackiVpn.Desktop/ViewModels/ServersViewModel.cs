@@ -17,6 +17,7 @@ using JackiVpn.Domain.Connection;
 using JackiVpn.Domain.Health;
 using JackiVpn.Domain.Profiles;
 using JackiVpn.Security;
+using Microsoft.Extensions.Logging;
 
 namespace JackiVpn.Desktop.ViewModels;
 
@@ -201,6 +202,16 @@ public sealed partial class ServersViewModel : ObservableObject
             }
         });
         services.SubscriptionService.Updated += (_, _) => Ui.Post(() => _ = LoadAsync());
+        services.DualVpn.Changed += (_, _) => Ui.Post(RefreshDualVpn);
+        services.Orchestrator.StatusChanged += (_, st) =>
+        {
+            if (st.State != _dualShownState)
+            {
+                _dualShownState = st.State;
+                Ui.Post(RefreshDualVpn);
+            }
+        };
+        RefreshDualVpn();
         services.Insights.Changed += (_, fingerprint) => Ui.Post(() =>
         {
             foreach (var i in Items.Where(i => i.Profile.Fingerprint == fingerprint))
@@ -213,6 +224,103 @@ public sealed partial class ServersViewModel : ObservableObject
     public ObservableCollection<ServerItem> Items { get; } = [];
 
     private string? _shownActive;
+    private ConnectionState _dualShownState;
+
+    // Dual VPN (the second VPN to a company or a server), shown above the list.
+    [ObservableProperty]
+    private string _dualVpnTitle = "Dual VPN";
+
+    [ObservableProperty]
+    private string _dualVpnStatus = string.Empty;
+
+    [ObservableProperty]
+    private bool _dualVpnConfigured;
+
+    [ObservableProperty]
+    private bool _dualVpnActive;
+
+    [ObservableProperty]
+    private bool _dualVpnCanDial;
+
+    private bool _dualVpnEnabled;
+
+    /// <summary>The on/off switch (turning IPsec on dials it).</summary>
+    public bool DualVpnEnabled
+    {
+        get => _dualVpnEnabled;
+        set
+        {
+            if (SetProperty(ref _dualVpnEnabled, value) && value != _s.DualVpn.Current.Enabled)
+            {
+                _ = SetDualAsync(value);
+            }
+        }
+    }
+
+    private async Task SetDualAsync(bool on)
+    {
+        try
+        {
+            if (await _s.DualVpn.SetEnabledAsync(on, _s.Lifetime) is { } problem)
+            {
+                _dialogs.Info("Dual VPN", problem);
+            }
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            _dialogs.Info("Dual VPN", SecretRedactor.Redact(ex.Message));
+        }
+
+        RefreshDualVpn();
+    }
+
+    private void RefreshDualVpn()
+    {
+        var d = _s.DualVpn.Current;
+        var state = _s.Orchestrator.State;
+        DualVpnConfigured = d.IsConfigured;
+        DualVpnTitle = d.IsConfigured ? $"Dual VPN · {d.Name}" : "Dual VPN";
+        DualVpnStatus = d.IsConfigured
+            ? $"{d.KindLabel} · {_s.DualVpn.Describe(state)}"
+            : "A second VPN to your company or another server — WireGuard, IPsec (IKEv2 / L2TP) or Kerio. It works on its own or next to IBOX.";
+        DualVpnActive = _s.DualVpn.IsActive(state);
+        DualVpnCanDial = d is { Enabled: true, Kind: Domain.Usage.SecondVpnKind.Ipsec } && !DualVpnActive;
+        _dualVpnEnabled = d.Enabled;
+        OnPropertyChanged(nameof(DualVpnEnabled));
+    }
+
+    [RelayCommand]
+    private async Task EditDualVpnAsync()
+    {
+        try
+        {
+            var servers = (await _s.Profiles.GetAllAsync(_s.Lifetime)).Where(p => p.Origin.ProviderId != Application.Workplace.SecondVpnService.OwnedTag).ToList();
+            var current = _s.DualVpn.Current;
+            Views.DualVpnWindow.EditStandalone(current, servers, _s.DualVpn.SupportsIpsec,
+                draft => _s.DualVpn.SaveAsync(draft, _s.Lifetime),
+                current.IsConfigured ? () => _s.DualVpn.RemoveAsync(_s.Lifetime) : null);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            _s.Logger.LogError(ex, "Dual VPN editor failed");
+            _dialogs.Info("Dual VPN", SecretRedactor.Redact(ex.Message));
+        }
+
+        RefreshDualVpn();
+        await LoadAsync();
+    }
+
+    [RelayCommand]
+    private async Task ConnectDualVpnAsync()
+    {
+        DualVpnStatus = "Connecting…";
+        if (await _s.DualVpn.ConnectAsync(_s.Lifetime) is { } problem)
+        {
+            _dialogs.Info("Dual VPN", problem);
+        }
+
+        RefreshDualVpn();
+    }
 
     public ObservableCollection<string> Groups { get; } = ["All"];
 
@@ -275,7 +383,8 @@ public sealed partial class ServersViewModel : ObservableObject
         var active = _s.Orchestrator.Status is { State: ConnectionState.Connected } st ? st.ProfileId : null;
         Items.Clear();
         _byId.Clear();
-        foreach (var p in profiles)
+        // The Dual VPN's own WireGuard config is shown in its card above, not as a server to connect to.
+        foreach (var p in profiles.Where(p => p.Origin.ProviderId != Application.Workplace.SecondVpnService.OwnedTag))
         {
             var sub = p.Origin.SubscriptionId is { } sid && subs.TryGetValue(sid, out var s) ? s : null;
             var item = new ServerItem(p, _s.Health.Snapshot(p.Id), sub?.Name, sub?.IsOfficial == true)

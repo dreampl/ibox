@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Builds the Ubuntu/Debian package: artifacts\release\<version>\jackivpn_<version>_amd64.deb (+ .tar.gz).
+  Builds the Ubuntu/Debian package: artifacts\release\<version>\ibox_<version>_amd64.deb (+ .tar.gz).
 
 .DESCRIPTION
   Self-contained linux-x64 CLI (no .NET install needed) with sing-box and Xray. The cores are downloaded from
@@ -55,7 +55,7 @@ if (Test-Path $xrDir) { [IO.Directory]::Delete($xrDir, $true) }
 Expand-Archive $xrArchive $xrDir
 
 Write-Step 'Publishing jackivpn (self-contained linux-x64)'
-Invoke-Dotnet publish src\JackiVpn.Linux\JackiVpn.Linux.csproj -c Release --nologo -o $app
+Invoke-Dotnet publish src\JackiVpn.Linux\JackiVpn.Linux.csproj -c Release -p:PublishReadyToRun=true --nologo -o $app
 Get-ChildItem $app -Filter *.pdb | ForEach-Object { [IO.File]::Delete($_.FullName) }
 
 $cores = Join-Path $app 'cores'

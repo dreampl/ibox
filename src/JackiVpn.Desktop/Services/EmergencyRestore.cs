@@ -86,7 +86,7 @@ public static class EmergencyRestore
     {
         var self = Environment.ProcessId;
         var exe = Environment.ProcessPath;
-        foreach (var p in Process.GetProcessesByName("JackiVpn"))
+        foreach (var p in Process.GetProcessesByName("IBOX").Concat(Process.GetProcessesByName("JackiVpn")))
         {
             using (p)
             {

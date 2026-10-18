@@ -25,6 +25,12 @@ const string Usage = """
     Ctrl+C disconnects.
     """;
 
+if (args is ["helper", ..])
+{
+    // Started by pkexec when the app opens: the session's privileged helper (see LinuxPrivilege).
+    return await JackiVpn.Linux.LinuxPrivilege.RunHelperAsync();
+}
+
 if (args.Length == 0 || args[0] == "gui")
 {
     if (Environment.GetEnvironmentVariable("DISPLAY") is null && Environment.GetEnvironmentVariable("WAYLAND_DISPLAY") is null)
@@ -181,6 +187,7 @@ async Task<int> ConnectAsync()
     using var sigint = PosixSignalRegistration.Create(PosixSignal.SIGINT, c => { c.Cancel = true; stop.TrySetResult(); });
     using var sigterm = PosixSignalRegistration.Create(PosixSignal.SIGTERM, c => { c.Cancel = true; stop.TrySetResult(); });
 
+    await s.PrepareTunAsync(ct);
     if (!await s.Orchestrator.ConnectAsync(new ConnectRequest { ProfileId = profileId, Smart = profileId is null }, ct))
     {
         Console.Error.WriteLine("Could not connect. Details: " + s.LogsDir + (mode == ConnectionMode.Tun ? " (TUN needs the package's network permission for sing-box, or sudo)" : string.Empty));

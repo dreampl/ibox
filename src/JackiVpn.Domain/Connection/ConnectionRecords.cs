@@ -53,6 +53,9 @@ public sealed record ConnectionStatus
     public TrafficSnapshot? Traffic { get; init; }
     public bool SmartModeActive { get; init; }
     public bool JackiSmartConnectActive { get; init; }
+
+    /// <summary>The Dual VPN runs on its own (the main VPN is off): its server carries all traffic.</summary>
+    public bool DualOnly { get; init; }
     public bool KillSwitchEngaged { get; init; }
     public string? PublicIp { get; init; }
 

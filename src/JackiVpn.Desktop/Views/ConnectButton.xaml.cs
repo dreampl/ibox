@@ -211,12 +211,12 @@ public partial class ConnectButton : UserControl
         {
             var normal = Mode == VisualMode.Normal && TryFindResource("C.Success") is Color success;
             var haloColor = Mode == VisualMode.Normal && TryFindResource("C.Success") is Color s ? s : Argb(main);
-            Halo.Fill = new SolidColorBrush(haloColor);
-            OnRing.Stroke = normal ? new SolidColorBrush(Color.FromArgb(0x90, haloColor.R, haloColor.G, haloColor.B)) : new LinearGradientBrush(Argb(light), Argb(main), 45);
+            Halo.Fill = Glow(haloColor);
+            OnRing.Stroke = normal ? new SolidColorBrush(Color.FromArgb(0x90, haloColor.R, haloColor.G, haloColor.B)) : new SolidColorBrush(Argb(main));
         }
         else
         {
-            Halo.SetResourceReference(Shape.FillProperty, "B.Danger");
+            Halo.Fill = Glow(TryFindResource("C.Danger") is Color danger ? danger : Colors.IndianRed);
         }
 
         if (State == ConnectionState.Connected)
@@ -266,6 +266,23 @@ public partial class ConnectButton : UserControl
         AutomationProperties.SetHelpText(Root, State.ToString());
     }
 
+    /// <summary>A blurred disc as a gradient: solid to 60 %, half at the old disc's edge, gone at the rim.</summary>
+    private static RadialGradientBrush Glow(Color c)
+    {
+        var brush = new RadialGradientBrush
+        {
+            GradientStops =
+            {
+                new GradientStop(c, 0),
+                new GradientStop(c, 0.6),
+                new GradientStop(Color.FromArgb(0x80, c.R, c.G, c.B), 0.75),
+                new GradientStop(Color.FromArgb(0x1C, c.R, c.G, c.B), 0.9),
+                new GradientStop(Color.FromArgb(0, c.R, c.G, c.B), 1),
+            },
+        };
+        brush.Freeze();
+        return brush;
+    }
     private void StartRipples()
     {
         var i = 0;

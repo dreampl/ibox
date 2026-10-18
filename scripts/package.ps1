@@ -4,10 +4,10 @@
 
 .DESCRIPTION
   Output (artifacts\release\<version>):
-    JackiVpn-<v>-win-x64.msi                 Windows 10/11 x64 installer (self-contained: no .NET install needed)
-    JackiVpn-<v>-android-arm64-v8a.apk       almost all phones from the last ~8 years
-    JackiVpn-<v>-android-armeabi-v7a.apk     old 32-bit phones
-    JackiVpn-<v>-android-x86_64.apk          emulators / x86 tablets
+    IBOX-<v>-win-x64.msi                 Windows 10/11 x64 installer (self-contained: no .NET install needed)
+    IBOX-<v>-android-arm64-v8a.apk       almost all phones from the last ~8 years
+    IBOX-<v>-android-armeabi-v7a.apk     old 32-bit phones
+    IBOX-<v>-android-x86_64.apk          emulators / x86 tablets
     SHA256SUMS.txt, THIRD_PARTY_NOTICES.txt, install guides
 
   Android signing key: %USERPROFILE%\.jackivpn\android-release.keystore (created on first run) with its password
@@ -50,8 +50,11 @@ try {
         $payload = Join-Path $publish 'win-x64'
         if (Test-Path $payload) { Remove-Item -Recurse -Force $payload }
         foreach ($project in 'src\JackiVpn.Desktop\JackiVpn.Desktop.csproj', 'src\JackiVpn.Service\JackiVpn.Service.csproj', 'src\JackiVpn.AgentCli\JackiVpn.AgentCli.csproj') {
-            Write-Step "Publishing $project (self-contained win-x64)"
-            Invoke-Dotnet publish $project -c Release -r win-x64 --self-contained true -o $payload --nologo
+            Write-Step "Publishing $project (self-contained win-x64, ReadyToRun)"
+            # ReadyToRun only for the app (its memory is what people see); the service stays as it was in 2.0.0:
+            # it identifies its clients under impersonation, where late-loaded precompiled code cannot be read.
+            $r2r = if ($project -like "*Desktop*") { "-p:PublishReadyToRun=true" } else { "-p:PublishReadyToRun=false" }
+            Invoke-Dotnet publish $project -c Release -r win-x64 --self-contained true $r2r -o $payload --nologo
         }
 
         Write-Step 'Verifying shipped cores against their manifest'
@@ -63,9 +66,24 @@ try {
             }
         }
 
+        # IBAR: its own per-user installer, also shipped inside IBOX for the "Install IBAR" button.
+        $ibarPayload = Join-Path $publish 'ibar-win-x64'
+        if (Test-Path $ibarPayload) { Remove-Item -Recurse -Force $ibarPayload }
+        foreach ($project in 'src\JackiVpn.Bar\JackiVpn.Bar.csproj', 'src\JackiVpn.BarCtl\JackiVpn.BarCtl.csproj') {
+            Write-Step "Publishing $project (self-contained win-x64, ReadyToRun)"
+            Invoke-Dotnet publish $project -c Release -r win-x64 --self-contained true -p:PublishReadyToRun=true -o $ibarPayload --nologo
+        }
+
+        Write-Step 'Building the IBAR MSI (per-user)'
+        Invoke-Dotnet build installer\ibar\IBAR.Installer.wixproj -c Release --nologo "-p:PayloadDir=$ibarPayload" "-p:ProductVersion=$version" -o (Join-Path $publish 'ibar-msi')
+        $ibarMsi = Join-Path $publish "ibar-msi\IBAR-$version-win-x64.msi"
+        Copy-Item $ibarMsi $release -Force
+        New-Item -ItemType Directory -Force (Join-Path $payload 'IBAR') | Out-Null
+        Copy-Item $ibarMsi (Join-Path $payload 'IBAR\IBAR-setup.msi') -Force
+
         Write-Step 'Building the MSI'
         Invoke-Dotnet build installer\JackiVpn.Installer.wixproj -c Release --nologo "-p:PayloadDir=$payload" "-p:ProductVersion=$version" -o (Join-Path $publish 'msi')
-        Copy-Item (Join-Path $publish "msi\JackiVpn-$version-win-x64.msi") $release -Force
+        Copy-Item (Join-Path $publish "msi\IBOX-$version-win-x64.msi") $release -Force
     }
 
     if (-not $SkipAndroid) {
@@ -111,7 +129,7 @@ try {
             $apk = Join-Path $apkOut 'com.jacki.vpn-Signed.apk'
             & $java -jar $apksigner verify $apk
             if ($LASTEXITCODE -ne 0) { throw "The $($target.Abi) APK is not correctly signed." }
-            Copy-Item $apk (Join-Path $release "JackiVpn-$version-android-$($target.Abi).apk") -Force
+            Copy-Item $apk (Join-Path $release "IBOX-$version-android-$($target.Abi).apk") -Force
         }
     }
 

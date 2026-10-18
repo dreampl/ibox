@@ -117,6 +117,12 @@ public sealed class SafeHttpFetcher : IHttpFetcher, IDisposable
         _client = new HttpClient(handler, disposeHandler: true) { Timeout = Timeout.InfiniteTimeSpan };
     }
 
+    /// <summary>
+    /// Addresses our own tunnel hands out (FakeIP while a TUN session runs). The app's own requests then resolve to
+    /// them and the tunnel connects by the original name, so they are not checked as local addresses. Null = none.
+    /// </summary>
+    public Func<IPAddress, bool>? IsTunnelAddress { get; set; }
+
     public async Task<FetchResponse> SendAsync(FetchRequest request, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -327,7 +333,7 @@ public sealed class SafeHttpFetcher : IHttpFetcher, IDisposable
         Exception? last = null;
         foreach (var address in addresses)
         {
-            if (!isProxyHop && origin is not null)
+            if (!isProxyHop && origin is not null && IsTunnelAddress?.Invoke(address) != true)
             {
                 var check = UrlSafetyPolicy.ValidateResolvedAddress(origin, address);
                 if (!check.Allowed)

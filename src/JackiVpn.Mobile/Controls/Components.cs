@@ -50,7 +50,6 @@ public sealed class ToggleSwitch : ContentView
             HorizontalOptions = LayoutOptions.Start,
             VerticalOptions = LayoutOptions.Center,
             Margin = new Thickness(4, 0),
-            Shadow = new Shadow { Brush = new SolidColorBrush(Colors.Black), Opacity = 0.35f, Radius = 6, Offset = new Point(0, 2) },
         };
         Content = new Grid { FlowDirection = FlowDirection.LeftToRight, Children = { trackOff, _trackOn, _thumb } };
         var tap = new TapGestureRecognizer();

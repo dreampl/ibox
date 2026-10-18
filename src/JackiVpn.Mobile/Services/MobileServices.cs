@@ -88,6 +88,8 @@ public sealed class MobileServices : IAsyncDisposable
                 ? new Domain.Subscriptions.DeviceIdentity(hwid, "Android", global::Android.OS.Build.VERSION.Release ?? string.Empty, PhoneModel)
                 : null);
         ProfileService = new ProfileService(Profiles, Parser);
+        DualVpn = new Application.Workplace.SecondVpnService(Settings, Profiles, protector, null, LoggerFactory.CreateLogger("JackiVpn.DualVpn"));
+        AccountTransfer = new Application.Accounts.AccountTransfer(Settings, Profiles, Subscriptions, SubscriptionService, DualVpn, null, "Android", LoggerFactory.CreateLogger("JackiVpn.Accounts"));
         RuleSets = new RuleSetManager(Path.Combine(DataDir, "rulesets"), new RuleSetDownloader(() => _fetcher), LoggerFactory.CreateLogger("JackiVpn.RuleSets"))
         {
             SeedDirectory = Path.Combine(DataDir, "rulesets-seed"),
@@ -114,6 +116,8 @@ public sealed class MobileServices : IAsyncDisposable
             Logger = LoggerFactory.CreateLogger("JackiVpn.Connection"),
             NetworkKey = networkKey,
             Traffic = () => Traffic?.CurrentPolicy(),
+            DualOnlyTraffic = () => Traffic?.CurrentPolicy(dualOnly: true),
+            BeforeMainConnect = ct => DualVpn.PrepareMainAsync(ct),
             Limits = () => Traffic?.CurrentLimits() ?? Domain.Usage.TrafficLimits.None,
             Rescue = Rescue,
             BestDns = () => DnsFinder.BestForNetwork(),
@@ -128,6 +132,7 @@ public sealed class MobileServices : IAsyncDisposable
                 sessionLogger,
                 proxyOnly: mode == Domain.Connection.ConnectionMode.SystemProxy),
         });
+        _fetcher.IsTunnelAddress = Application.Connectivity.TunnelAddresses.FakeIp(settings, Orchestrator);
         JackiVpnService.Revoked += (_, _) => _ = Orchestrator.DisconnectAsync();
         Orchestrator.NetworkChanged += (_, _) =>
         {
@@ -151,6 +156,9 @@ public sealed class MobileServices : IAsyncDisposable
         Usage = usage;
         // No per-app process names on Android (one VPN process carries every app): domain and class rules only.
         Traffic = new Application.Traffic.TrafficController(Orchestrator, settings, Workplace, Usage, LoggerFactory.CreateLogger("JackiVpn.Traffic")) { ProcessAware = false };
+        DualVpn.Changed += (_, _) => _ = Traffic.SettingsChangedAsync();
+        Traffic.DetectDual = DualVpn.Detect;
+        DualVpn.Attach(Orchestrator);
         RoutingWatcher = new Application.Routing.RoutingWatcher(Settings, Orchestrator, LoggerFactory.CreateLogger("JackiVpn.Routing"));
         var updateLog = LoggerFactory.CreateLogger("JackiVpn.Updates");
         Updates = new Infrastructure.Updates.UpdateMonitor(new Infrastructure.Updates.AppUpdateService(updateLog), () => Settings.Current.Updates,
@@ -160,9 +168,6 @@ public sealed class MobileServices : IAsyncDisposable
         };
         Activity = new ActivityMonitor(this);
         Orchestrator.StatusChanged += (_, st) => StatusSurfaces.Update(context, st);
-        Orchestrator.StatusChanged += (_, _) => MainThread.BeginInvokeOnMainThread(() => _island?.Update(Orchestrator.Status, IslandMode()));
-        Traffic.Changed += (_, _) => MainThread.BeginInvokeOnMainThread(() => _island?.Update(Orchestrator.Status, IslandMode()));
-        Settings.Changed += (_, _) => SyncIsland();
     }
 
     /// <summary>The APK flavour this process runs (the update feed has one APK per ABI).</summary>
@@ -178,6 +183,12 @@ public sealed class MobileServices : IAsyncDisposable
     public ActivityMonitor Activity { get; }
 
     public Application.Workplace.WorkplaceService Workplace { get; }
+
+    /// <summary>The second VPN (Dual VPN); on Android only a server route (one VPN app at a time).</summary>
+    public Application.Workplace.SecondVpnService DualVpn { get; }
+
+    /// <summary>Account export/import (.ibox) between Windows, Linux and Android.</summary>
+    public Application.Accounts.AccountTransfer AccountTransfer { get; }
     public Application.Connectivity.EndpointRescue Rescue { get; }
     public Application.Connectivity.DnsFinder DnsFinder { get; }
 
@@ -232,55 +243,6 @@ public sealed class MobileServices : IAsyncDisposable
         // Battery: usage is sampled every 15 s and orbs stop drawing while nobody looks.
         Usage.Interval = TimeSpan.FromSeconds(foreground ? 3 : 15);
         Controls.OrbView.AppVisible = foreground;
-        SyncIsland();
-    }
-
-    private IslandOverlay? _island;
-
-    /// <summary>The island settings page is open: show the island even inside IBOX, to place it live.</summary>
-    public bool IslandPreview { get; set; }
-
-    /// <summary>The dynamic island follows its setting, the permission and (optionally) whether IBOX itself is open.</summary>
-    public void SyncIsland()
-    {
-        MainThread.BeginInvokeOnMainThread(() =>
-        {
-            var s = Settings.Current.Ui.Island;
-            var want = s.Enabled && IslandOverlay.CanShow(Context) && (!s.HideInApp || IsBackground || IslandPreview);
-            _island ??= CreateIsland();
-            if (want && !_island.IsShowing)
-            {
-                _island.Show(s);
-                _island.Update(Orchestrator.Status, IslandMode());
-            }
-            else if (!want && _island.IsShowing)
-            {
-                _island.Hide();
-            }
-            else if (want)
-            {
-                _island.Apply(s);
-            }
-        });
-    }
-
-    private Domain.Visuals.VisualMode IslandMode() =>
-        Orchestrator.Status.State == Domain.Connection.ConnectionState.Connected ? Domain.Visuals.ModePalette.Of(Orchestrator.Status.Activity, Traffic.Mode) : Domain.Visuals.VisualMode.Normal;
-
-    private IslandOverlay CreateIsland()
-    {
-        var island = new IslandOverlay(Context);
-        island.OpenRequested += (_, _) =>
-        {
-            var launch = Context.PackageManager?.GetLaunchIntentForPackage(Context.PackageName!);
-            if (launch is not null)
-            {
-                launch.AddFlags(global::Android.Content.ActivityFlags.NewTask | global::Android.Content.ActivityFlags.ReorderToFront);
-                Context.StartActivity(launch);
-            }
-        };
-        island.Moved += (_, p) => Settings.Update(s => s with { Ui = s.Ui with { Island = s.Ui.Island with { X = p.X, Y = p.Y } } });
-        return island;
     }
 
     /// <summary>The services, also from components Android starts on its own (widget, tile, always-on VPN).</summary>
@@ -342,7 +304,6 @@ public sealed class MobileServices : IAsyncDisposable
         _network.Start();
         _ = Task.Run(Workplace.Refresh);
         Usage.Start();
-        SyncIsland();
         SearchDnsIfNeeded();
         _ = Task.Run(async () =>
         {

@@ -69,6 +69,9 @@ public sealed class TrafficController
     /// <summary>The core sees which program owns a connection (Windows/Linux).</summary>
     public bool ProcessAware { get; init; } = true;
 
+    /// <summary>What the second VPN and this network announce (Dual VPN smart scope); set by the composition.</summary>
+    public Func<SecondVpnDetected?>? DetectDual { get; set; }
+
     public event EventHandler? Changed;
 
     public TrafficMode Mode { get; private set; }
@@ -140,14 +143,14 @@ public sealed class TrafficController
         Mode = mode;
         lock (_gate)
         {
-            return new TrafficContext { Mode = mode, Workplace = work, Away = away, ProcessAware = ProcessAware, GamePath = _game.Path, GameFamily = _game.Family };
+            return new TrafficContext { Mode = mode, Workplace = work, Away = away, ProcessAware = ProcessAware, GamePath = _game.Path, GameFamily = _game.Family, DualDetected = DetectDual?.Invoke(), SiteDns = _workplace?.Facts.DnsServers ?? [] };
         }
     }
 
     /// <summary>For the orchestrator: the policy a new session starts with (remembered to detect later changes).</summary>
-    public TrafficPolicy CurrentPolicy()
+    public TrafficPolicy CurrentPolicy(bool dualOnly = false)
     {
-        var policy = TrafficPolicyBuilder.Build(_settings(), Context());
+        var policy = TrafficPolicyBuilder.Build(_settings(), Context() with { DualOnly = dualOnly });
         _appliedPolicy = JsonSerializer.Serialize(policy, JsonDefaults.Storage);
         return policy;
     }
@@ -167,7 +170,7 @@ public sealed class TrafficController
         try
         {
             var s = _settings();
-            var ctx = Context();
+            var ctx = Context() with { DualOnly = _orchestrator.Status.DualOnly };
             var limits = TrafficPolicyBuilder.Limits(s, ctx);
             var policy = JsonSerializer.Serialize(TrafficPolicyBuilder.Build(s, ctx), JsonDefaults.Storage);
             Changed?.Invoke(this, EventArgs.Empty);

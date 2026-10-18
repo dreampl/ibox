@@ -1,0 +1,19 @@
+IBOX 2.0.0
+
+New: IBAR, the notch as an app of its own (Windows)
+- One notch at the top centre of every monitor, all showing the same state; each hides by itself while a full-screen app covers its monitor, and monitors can be plugged in or out.
+- Fixed in place: pull it down, left or right and it stretches against a growing resistance; let go and it springs back with a few swings. The top edge never moves.
+- Lower corners grow rounder as the notch grows (about 14 px small, about 32 px large), drawn as Apple-style continuous corners.
+- Liquid glass: off (black), drawn (gradient, grain, light on the edge; the default) or real (what is behind the open notch, slightly blurred and bent at the rim like a lens; a few pictures a second, only while open). Strength slider in the panel.
+- Claude and ChatGPT / Codex state as small circles that pull out of the notch's right side: working (blue), waiting for permission (amber), done (green), error (red).
+- At Windows start the notch drops in from the top edge, springs into place and writes I-B-A-R (the I is the brand's hatched mark), then shows the eye.
+- Control panel from the tray icon: glass, monitors, shelf, Claude Code / Codex, plugins, chat folder, start with Windows, language (English / Persian), panel theme.
+- With IBOX running, IBAR shows the connection and ping, cancel, switch server, today's usage, traffic mode, Dual VPN and the recognised network. IBOX's own notch steps aside while IBAR runs.
+- Plugins (Alita and others, in Python, Go, Rust or any language, or ibar-ctl): notifications, a status chip, a small dashboard and buttons for declared actions. Approved once by the user on the notch; data only, rate-limited, every action declared in advance.
+- Chat from the notch with Claude Code or Codex in one fixed work folder: read-only (plan) by default; changes, when allowed, still ask Allow / Deny on the notch.
+- Installs for the current user only (no administrator rights) and starts with Windows. IBOX → Settings → Notch → Install IBAR.
+
+IBOX
+- Lighter: in the tray IBOX now uses about a third of the memory it used (cached pages and pictures are let go after the window closes), a quieter runtime, and no polling timers on the notch.
+- Linux: whole-system mode asks for the password once, when the app opens, instead of several times on every connect (a short-lived helper, approved once, runs sing-box for the session).
+- Claude Code: the start of each task and its end now show on the notch circles too.

@@ -1,0 +1,11 @@
+IBOX 1.8.0 (Windows)
+
+New
+- Notch shelf: drag files, folders, apps, text, links or pictures onto the notch; hover to see them and drag them out to copy them anywhere.
+- The notch is glued to the top edge and stretches with real physics: it leans towards a drag, ripples when something lands, and holds on to an item you pull out before letting go.
+- Claude and ChatGPT notifications appear briefly on the notch with the app's icon.
+- Claude Code and Codex ask for permission on the notch (Allow / Deny / Answer there): Settings > Notch > Connect Claude Code / Connect Codex. Codex: type /hooks once and trust IBOX's hooks.
+
+Fixed
+- The notch no longer stays a little too big and then jumps when it shrinks.
+- A faded notch comes back as soon as the pointer rests on it.

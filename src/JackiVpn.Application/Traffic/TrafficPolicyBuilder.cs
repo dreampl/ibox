@@ -20,6 +20,15 @@ public sealed record TrafficContext
 
     /// <summary>Processes started by or starting the game (launcher, crash handler, anti-cheat helper).</summary>
     public IReadOnlyList<string> GameFamily { get; init; } = [];
+
+    /// <summary>The Dual VPN is on alone: its own server is the connection, so nothing is split off.</summary>
+    public bool DualOnly { get; init; }
+
+    /// <summary>What the second VPN and this network announce (for the smart scope); null = nothing known.</summary>
+    public SecondVpnDetected? DualDetected { get; init; }
+
+    /// <summary>The resolvers this network gives right now (on the workplace's own network: the company DNS).</summary>
+    public IReadOnlyList<string> SiteDns { get; init; } = [];
 }
 
 /// <summary>
@@ -40,7 +49,7 @@ public static class TrafficPolicyBuilder
             .Concat(s.Traffic.SaverApps)
             .Concat(workplace?.Rules.BlockApps ?? [])
             .Select(a => a.Trim())
-            .Where(a => a.Length > 0 && !TrafficCatalog.Uncuttable.Contains(TrafficCatalog.AppName(a)))
+            .Where(a => a.Length > 0 && !TrafficCatalog.Uncuttable.Contains(TrafficCatalog.AppName(a)) && !TrafficCatalog.IsFriend(a, s.Friends.Apps))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Take(200)
             .ToList();
@@ -101,14 +110,24 @@ public static class TrafficPolicyBuilder
             }
         }
 
-        return new TrafficPolicy
+        var policy = new TrafficPolicy
         {
-            BlockedApps = blockedApps.Where(a => !TrafficCatalog.Uncuttable.Contains(TrafficCatalog.AppName(a))).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+            // Friendly apps (Alita) are never cut, whatever a list or a mode says.
+            BlockedApps = blockedApps.Where(a => !TrafficCatalog.Uncuttable.Contains(TrafficCatalog.AppName(a)) && !TrafficCatalog.IsFriend(a, s.Friends.Apps)).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+            Friends = ctx.ProcessAware ? s.Friends.Apps.Where(a => a.Trim().Length is > 1 and <= 64 && a.All(c => char.IsLetterOrDigit(c) || c is '-' or '_' or '.')).ToList() : [],
+            FriendsDirect = ctx.ProcessAware && s.Friends.Direct,
             BlockedDomains = blockedDomains.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
             BlockedCidrs = t.BlockedIps.Where(Domain.Common.NetText.IsCidr).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
             InternalDomains = work?.InternalDomains ?? [],
             InternalCidrs = (work?.InternalCidrs ?? []).Where(Domain.Common.NetText.IsCidr).ToList(),
-            InternalDns = (work?.InternalDns ?? []).Where(Domain.Common.NetText.IsIpLiteral).ToList(),
+            // The saved company resolvers, then the ones the network gives right now (on site): a workplace saved
+            // elsewhere or while connected still finds its DNS.
+            InternalDns = (work?.InternalDns ?? []).Concat(work is not null && !ctx.Away ? ctx.SiteDns : [])
+                .Where(Domain.Common.NetText.IsIpLiteral)
+                .Where(d => System.Net.IPAddress.TryParse(Domain.Common.NetText.TrimBrackets(d), out var ip) && Domain.Common.NetText.IsPrivateOrLocal(ip))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(4)
+                .ToList(),
             // On site the company network is right there; the second VPN is only for the way from elsewhere.
             // Android runs one VPN app at a time, so only a work server there.
             WorkRoute = WorkRouteOf(work, ctx),
@@ -126,7 +145,51 @@ public static class TrafficPolicyBuilder
             DownloadApps = smart && ctx.ProcessAware ? Category(TrafficCatalog.DownloadApps, t, limited) : [],
             TrackProcesses = ctx.ProcessAware && s.Usage.Enabled,
         };
+        return WithSecondVpn(policy, s.DualVpn, ctx);
     }
+
+    /// <summary>
+    /// The standalone Dual VPN, in every mode: its names and subnets take the second VPN (it wins over a workplace's
+    /// own), and its gateway never enters the tunnel. An adapter route needs per-app rules (not on Android).
+    /// </summary>
+    public static TrafficPolicy WithSecondVpn(TrafficPolicy policy, SecondVpnSettings dual, TrafficContext ctx)
+    {
+        ArgumentNullException.ThrowIfNull(policy);
+        ArgumentNullException.ThrowIfNull(dual);
+        ArgumentNullException.ThrowIfNull(ctx);
+        if (!dual.Enabled || !dual.IsConfigured || ctx.DualOnly || (dual.Route == WorkRoute.Adapter && !ctx.ProcessAware))
+        {
+            return policy;
+        }
+
+        // Smart: also what the second VPN announces (its subnet, resolvers, domain) and the private address ranges
+        // companies use; the device's own local network always stays direct.
+        var smart = dual.Scope == SecondVpnScope.Smart;
+        var found = ctx.DualDetected ?? new SecondVpnDetected();
+        var names = dual.Domains.Concat(smart ? found.Domains : [])
+            .Select(d => d.Trim().TrimStart('*', '.').TrimEnd('.').ToLowerInvariant()).Where(Domain.Common.NetText.IsValidHostName);
+        var subnets = dual.Cidrs.Concat(smart ? found.Cidrs.Concat(CompanyRanges) : []).Where(Domain.Common.NetText.IsCidr);
+        var dns = dual.Dns.Concat(smart && dual.Dns.Count == 0 ? found.Dns : []).Where(Domain.Common.NetText.IsIpLiteral).Distinct(StringComparer.OrdinalIgnoreCase).Take(4).ToList();
+
+        // Policy-based IPsec (IKEv2 on Linux) has no adapter: its subnets stay outside the tunnel, names go direct.
+        var route = dual.Route == WorkRoute.Adapter && !Domain.Network.AdapterNames.IsValid(dual.Interface?.Trim()) ? WorkRoute.Off : dual.Route;
+        return policy with
+        {
+            InternalDomains = policy.InternalDomains.Concat(names).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+            InternalCidrs = policy.InternalCidrs.Concat(subnets).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+            InternalDns = dns.Count > 0 ? dns : policy.InternalDns,
+            WorkRoute = route,
+            WorkServerId = route == WorkRoute.Server ? dual.ServerId : null,
+            WorkInterface = route == WorkRoute.Adapter ? dual.Interface!.Trim() : null,
+            WorkBypass = dual.GatewayIps.Where(Domain.Common.NetText.IsIpLiteral)
+                .Select(ip => ip + (ip.Contains(':', StringComparison.Ordinal) ? "/128" : "/32"))
+                .ToList(),
+            WorkLocal = found.LocalSubnets.Where(Domain.Common.NetText.IsCidr).Distinct(StringComparer.OrdinalIgnoreCase).Take(16).ToList(),
+        };
+    }
+
+    /// <summary>Private address ranges company networks use (the smart scope sends them to the second VPN).</summary>
+    public static IReadOnlyList<string> CompanyRanges { get; } = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10"];
 
     private static WorkRoute WorkRouteOf(WorkplaceProfile? work, TrafficContext ctx) => work is { DualVpn.IsOn: true } && ctx.Away
         ? work.DualVpn.Route == WorkRoute.Adapter && !ctx.ProcessAware ? WorkRoute.Off : work.DualVpn.Route

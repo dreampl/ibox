@@ -139,6 +139,10 @@ public static class TrafficCatalog
 
     public static bool IsVpnApp(string app) => VpnAppMarkers.Any(m => app.Contains(m, StringComparison.OrdinalIgnoreCase));
 
+    /// <summary>A friendly app (<see cref="FriendAppsSettings"/>): never cut, limited or slowed, its network left to it.</summary>
+    public static bool IsFriend(string app, IEnumerable<string> markers) =>
+        markers.Any(m => m.Length > 0 && TrafficCatalog.AppName(app).Contains(m, StringComparison.OrdinalIgnoreCase));
+
     public static bool IsGame(string path)
     {
         ArgumentNullException.ThrowIfNull(path);

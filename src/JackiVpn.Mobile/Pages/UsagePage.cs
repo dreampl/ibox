@@ -58,7 +58,7 @@ public sealed class UsagePage : AnimatedPage
                 _bar,
                 _left,
                 _forecast,
-                new BoxView { HeightRequest = 1, Color = Rtl.Res("Stroke"), Margin = new Thickness(0, 12) },
+                new BoxView { HeightRequest = 1, Color = Rtl.Res("Divider"), Margin = new Thickness(0, 12) },
                 new Grid
                 {
                     ColumnDefinitions = [new(GridLength.Star), new(GridLength.Star)],

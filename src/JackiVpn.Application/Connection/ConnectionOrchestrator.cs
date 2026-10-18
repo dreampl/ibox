@@ -32,6 +32,12 @@ public sealed record ConnectRequest
 
     /// <summary>Smart mode: restrict the pool to one subscription (default: the anchor's subscription).</summary>
     public string? SubscriptionId { get; init; }
+
+    /// <summary>
+    /// The Dual VPN on its own (the main VPN off): <see cref="ProfileId"/> is its server and carries all traffic. A
+    /// normal connect later replaces this session with the main one, which then splits company traffic off to it.
+    /// </summary>
+    public bool DualOnly { get; init; }
 }
 
 public sealed class ConnectionException(string message) : Exception(message);
@@ -71,6 +77,12 @@ public sealed record OrchestratorDependencies
 
     /// <summary>Blocks, workplace routes and relay classes for the next session (null = none).</summary>
     public Func<Domain.Usage.TrafficPolicy?> Traffic { get; init; } = static () => null;
+
+    /// <summary>The traffic policy of a Dual-VPN-only session (nothing split off); null = <see cref="Traffic"/>.</summary>
+    public Func<Domain.Usage.TrafficPolicy?>? DualOnlyTraffic { get; init; }
+
+    /// <summary>Called before a main (not Dual-VPN-only) connect: e.g. an IPsec second VPN switches to split tunnel.</summary>
+    public Func<CancellationToken, Task>? BeforeMainConnect { get; init; }
 
     /// <summary>Relay limits a new session starts with.</summary>
     public Func<Domain.Usage.TrafficLimits> Limits { get; init; } = static () => Domain.Usage.TrafficLimits.None;
@@ -170,12 +182,24 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
 
     // ------------------------------------------------------------------ connect
 
-    /// <summary>Connects; returns false (with <see cref="ConnectionStatus.LastError"/> set) on failure.</summary>
-    public async Task<bool> ConnectAsync(ConnectRequest request, CancellationToken ct)
+    /// <summary>
+    /// Connects; returns false (with <see cref="ConnectionStatus.LastError"/> set) on failure. Runs on the thread pool:
+    /// called from a button, the work up to the first real wait (reading and decrypting every server, building the
+    /// plan) used to run on the UI thread and froze the window for the click.
+    /// </summary>
+    public Task<bool> ConnectAsync(ConnectRequest request, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(request);
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct, _lifetime.Token);
+
+        // Registered before the hop to the thread pool: a cancel right after the click still finds this connect.
+        var cts = CancellationTokenSource.CreateLinkedTokenSource(ct, _lifetime.Token);
         Volatile.Write(ref _connectCts, cts);
+        return Task.Run(() => ConnectCoreAsync(request, cts), CancellationToken.None);
+    }
+
+    private async Task<bool> ConnectCoreAsync(ConnectRequest request, CancellationTokenSource cts)
+    {
+        using var owned = cts;
         try
         {
             await _op.WaitAsync(cts.Token).ConfigureAwait(false);
@@ -187,10 +211,26 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
 
         try
         {
+            if (_state.State == ConnectionState.Connected && _session is { DualOnly: true } alone && !request.DualOnly)
+            {
+                // The main VPN comes on while the Dual VPN runs alone: that session gives way, and the main one
+                // starts with company traffic split off to the second VPN.
+                Log.LogInformation("Main VPN on: the Dual VPN no longer carries everything.");
+                alone.Watchdog.Cancel();
+                await DetachSessionAsync(alone, stopBackend: true, ConnectionOutcome.Disconnected, null).ConfigureAwait(false);
+                _state.TryTransition(ConnectionState.Disconnecting, "main VPN on", out _);
+                _state.TryTransition(ConnectionState.Disconnected, "main VPN on", out _);
+            }
+
             if (!ConnectionStateRules.IsIdle(_state.State))
             {
                 Log.LogInformation("Connect ignored: already {State}.", _state.State);
                 return _state.State == ConnectionState.Connected;
+            }
+
+            if (!request.DualOnly && _d.BeforeMainConnect is { } before)
+            {
+                await before(cts.Token).ConfigureAwait(false);
             }
 
             return await ConnectLockedAsync(request, cts.Token).ConfigureAwait(false);
@@ -263,7 +303,7 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
             }
 
             _state.Transition(ConnectionState.Connecting, "starting tunnel");
-            var session = new Session(generation, backend, pool.Profiles, smart, pool.OwnedIds) { TestedCount = tested };
+            var session = new Session(generation, backend, pool.Profiles, smart, pool.OwnedIds) { TestedCount = tested, DualOnly = request.DualOnly };
             started = session;
             AttachEvents(session);
             var errors = new List<string>();
@@ -403,8 +443,18 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
 
     private async Task<Pool> BuildPoolAsync(ConnectRequest request, AppSettings settings, CancellationToken ct)
     {
+        if (request.DualOnly)
+        {
+            // The Dual VPN alone: exactly its own server (kept out of every normal pool).
+            var dual = request.ProfileId is { } dualId ? await _d.Profiles.GetAsync(dualId, ct).ConfigureAwait(false) : null;
+            return dual is null
+                ? throw new ConnectionException("The Dual VPN's server is missing: set the Dual VPN up again on the Servers page.")
+                : new Pool([dual], false, new HashSet<string>(StringComparer.Ordinal));
+        }
+
         var all = (await _d.Profiles.GetAllAsync(ct).ConfigureAwait(false))
             .Where(p => p.SyncState != ProfileSyncState.RemovedByProvider)
+            .Where(p => p.Origin.ProviderId != Workplace.SecondVpnService.OwnedTag) // the Dual VPN's own config is never the main server
             .ToList();
         var anchorId = request.ProfileId ?? settings.Connection.SelectedProfileId;
         var anchor = anchorId is null ? null : all.FirstOrDefault(p => p.Id == anchorId);
@@ -721,7 +771,7 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
         // Server names (and Direct sites, when asked) are looked up with the chosen resolver: the fastest clean one of
         // this network (smart) or the user's own pick, instead of the system's.
         settings = DnsChoice.ForSession(settings, settings.Connectivity.AutoPickDns ? _d.BestDns?.Invoke() : null);
-        var traffic = await WithWorkServerAsync(_d.Traffic(), profile, ct).ConfigureAwait(false);
+        var traffic = await WithWorkServerAsync(session.DualOnly ? (_d.DualOnlyTraffic ?? _d.Traffic)() : _d.Traffic(), profile, ct).ConfigureAwait(false);
 
         var result = await session.Backend.StartAsync(new BackendStartRequest
         {
@@ -790,6 +840,7 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
             State = ConnectionState.Connected,
             ProfileId = profile.Id,
             ProfileName = profile.DisplayName,
+            DualOnly = session.DualOnly,
             Protocol = profile.Protocol.ToString(),
             Mode = session.Backend.Mode,
             Core = start.Core,
@@ -1021,7 +1072,23 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
     /// tests, rescue, core start, retries, tuner), stops what started, kills it if it hangs, and reports
     /// Disconnected within about two seconds even if some step ignores the cancellation.
     /// </summary>
+    /// <summary>
+    /// The user ended the connection (also a cancelled connect). The argument says whether it was the Dual VPN on its
+    /// own; when it was the main one, a Dual VPN that is still on takes over everything.
+    /// </summary>
+    public event EventHandler<bool>? UserDisconnected;
+
     public async Task DisconnectAsync(CancellationToken ct = default)
+    {
+        var wasDualOnly = _session?.DualOnly == true;
+        await DisconnectCoreAsync(ct).ConfigureAwait(false);
+        if (!_lifetime.IsCancellationRequested)
+        {
+            UserDisconnected?.Invoke(this, wasDualOnly);
+        }
+    }
+
+    private async Task DisconnectCoreAsync(CancellationToken ct)
     {
         var connecting = Volatile.Read(ref _connectCts);
         connecting?.Cancel();
@@ -1248,7 +1315,10 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
     /// Restarts the session on the same server (a setting that lives in the core configuration changed). With
     /// <paramref name="refreshRouting"/> the rule-sets are prepared again first (rules or rule-sets changed).
     /// </summary>
-    public async Task<bool> ReconnectAsync(string reason, CancellationToken ct, bool refreshRouting = false)
+    public Task<bool> ReconnectAsync(string reason, CancellationToken ct, bool refreshRouting = false) =>
+        Task.Run(() => ReconnectCoreAsync(reason, ct, refreshRouting), CancellationToken.None); // off the UI thread, as ConnectAsync
+
+    private async Task<bool> ReconnectCoreAsync(string reason, CancellationToken ct, bool refreshRouting)
     {
         await _op.WaitAsync(ct).ConfigureAwait(false);
         try
@@ -1285,8 +1355,10 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
 
     // ------------------------------------------------------------------ manual switch
 
-    /// <summary>User picked another server while connected.</summary>
-    public async Task<bool> SwitchToAsync(string profileId, CancellationToken ct)
+    /// <summary>User picked another server while connected (off the UI thread, as ConnectAsync).</summary>
+    public Task<bool> SwitchToAsync(string profileId, CancellationToken ct) => Task.Run(() => SwitchToCoreAsync(profileId, ct), CancellationToken.None);
+
+    private async Task<bool> SwitchToCoreAsync(string profileId, CancellationToken ct)
     {
         await _op.WaitAsync(ct).ConfigureAwait(false);
         try
@@ -1406,7 +1478,7 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
 
             Log.LogWarning("Backend fault on {Profile}: {Reason}", profile.DisplayName, SecretRedactor.Redact(fault.Reason));
             _d.Notifications.Notify(NotificationCategory.CoreCrashed, "Connection interrupted", fault.KillSwitchHolding
-                ? "The VPN core stopped. The kill switch is blocking traffic while reconnecting."
+                ? "The connection dropped. Your apps are held (nothing goes out from your real address) while IBOX reconnects."
                 : "The VPN core stopped. Reconnecting…");
             await RecoverLockedAsync(session, fault.Reason, ConnectionOutcome.CoreCrashed, preferProfile: profile).ConfigureAwait(false);
         }
@@ -1485,6 +1557,14 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
                     }
                 }
             }
+
+            if (settings.KillSwitch.ProtectOnDrop || settings.KillSwitch.Enabled)
+            {
+                // Protect on drop: never give up on a connection that was working. Apps stay held (nothing goes out
+                // from the real address) while IBOX keeps trying, slower and slower, until it is back or the user
+                // disconnects (which cancels this wait).
+                return await KeepTryingAsync(session, preferProfile, routing, settings, ct).ConfigureAwait(false);
+            }
         }
         catch (Exception ex) when (ex is OperationCanceledException || ct.IsCancellationRequested)
         {
@@ -1504,6 +1584,57 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
             : "Could not reconnect. Your connection is no longer protected.");
         await FailAsync($"Could not restore the connection: {session.LastError}").ConfigureAwait(false);
         return false;
+    }
+
+    /// <summary>Longest wait between two tries while a dropped connection is being brought back.</summary>
+    internal static TimeSpan MaxRetryWait { get; } = TimeSpan.FromSeconds(60);
+
+    private async Task<bool> KeepTryingAsync(Session session, ProxyProfile preferProfile, PreparedRouting routing, AppSettings settings, CancellationToken ct)
+    {
+        _state.TryTransition(ConnectionState.Reconnecting, "keep trying", out _);
+        var held = false;
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            held = await session.Backend.IsKillSwitchHoldingAsync(timeout.Token).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            Log.LogDebug("Hold state query failed: {Error}", ex.Message);
+        }
+
+        Publish(s => s with { KillSwitchEngaged = held });
+        _d.Notifications.Notify(NotificationCategory.ConnectionFailed, "Connection lost — IBOX keeps trying", held
+            ? "Your apps are held, so nothing goes out from your real address. Disconnect to use the internet without the VPN."
+            : "IBOX keeps trying to reconnect. Meanwhile the connection is not protected.");
+        for (var round = 1; ; round++)
+        {
+            var wait = TimeSpan.FromTicks(Math.Min(MaxRetryWait.Ticks, _d.ReconnectBaseDelay.Ticks * 5 * round));
+            Publish(s => s with { LastError = $"Connection lost — trying again in {Math.Max(1, Math.Ceiling(wait.TotalSeconds)):0} s…" });
+            await Task.Delay(wait, _d.Time, ct).ConfigureAwait(false);
+
+            // The last server first, then (smart) the best others; cooldowns do not apply while the network is out.
+            var candidates = session.Smart
+                ? Rank(session.Pool, new HashSet<string>(StringComparer.Ordinal), session.OwnedIds).Take(3).Prepend(preferProfile).DistinctBy(p => p.Id).ToList()
+                : [preferProfile];
+            foreach (var candidate in candidates)
+            {
+                try
+                {
+                    await StartOnAsync(session, candidate, routing, settings, ct).ConfigureAwait(false);
+                    _state.Transition(ConnectionState.Connected, "reconnected");
+                    Publish(s => s with { KillSwitchEngaged = false });
+                    await OnConnectedAsync(session, routing.Warnings, settings, isSwitch: !ReferenceEquals(candidate, preferProfile)).ConfigureAwait(false);
+                    Log.LogInformation("Connection restored on {Profile} after {Round} round(s).", candidate.DisplayName, round);
+                    _d.Notifications.Notify(NotificationCategory.Connected, "Connection restored", candidate.DisplayName);
+                    return true;
+                }
+                catch (Exception ex) when (IsStartFailure(ex) && !ct.IsCancellationRequested)
+                {
+                    Log.LogDebug("Retry on {Profile} failed: {Error}", candidate.DisplayName, SecretRedactor.Redact(ex.Message));
+                }
+            }
+        }
     }
 
     private async Task RecordFailureAsync(ProxyProfile profile, string error, CancellationToken ct)
@@ -1845,7 +1976,7 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
 
-        await DisconnectAsync(CancellationToken.None).ConfigureAwait(false);
+        await DisconnectCoreAsync(CancellationToken.None).ConfigureAwait(false);
         await _lifetime.CancelAsync().ConfigureAwait(false);
         _lifetime.Dispose();
     }
@@ -1862,6 +1993,10 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
         public Task? PingTask { get; set; }
         public TunedProfile? Tuned { get; set; }
         public int TestedCount { get; init; }
+
+        /// <summary>The Dual VPN alone: its server carries everything (<see cref="ConnectRequest.DualOnly"/>).</summary>
+        public bool DualOnly { get; init; }
+
         public ProxyProfile? Profile { get; set; }
         public BackendStartResult? Start { get; set; }
         public PreparedRouting? Routing { get; set; }

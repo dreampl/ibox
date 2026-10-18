@@ -61,6 +61,11 @@ public static partial class PeerIdentity
     {
         ArgumentNullException.ThrowIfNull(pipe);
         SecurityIdentifier? sid = null;
+
+        // Load and run the identity code once as the service itself: under the client's identification-level token
+        // the thread cannot open files, so anything loaded there for the first time (precompiled builds load late)
+        // would fail and leave the client unidentified.
+        _ = WarmIdentity.Value;
         try
         {
             pipe.RunAsClient(() =>
@@ -77,6 +82,12 @@ public static partial class PeerIdentity
 
         return sid;
     }
+
+    private static readonly Lazy<SecurityIdentifier?> WarmIdentity = new(() =>
+    {
+        using var self = WindowsIdentity.GetCurrent(TokenAccessLevels.Query);
+        return self.User;
+    });
 
     public static IpcClientContext Describe(NamedPipeServerStream pipe)
     {

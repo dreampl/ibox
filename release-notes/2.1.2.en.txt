@@ -1,0 +1,4 @@
+IBOX 2.1.2 (Windows, Linux)
+
+Fixed
+- On a recognised workplace network, internal sites did not open, not even with a rule of your own: their names were asked from a public resolver (Cloudflare, chosen because the network intercepts plain DNS), which cannot know a company's names. Now the company's own DNS answers the workplace's names and every name your rules send direct — also when the network announces no DNS suffix, and also for a workplace saved while connected (IBOX then uses the DNS the network gives right now).

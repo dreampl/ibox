@@ -71,7 +71,7 @@
                     </VerticalStackLayout>
                     <Button Grid.Column="2" Style="{StaticResource Pill}" Text="{loc:T Home_Change}" Command="{Binding ChooseServerCommand}" VerticalOptions="Center" />
                 </Grid>
-                <BoxView HeightRequest="1" Color="{StaticResource Stroke}" />
+                <BoxView HeightRequest="1" Color="{StaticResource Divider}" />
                 <Grid x:Name="Stats" ColumnDefinitions="*,*,*" ColumnSpacing="8">
                     <Grid.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnStatsTapped" />

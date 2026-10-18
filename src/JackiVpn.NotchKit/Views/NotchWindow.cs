@@ -11,7 +11,6 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
-using System.Windows.Media.Effects;
 using System.Windows.Threading;
 using JackiVpn.Desktop.ViewModels;
 using JackiVpn.Domain.Connection;
@@ -29,9 +28,9 @@ namespace JackiVpn.Desktop.Views;
 /// </summary>
 public sealed partial class NotchWindow : Window
 {
-    // Room around the island for its soft shadow (the window itself is transparent and click-through there).
+    // Room around the island for its shadow and for stretching (the window is transparent and click-through there).
     private const double WindowWidth = 540;
-    private const double WindowHeight = 180;
+    private const double WindowHeight = 340;
     private const double CollapsedHeight = 34;
     private const double ExpandedWidth = 410;
     private const double ExpandedHeight = 112;
@@ -39,13 +38,18 @@ public sealed partial class NotchWindow : Window
     private const double FadedOpacity = 0.32;
     private static readonly Stopwatch Clock = Stopwatch.StartNew();
 
-    private readonly Border _pill;
-    private readonly Border _shadow;
+    /// <summary>The island: its body (shape, shadow, stretch) under the content; floating things above, unclipped.</summary>
+    private readonly Grid _pill;
+    private readonly NotchBody _body = new();
+    private readonly Canvas _overlay = new() { IsHitTestVisible = false };
+
+    /// <summary>The connection content (eye, line, details, shelf); panels (drop, alert, request) take its place.</summary>
+    private readonly Canvas _main = new();
     private readonly Grid _island;
     private readonly OrbView _orb = new() { State = OrbState.Connecting, Tint = Color.FromRgb(0x9C, 0xCF, 0xFF), Width = 44, Height = 44, Detail = 64, MinInk = 0.4, Opacity = 0, IsRunning = false };
     private readonly ScaleTransform _orbScale = new(0.6, 0.6);
     private readonly Canvas _surface = new();
-    private readonly EyeMarkView _eye = new() { Width = 36, Height = 36.5 };
+    private readonly EyeMarkView _eye = new() { Width = 36, Height = 36.5, MaxFps = 30 }; // a layered window: every frame is copied back from the GPU
     private readonly ScaleTransform _eyeScale = new(0.5, 0.5);
     private readonly TextBlock _line = new() { FontSize = 12.5, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _ghost = new() { FontSize = 12.5, FontWeight = FontWeights.SemiBold, Opacity = 0, RenderTransform = new TranslateTransform() };
@@ -73,14 +77,17 @@ public sealed partial class NotchWindow : Window
     private readonly TextBlock _musicPlayGlyph = new() { FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = 11, Foreground = Brushes.White, Text = "\uE768" };
     private readonly Grid _music = new() { Margin = new Thickness(0, 6, 0, 0), Visibility = Visibility.Collapsed };
     private Application.Media.NowPlaying? _nowPlaying;
-    private readonly ScaleTransform _press = new(1, 1);
     private readonly Spring _width;
     private readonly Spring _height;
     private readonly Spring _expand;
     private readonly Spring _group;
+
+    /// <summary>Sideways pull of the island's lower part (a file pulled out to the side), loosely damped: it swings back.</summary>
+    private readonly Spring _lateral;
     private readonly DispatcherTimer _fadeTimer = new() { Interval = TimeSpan.FromSeconds(6) };
-    private readonly DispatcherTimer _holdTimer = new() { Interval = TimeSpan.FromMilliseconds(1500) };
-    private readonly DispatcherTimer _fullScreenTimer = new() { Interval = TimeSpan.FromSeconds(2) };
+
+    // A faded notch comes back as soon as the pointer settles on it (a passing pointer does not wake it).
+    private readonly DispatcherTimer _holdTimer = new() { Interval = TimeSpan.FromMilliseconds(320) };
     private ConnectionStatus _status = new();
     private VisualMode _mode;
     private NotchSettings _settings = new();
@@ -112,19 +119,19 @@ public sealed partial class NotchWindow : Window
         Focusable = false;
 
         _eye.RenderTransform = _eyeScale;
-        _surface.Children.Add(_eye);
+        _main.Children.Add(_eye);
         _line.RenderTransform = new TranslateTransform();
         _lineHost.Children.Add(_ghost);
         _lineHost.Children.Add(_line);
-        _surface.Children.Add(_lineHost);
+        _main.Children.Add(_lineHost);
         // The state: a word for two seconds, then an icon made of orb dots (blue link / grey broken link).
         _statusHost.Children.Add(_statusText);
         _statusHost.Children.Add(_statusIcon);
         Canvas.SetTop(_statusIcon, -0.5);
-        _surface.Children.Add(_statusHost);
+        _main.Children.Add(_statusHost);
         // A traffic mode shows itself for ten seconds: the eye's dots become a gamepad, a leaf, a play sign or a monitor.
         _badge.RenderTransform = _badgeScale;
-        _surface.Children.Add(_badge);
+        _main.Children.Add(_badge);
         var head = new Grid { ColumnDefinitions = { new ColumnDefinition(), new ColumnDefinition { Width = GridLength.Auto } } };
         head.Children.Add(_title);
         Grid.SetColumn(_ping, 1);
@@ -133,6 +140,7 @@ public sealed partial class NotchWindow : Window
         _details.Children.Add(_server);
         _details.Children.Add(_where);
         _details.Children.Add(_speed);
+        _details.Children.Add(_extra);
 
         // Now playing: the item and three small buttons (previous, play/pause, next).
         _music.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -156,52 +164,40 @@ public sealed partial class NotchWindow : Window
         }
 
         _details.Width = ExpandedWidth - DetailsLeft - 24;
-        _surface.Children.Add(_details);
+        _main.Children.Add(_details);
         Canvas.SetLeft(_details, DetailsLeft);
 
         // While connecting, a large high-detail thinking orb takes the eye's place.
         _orb.RenderTransform = _orbScale;
-        _surface.Children.Add(_orb);
+        _main.Children.Add(_orb);
+        BuildShelf();
+        _surface.Children.Add(_main);
+        BuildPanels();
 
-        _pill = new Border
+        // The content is clipped to the island; the body draws its own shadow and stretch beyond it.
+        _surface.ClipToBounds = true;
+        _pill = new Grid
         {
-            Background = Brushes.Black,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Top,
-            ClipToBounds = true,
-            Child = _surface,
             Cursor = Cursors.Hand,
-        };
-        // The shadow lives on its own layer behind the island, so the clip of the content never cuts it off.
-        _shadow = new Border
-        {
-            Background = Brushes.Black,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Top,
-            IsHitTestVisible = false,
-            Effect = new DropShadowEffect { BlurRadius = 34, ShadowDepth = 2, Direction = 270, Opacity = 0.85, Color = Colors.Black },
+            Children = { _body, _surface, _overlay },
         };
         _island = new Grid
         {
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Top,
-            RenderTransformOrigin = new Point(0.5, 0),
-            RenderTransform = _press,
-            Children = { _shadow, _pill },
+            Children = { _pill },
         };
         Content = new Grid { Children = { _island } };
 
-        _width = new Spring(190, 230, 0.8, v =>
+        _width = new Spring(190, 230, 0.8, _ =>
         {
-            _pill.Width = _shadow.Width = Math.Max(40, v);
+            ApplySize();
             ApplyExpansion(_expand!.Value);
         });
-        _height = new Spring(CollapsedHeight, 225, 0.78, v =>
-        {
-            _pill.Height = _shadow.Height = Math.Max(20, v);
-            var r = Math.Min(_pill.Height / 2, 20);
-            _pill.CornerRadius = _shadow.CornerRadius = new CornerRadius(0, 0, r, r);
-        });
+        _height = new Spring(CollapsedHeight, 225, 0.78, _ => ApplySize());
+        _lateral = new Spring(0, 260, 0.32, v => _body.Lateral = v);
         _expand = new Spring(0, 165, 0.9, ApplyExpansion);
         // Width of the eye+text group, on the same spring as the island: the group re-centres smoothly.
         _group = new Spring(120, 230, 0.8, _ => ApplyExpansion(_expand.Value));
@@ -216,6 +212,12 @@ public sealed partial class NotchWindow : Window
         _eye.BeforeFrame = eye =>
         {
             // A faded notch rests: following every mouse move across the screen would redraw it all day.
+            if (ScreenCursor.TryGet(out var here))
+            {
+                // Full rate only on the monitor the pointer is on; the other islands idle along.
+                eye.MaxFps = CursorHere(here) ? 30 : 10;
+            }
+
             if (eye.State == EyeState.Awake && !_faded && ScreenCursor.TryGet(out var p) && p != _lastCursor)
             {
                 _lastCursor = p;
@@ -223,11 +225,19 @@ public sealed partial class NotchWindow : Window
             }
         };
 
+        InitActivity();
         _pill.MouseEnter += (_, _) => OnHover(true);
         _pill.MouseLeave += (_, _) => OnHover(false);
         _pill.MouseLeftButtonDown += OnPress;
         _pill.MouseMove += OnDrag;
         _pill.MouseLeftButtonUp += OnRelease;
+
+        // Anything dragged over the notch (files, folders, apps, text, links, pictures) can be dropped on its shelf.
+        AllowDrop = true;
+        DragEnter += OnDragOver;
+        DragOver += OnDragOver;
+        DragLeave += OnDragLeave;
+        Drop += OnDropped;
         _fadeTimer.Tick += (_, _) =>
         {
             _fadeTimer.Stop();
@@ -243,8 +253,15 @@ public sealed partial class NotchWindow : Window
             SetFaded(false);
             SetExpanded(true);
         };
-        _fullScreenTimer.Tick += (_, _) => CheckFullScreen();
-        SourceInitialized += (_, _) => MakeToolWindow();
+        EventHandler onScreens = (_, _) => CheckFullScreen();
+        FullScreenWatcher.Changed += onScreens;
+        Closed += (_, _) => FullScreenWatcher.Changed -= onScreens;
+        SourceInitialized += (_, _) =>
+        {
+            MakeToolWindow();
+            PlaceOnMonitor();
+        };
+        DpiChanged += (_, _) => Dispatcher.BeginInvoke(PlaceOnMonitor);
         Loaded += (_, _) =>
         {
             PlaceAt(_center);
@@ -254,17 +271,24 @@ public sealed partial class NotchWindow : Window
             _group.Snap();
             _statusWidth.Snap();
             _height.Snap();
-            _fullScreenTimer.Start();
+            if (_introPending)
+            {
+                _introPending = false;
+                StartIntro();
+            }
+            CheckFullScreen();
             RestartFade();
         };
         Closed += (_, _) =>
         {
             _fadeTimer.Stop();
             _holdTimer.Stop();
-            _fullScreenTimer.Stop();
             _statusTimer.Stop();
             _badgeTimer.Stop();
+            _dropLeave.Stop();
+            _alertTimer.Stop();
             StopAnimating();
+            DropAllRequests();
         };
     }
 
@@ -296,17 +320,15 @@ public sealed partial class NotchWindow : Window
 
         _nowPlaying = item;
         Render();
-        if (_expanded)
-        {
-            _height.To(ExpandedHeightNow);
-            Animate();
-        }
     }
 
     private bool ShowsMusic => _settings.ShowNowPlaying && _nowPlaying is not null;
 
-    /// <summary>Expanded height: one row more while something is playing.</summary>
-    private double ExpandedHeightNow => ExpandedHeight + (ShowsMusic ? 28 : 0);
+    /// <summary>The eye and the detail rows: one row more while something is playing.</summary>
+    private double DetailsArea => ExpandedHeight + (ShowsMusic ? 28 : 0);
+
+    /// <summary>Expanded height: the details, and the shelf below them when it holds something.</summary>
+    private double ExpandedHeightNow => DetailsArea + (ShowsShelf ? ShelfRowHeight : 0) + PluginRowHeight;
 
     private Button MediaButton(TextBlock glyph, int command, string tip)
     {
@@ -356,6 +378,12 @@ public sealed partial class NotchWindow : Window
             SetFaded(false);
         }
 
+        if (!settings.AiAssistants)
+        {
+            DropAllRequests();
+        }
+
+        RenderShelf();
         Render();
     }
 
@@ -546,7 +574,7 @@ public sealed partial class NotchWindow : Window
 
         // The rest of the line (ping, tunnel, …); the state itself has its own slot (word, then icon).
         var s = _settings;
-        var showStatus = s.ShowStatus || !connected;
+        var showStatus = (s.ShowStatus || !connected) && ConnectionVisible;
         var before = _line.Inlines.OfType<Run>().Select(r => (r.Text, r.Foreground)).ToList();
         _line.Inlines.Clear();
         void Part(string text, Color? color = null)
@@ -592,7 +620,7 @@ public sealed partial class NotchWindow : Window
             Part("♪ " + playing.Line(26), Color.FromRgb(0xC7, 0xD2, 0xFE));
         }
 
-        if (!showStatus && _line.Inlines.Count == 0)
+        if (!showStatus && _line.Inlines.Count == 0 && ConnectionVisible)
         {
             // Nothing else chosen: the state is shown after all.
             showStatus = true;
@@ -610,8 +638,11 @@ public sealed partial class NotchWindow : Window
         _statusText.Foreground = new SolidColorBrush(stateColor);
 
         _title.Inlines.Clear();
-        _title.Inlines.Add(new Run("IBOX  ") { Foreground = new SolidColorBrush(Grey), FontSize = 11 });
-        _title.Inlines.Add(new Run(stateText) { Foreground = new SolidColorBrush(stateColor) });
+        _title.Inlines.Add(new Run(Brand + "  ") { Foreground = new SolidColorBrush(Grey), FontSize = 11 });
+        if (ConnectionVisible)
+        {
+            _title.Inlines.Add(new Run(stateText) { Foreground = new SolidColorBrush(stateColor) });
+        }
         if (connected && st.LatencyMs is { } pingMs)
         {
             // The big number counts to the new value instead of jumping.
@@ -632,7 +663,9 @@ public sealed partial class NotchWindow : Window
         }
 
         _ping.Foreground = new SolidColorBrush(ping is null ? Color.FromRgb(0x6B, 0x72, 0x80) : pingColor);
-        _server.Text = connected ? st.ProfileName ?? "—" : st.State == ConnectionState.Faulted ? st.LastError ?? "Connection failed" : "Click the eye to open IBOX";
+        _server.Text = !ConnectionVisible ? IdleText : connected ? st.ProfileName ?? "—" : st.State == ConnectionState.Faulted ? st.LastError ?? "Connection failed" : "Click the eye to open IBOX";
+        _extra.Text = ExtraLine ?? string.Empty;
+        _extra.Visibility = string.IsNullOrEmpty(ExtraLine) ? Visibility.Collapsed : Visibility.Visible;
         _where.Text = connected
             ? string.Join("  ·  ", new[]
             {
@@ -649,26 +682,23 @@ public sealed partial class NotchWindow : Window
             _musicPlayGlyph.Text = np.IsPlaying ? "\uE769" : "\uE768";
         }
 
-        _speed.Text = connected && st.Traffic is { } tr ? $"↓ {Format.Speed(tr.DownloadBytesPerSecond)}    ↑ {Format.Speed(tr.UploadBytesPerSecond)}" : string.Empty;
+        _speed.Text = ConnectionVisible && connected && st.Traffic is { } tr ? $"↓ {Format.Speed(tr.DownloadBytesPerSecond)}    ↑ {Format.Speed(tr.UploadBytesPerSecond)}" : string.Empty;
 
         _line.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         _statusText.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         _details.Measure(new Size(_details.Width, double.PositiveInfinity));
         _statusWidth?.To(StatusWidth());
         _group.To(GroupWidth());
-        if (!_expanded)
-        {
-            _width.To(CollapsedWidth());
-        }
-
-        Animate();
+        Resize();
         ApplyExpansion(_expand.Value);
     }
 
     /// <summary>Width the state slot is heading to: none, the word, or the 18 px icon.</summary>
     private double StatusWidth() => _statusHost.Visibility != Visibility.Visible ? 0 : _statusAsIcon ? 18 : _statusText.DesiredSize.Width;
 
-    private double GroupWidth() => EyeSmall + EyeGap + StatusWidth() + (_line.Inlines.Count > 0 ? _line.DesiredSize.Width : 0);
+    private double LineWidth() => _line.Inlines.Count > 0 ? _line.DesiredSize.Width : 0;
+
+    private double GroupWidth() => EyeSmall + EyeGap + StatusWidth() + LineWidth() + ShelfMarkWidth();
     private const double EyeSmall = 20;
     private const double EyeGap = 14;
     private const double SidePadding = 30;
@@ -690,11 +720,11 @@ public sealed partial class NotchWindow : Window
         var group = _group?.Value ?? GroupWidth();
         var groupLeft = Math.Max(SidePadding * 0.6, (width - group) / 2);
 
-        // The eye: centred in the island's current height at every moment of the morph.
+        // The eye: centred in the island's current height (above the shelf) at every moment of the morph.
         var eyeSize = EyeSmall + ((EyeBig - EyeSmall) * e);
         _eyeScale.ScaleX = _eyeScale.ScaleY = eyeSize / 36;
         var eyeLeft = groupLeft + ((26 - groupLeft) * k);
-        var eyeTop = (height - eyeSize) / 2;
+        var eyeTop = (Math.Min(height, DetailsArea) - eyeSize) / 2;
         Canvas.SetLeft(_eye, eyeLeft);
         Canvas.SetTop(_eye, eyeTop);
         _badgeScale.ScaleX = _badgeScale.ScaleY = eyeSize / 36;
@@ -718,8 +748,13 @@ public sealed partial class NotchWindow : Window
         Canvas.SetLeft(_lineHost, statusLeft + statusWidth);
         Canvas.SetTop(_lineHost, lineTop);
 
-        // Details: vertically centred, rows rising in one after another (staggered).
-        Canvas.SetTop(_details, Math.Max(10, (ExpandedHeightNow - _details.DesiredSize.Height) / 2));
+        // The shelf's mark (something is waiting on it) closes the collapsed group.
+        _shelfMark.Opacity = lineOpacity;
+        Canvas.SetLeft(_shelfMark, statusLeft + statusWidth + LineWidth() + ShelfMarkGap);
+        Canvas.SetTop(_shelfMark, (height - 18) / 2);
+
+        // Details: vertically centred above the shelf, rows rising in one after another (staggered).
+        Canvas.SetTop(_details, Math.Max(10, (DetailsArea - _details.DesiredSize.Height) / 2));
         var i = 0;
         foreach (UIElement row in _details.Children)
         {
@@ -729,6 +764,15 @@ public sealed partial class NotchWindow : Window
             row.Opacity = eased;
             ((TranslateTransform)row.RenderTransform).Y = 9 * (1 - eased);
         }
+
+        // The shelf row rises in last.
+        var s = Math.Clamp((e - 0.55) / 0.45, 0, 1);
+        var shelfEased = s * s * (3 - (2 * s));
+        _shelfRow.Opacity = shelfEased;
+        _shelfRow.IsHitTestVisible = shelfEased > 0.5;
+        _shelfRowShift.Y = 12 * (1 - shelfEased);
+        Canvas.SetTop(_shelfRow, DetailsArea - 6);
+        PlaceBoards(e);
     }
 
     /// <summary>
@@ -767,8 +811,26 @@ public sealed partial class NotchWindow : Window
 
     private void OnHover(bool inside)
     {
-        if (_dragging)
+        if (_dragging || _pullItem is not null || (inside && HoverOnActivity()))
         {
+            return;
+        }
+
+        if (_panel != NotchPanel.None)
+        {
+            // A notification waits while the pointer is on it; a request waits for its answer anyway.
+            if (inside)
+            {
+                _fadeTimer.Stop();
+                SetFaded(false);
+            }
+            else if (_panel == NotchPanel.Alert)
+            {
+                _alertTimer.Stop();
+                _alertTimer.Interval = TimeSpan.FromMilliseconds(1200);
+                _alertTimer.Start();
+            }
+
             return;
         }
 
@@ -777,9 +839,9 @@ public sealed partial class NotchWindow : Window
             _fadeTimer.Stop();
             if (_faded)
             {
-                // Faded: only a deliberate rest of the pointer (1.5 s) brings it back; meanwhile a hint of it.
+                // Faded: the pointer resting on it for a moment brings it back (a passing pointer only lightens it).
                 _holdTimer.Start();
-                FadeTo(0.55, 1400);
+                FadeTo(0.7, 160);
                 return;
             }
 
@@ -810,11 +872,38 @@ public sealed partial class NotchWindow : Window
         }
 
         _expanded = expanded;
-        // A gentle "pop": the island grows past its size a little and settles.
-        _width.To(expanded ? ExpandedWidth : CollapsedWidth(), expanded ? 190 : 0);
-        _height.To(expanded ? ExpandedHeightNow : CollapsedHeight, expanded ? 130 : 0);
         _expand.To(expanded ? 1 : 0);
+        SyncGlassCapture();
+
+        // A gentle "pop": the island grows past its size a little and settles.
+        Resize(expanded ? 190 : 0, expanded ? 130 : 0);
+    }
+
+    /// <summary>The island heads for the size of what it shows now (collapsed, expanded, or a panel).</summary>
+    private void Resize(double widthKick = 0, double heightKick = 0)
+    {
+        var (w, h) = _panel switch
+        {
+            NotchPanel.Drop => (DropWidth, DropHeight),
+            NotchPanel.Alert => (ExpandedWidth, AlertHeight),
+            NotchPanel.Ask => (AskWidth, _askHeight),
+            _ => _expanded ? (ExpandedWidth, ExpandedHeightNow) : (CollapsedWidth(), CollapsedHeight),
+        };
+        _width.To(w, widthKick);
+        _height.To(h, heightKick);
         Animate();
+    }
+
+    private void ApplySize()
+    {
+        var w = Math.Max(40, _width.Value);
+        var h = Math.Max(20, _height?.Value ?? CollapsedHeight);
+        _pill.Width = w;
+        _pill.Height = h;
+        _body.SetSize(w, h, CornerRadiusFor(h));
+        PlacePanels(w);
+        PlaceIntro(w);
+        UpdateGlassShape();
     }
 
     private void RestartFade()
@@ -849,6 +938,11 @@ public sealed partial class NotchWindow : Window
 
     private void OnPress(object sender, MouseButtonEventArgs e)
     {
+        if (PressActivity(e))
+        {
+            return;
+        }
+
         if (e.ClickCount == 2)
         {
             OpenRequested?.Invoke(this, EventArgs.Empty);
@@ -860,11 +954,19 @@ public sealed partial class NotchWindow : Window
             _dragging = true;
             _dragMoved = false;
             _dragStartCursor = p.X;
+            _dragStartY = p.Y;
             _dragStartCenter = _center;
+            _pressU = e.GetPosition(_pill).X / Math.Max(1, _pill.ActualWidth);
             _pill.CaptureMouse();
-            Squeeze(0.95);
+
+            // Pressed: the island gives a little under the finger (the top edge stays where it is).
+            _body.Membrane.Pull(_pressU, -5, 0.12, 700);
+            Animate();
         }
     }
+
+    private double _dragStartY;
+    private double _pressU = 0.5;
 
     private void OnDrag(object sender, MouseEventArgs e)
     {
@@ -873,11 +975,35 @@ public sealed partial class NotchWindow : Window
             return;
         }
 
+        if (Fixed)
+        {
+            // A fixed island does not move: pulled down, left or right it stretches against a growing resistance.
+            var scale = ScreenScale();
+            var sx = (p.X - _dragStartCursor) / scale;
+            var sy = (p.Y - _dragStartY) / scale;
+            if (!_dragMoved && Math.Sqrt((sx * sx) + (sy * sy)) > 4)
+            {
+                _dragMoved = true;
+                SetExpanded(false);
+            }
+
+            if (_dragMoved)
+            {
+                _body.LateralCenter = _pressU;
+                _body.Membrane.Pull(_pressU, Math.Max(0, Rubber(Math.Max(0, sy), 90)), 0.14, 1400);
+                _lateral.To(Rubber(sx, 46));
+                Animate();
+            }
+
+            return;
+        }
+
         var screen = ScreenWidthPx();
         var dx = p.X - _dragStartCursor;
         if (Math.Abs(dx) > 4)
         {
             _dragMoved = true;
+            _body.Membrane.Release();
             SetExpanded(false);
         }
 
@@ -897,7 +1023,16 @@ public sealed partial class NotchWindow : Window
 
         _dragging = false;
         _pill.ReleaseMouseCapture();
-        Squeeze(1);
+
+        // Let go: it springs back and swings a few times before it settles.
+        _body.Membrane.Release();
+        _lateral.To(0);
+        Animate();
+        if (_dragMoved && Fixed)
+        {
+            return;
+        }
+
         if (_dragMoved)
         {
             Moved?.Invoke(this, _center);
@@ -909,15 +1044,14 @@ public sealed partial class NotchWindow : Window
         }
     }
 
-    private void Squeeze(double to)
-    {
-        var a = new DoubleAnimation(to, TimeSpan.FromMilliseconds(to < 1 ? 90 : 420)) { EasingFunction = to < 1 ? new CubicEase { EasingMode = EasingMode.EaseOut } : new ElasticEase { Oscillations = 1, Springiness = 5 } };
-        _press.BeginAnimation(ScaleTransform.ScaleXProperty, a);
-        _press.BeginAnimation(ScaleTransform.ScaleYProperty, a);
-    }
-
     private void PlaceAt(double center)
     {
+        if (Monitor is not null)
+        {
+            PlaceOnMonitor();
+            return;
+        }
+
         var screenWidth = SystemParameters.PrimaryScreenWidth;
         Left = (center * screenWidth) - (WindowWidth / 2);
         Top = 0;
@@ -941,6 +1075,13 @@ public sealed partial class NotchWindow : Window
             _expand.Snap();
             _group.Snap();
             _statusWidth?.Snap();
+            _lateral.Snap();
+            if (!_body.Membrane.Pulling)
+            {
+                _body.Membrane.Reset();
+            }
+
+            _body.Refresh();
             return;
         }
 
@@ -967,6 +1108,19 @@ public sealed partial class NotchWindow : Window
         var dt = Math.Clamp(now - _lastFrame, 0, 0.034);
         _lastFrame = now;
         var moving = _width.Step(dt) | _height.Step(dt) | _expand.Step(dt) | _group.Step(dt) | (_statusWidth?.Step(dt) ?? false) | (_pingCount?.Step(dt) ?? false);
+        if (_body.Membrane.Step(dt) | _lateral.Step(dt))
+        {
+            moving = true;
+            UpdateGlassShape();
+            _body.Refresh();
+        }
+
+        if (StepActivity(dt))
+        {
+            moving = true;
+            _body.Refresh();
+        }
+
         if (!moving)
         {
             StopAnimating();
@@ -976,11 +1130,25 @@ public sealed partial class NotchWindow : Window
     /// <summary>A damped spring (semi-implicit Euler) that writes its value through <c>apply</c>.</summary>
     private sealed class Spring(double value, double stiffness, double dampingRatio, Action<double> apply)
     {
-        private readonly double _damping = 2 * Math.Sqrt(stiffness) * dampingRatio;
+        private readonly double _baseStiffness = stiffness;
+        private readonly double _baseRatio = dampingRatio;
+        private double _stiffness = stiffness;
+        private double _damping = 2 * Math.Sqrt(stiffness) * dampingRatio;
         private double _velocity;
+
+        /// <summary>A softer or stiffer spring for a while (a drag hovering over the island grows it gently).</summary>
+        public void Tune(double stiffnessNow, double dampingRatioNow)
+        {
+            _stiffness = stiffnessNow;
+            _damping = 2 * Math.Sqrt(stiffnessNow) * dampingRatioNow;
+        }
+
+        public void Untune() => Tune(_baseStiffness, _baseRatio);
         private double _target = value;
 
         public double Value { get; private set; } = value;
+
+        public double Target => _target;
 
         public void To(double target, double kick = 0)
         {
@@ -997,7 +1165,7 @@ public sealed partial class NotchWindow : Window
 
         public bool Step(double dt)
         {
-            var a = (stiffness * (_target - Value)) - (_damping * _velocity);
+            var a = (_stiffness * (_target - Value)) - (_damping * _velocity);
             _velocity += a * dt;
             Value += _velocity * dt;
             var moving = Math.Abs(_velocity) > 0.05 || Math.Abs(_target - Value) > 0.05;
@@ -1042,19 +1210,33 @@ public sealed partial class NotchWindow : Window
             toggle.IsEnabled = _status.State != ConnectionState.Disconnecting;
         };
         menu.Items.Add(Item("Customize…", () => CustomizeRequested?.Invoke(this, EventArgs.Empty)));
+        menu.Opened += (_, _) =>
+        {
+            // Extra items (IBAR: switch server, traffic mode, Dual VPN, chat) are built fresh each time.
+            foreach (var old in menu.Items.OfType<MenuItem>().Where(i => i.Tag is "extra").ToList())
+            {
+                menu.Items.Remove(old);
+            }
+
+            var at = 2;
+            foreach (var item in MenuExtras?.Invoke() ?? [])
+            {
+                item.Tag = "extra";
+                menu.Items.Insert(at++, item);
+            }
+        };
         menu.Items.Add(new Separator());
         menu.Items.Add(Item("Hide notch", () => HideRequested?.Invoke(this, EventArgs.Empty)));
         _pill.ContextMenu = menu;
     }
 
-    /// <summary>Hidden while a full-screen game, video or presentation is in front (Windows' own "busy" states).</summary>
+    /// <summary>
+    /// Hidden while a full-screen game, video or presentation covers this notch's monitor. Driven by window events
+    /// (<see cref="FullScreenWatcher"/>), not a timer; each monitor decides for itself.
+    /// </summary>
     private void CheckFullScreen()
     {
-        var hide = false;
-        if (_settings.HideInFullScreen && SHQueryUserNotificationState(out var state) == 0)
-        {
-            hide = state is 2 or 3 or 4; // QUNS_BUSY, QUNS_RUNNING_D3D_FULL_SCREEN, QUNS_PRESENTATION_MODE
-        }
+        var hide = _settings.HideInFullScreen && IsLoaded && FullScreenWatcher.Covers(new WindowInteropHelper(this).Handle);
 
         if (hide != _hiddenForFullScreen)
         {

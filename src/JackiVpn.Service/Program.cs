@@ -81,8 +81,8 @@ static int Usage()
     Console.WriteLine($"""
         {ProductInfo.DisplayName} Service
 
-          install  [--client <JackiVpn.exe>] [--dev]   register the trusted app and install/start the service (admin)
-          repair   [--client <JackiVpn.exe>] [--dev]   same as install; re-registers the app after an update (admin)
+          install  [--client <IBOX.exe>  ] [--dev]   register the trusted app and install/start the service (admin)
+          repair   [--client <IBOX.exe>  ] [--dev]   same as install; re-registers the app after an update (admin)
           uninstall                                     stop and remove the service (admin)
           console  [--data <dir>] [--pipe <name>] [--same-user]
                                                         run in the foreground for diagnostics
@@ -109,7 +109,7 @@ static bool Flag(string[] args, string name) => args.Any(a => string.Equals(a, n
 static int Install(string[] args, Action<string> output)
 {
     var serviceExe = Environment.ProcessPath ?? throw new InstallException("Cannot determine the service executable path.");
-    var client = Option(args, "--client") ?? Path.Combine(Path.GetDirectoryName(serviceExe)!, "JackiVpn.exe");
+    var client = Option(args, "--client") ?? Path.Combine(Path.GetDirectoryName(serviceExe)!, "IBOX.exe");
     var warnings = ServiceInstaller.Install(serviceExe, client, Flag(args, "--dev"), output);
     foreach (var w in warnings)
     {
@@ -191,12 +191,12 @@ static int UpdateFeed(string[] args)
     }
 
     var feed = new JackiVpn.Infrastructure.Updates.AppUpdateFeed(1, version, DateTimeOffset.UtcNow, Flag(args, "--mandatory"), notes,
-        Asset($"JackiVpn-{version}-win-x64.msi"),
+        Asset($"IBOX-{version}-win-x64.msi"),
         new Dictionary<string, JackiVpn.Infrastructure.Updates.AppUpdateAsset>
         {
-            ["arm64-v8a"] = Asset($"JackiVpn-{version}-android-arm64-v8a.apk"),
-            ["armeabi-v7a"] = Asset($"JackiVpn-{version}-android-armeabi-v7a.apk"),
-            ["x86_64"] = Asset($"JackiVpn-{version}-android-x86_64.apk"),
+            ["arm64-v8a"] = Asset($"IBOX-{version}-android-arm64-v8a.apk"),
+            ["armeabi-v7a"] = Asset($"IBOX-{version}-android-armeabi-v7a.apk"),
+            ["x86_64"] = Asset($"IBOX-{version}-android-x86_64.apk"),
         });
     var bytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(feed, new System.Text.Json.JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
     var signature = JackiVpn.Infrastructure.Updates.AppUpdateService.Sign(bytes, File.ReadAllText(keyPath));

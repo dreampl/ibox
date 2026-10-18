@@ -140,7 +140,7 @@ public sealed class TunnelSessionManager : IAsyncDisposable
                 _killSwitchJournalId ??= _journal.Record(JournalEntryKind.KillSwitch, new { request.KillSwitch.AllowLan }, "kill-switch");
                 try
                 {
-                    _killSwitch.Enable(new KillSwitchOptions { AllowLan = request.KillSwitch.AllowLan, AllowedApplications = _coreExecutables });
+                    _killSwitch.Enable(new KillSwitchOptions { AllowLan = request.KillSwitch.AllowLan, AllowedApplications = [.. _coreExecutables, .. FriendExecutables(request.Traffic)] });
                 }
                 catch (Exception ex) when (ex is not OutOfMemoryException)
                 {
@@ -522,7 +522,8 @@ public sealed class TunnelSessionManager : IAsyncDisposable
             throw new TunnelRequestException("Invalid traffic policy.");
         }
 
-        if (traffic.InternalDns.Any(d => !NetText.IsIpLiteral(d)) || traffic.InternalCidrs.Concat(traffic.BlockedCidrs).Any(c => !NetText.IsCidr(c)))
+        if (traffic.InternalDns.Any(d => !NetText.IsIpLiteral(d)) || traffic.InternalCidrs.Concat(traffic.BlockedCidrs).Concat(traffic.WorkBypass).Concat(traffic.WorkLocal).Any(c => !NetText.IsCidr(c)) || traffic.WorkBypass.Count > 16 || traffic.WorkLocal.Count > 16
+            || traffic.Friends.Count > 16 || traffic.Friends.Any(f => f.Length is < 2 or > 64 || !f.All(c => char.IsLetterOrDigit(c) || c is '-' or '_' or '.')))
         {
             throw new TunnelRequestException("Invalid workplace address in the traffic policy.");
         }
@@ -548,6 +549,40 @@ public sealed class TunnelSessionManager : IAsyncDisposable
             default:
                 throw new TunnelRequestException("Invalid work route in the traffic policy.");
         }
+    }
+
+    /// <summary>
+    /// Friendly apps that take their own path (Alita): the running programs whose file name contains one of the names,
+    /// let through the kill switch too. Looked up here (as SYSTEM), never taken as paths from the client.
+    /// </summary>
+    internal static IReadOnlyList<string> FriendExecutables(Domain.Usage.TrafficPolicy? traffic)
+    {
+        if (traffic is not { FriendsDirect: true, Friends.Count: > 0 })
+        {
+            return [];
+        }
+
+        var found = new List<string>();
+        foreach (var process in System.Diagnostics.Process.GetProcesses())
+        {
+            using (process)
+            {
+                try
+                {
+                    if (traffic.Friends.Any(f => process.ProcessName.Contains(f, StringComparison.OrdinalIgnoreCase))
+                        && process.MainModule?.FileName is { } path && File.Exists(path))
+                    {
+                        found.Add(path);
+                    }
+                }
+                catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException or NotSupportedException)
+                {
+                    // exited, or not readable
+                }
+            }
+        }
+
+        return found.Distinct(StringComparer.OrdinalIgnoreCase).Take(8).ToList();
     }
 
     /// <summary>The privileged boundary: reject anything not well-formed before it reaches a core running as SYSTEM.</summary>

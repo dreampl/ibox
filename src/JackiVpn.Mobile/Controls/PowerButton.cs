@@ -105,7 +105,6 @@ public sealed class PowerButton : ContentView
                 new Ellipse { Stroke = new SolidColorBrush(Colors.White.WithAlpha(0.28f)), StrokeThickness = 1.2, Margin = new Thickness(5) },
                 _eye,
             },
-            Shadow = new Shadow { Brush = new SolidColorBrush(Color.FromArgb("#5B6CFF")), Opacity = 0.55f, Radius = 34, Offset = new Point(0, 10) },
         };
         grid.Add(_core);
         Content = grid;
@@ -199,7 +198,6 @@ public sealed class PowerButton : ContentView
         }
 
         _arc.Stroke = new LinearGradientBrush(new GradientStopCollection { new(tint, 0f), new(tint.WithAlpha(0f), 1f) }, new Point(0, 0), new Point(1, 1));
-        _core.Shadow = new Shadow { Brush = new SolidColorBrush(tint), Opacity = on ? 0.7f : 0.5f, Radius = on ? 42 : 30, Offset = new Point(0, 10) };
         _ = _arc.FadeToAsync(busy ? 1 : 0, Motion.Ms(250));
         _eye.State = on ? Domain.Visuals.EyeState.Awake : busy ? Domain.Visuals.EyeState.Seeking : Domain.Visuals.EyeState.Asleep;
         if (on && animate && !Motion.Reduced)

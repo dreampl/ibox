@@ -1,0 +1,10 @@
+IBOX 2.1.1
+
+Fixed
+- Windows: 2.1.0 could not connect ("Client identity could not be established"): the IBOX service could no longer identify the app. After installing, IBOX connects again (if it still says the service does not accept the app: Network > Install / Repair service).
+- Android: VPN and Android Auto at the same time. Android Auto always uses the phone's own network and the link to the car never enters the tunnel; every other app keeps the VPN.
+- Android 12 (Samsung): round buttons had an extra round layer underneath; buttons are flat now.
+
+Name
+- The app is simply IBOX everywhere: IBOX.exe and IBOX.Service.exe in "Program Files\IBOX" (the old Jacki VPN folder is replaced on update; start-with-Windows follows), IBOX-*.msi / IBOX-*.apk, ibox_*.deb and the "ibox" command on Linux. About shows "Powered by JACKI".
+

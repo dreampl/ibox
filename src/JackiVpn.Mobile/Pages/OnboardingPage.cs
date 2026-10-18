@@ -85,7 +85,6 @@ public sealed class OnboardingPage : ContentPage
             Background = (Brush)Microsoft.Maui.Controls.Application.Current!.Resources["PrimaryGradient"],
             Margin = new Thickness(24, 10, 24, 30),
             Padding = new Thickness(22, 0),
-            Shadow = new Shadow { Brush = new SolidColorBrush(Color.FromArgb("#5B6CFF")), Opacity = 0.5f, Radius = 26, Offset = new Point(0, 10) },
             Content = new Grid
             {
                 ColumnDefinitions = [new(GridLength.Star), new(GridLength.Auto)],
@@ -204,7 +203,6 @@ public sealed class OnboardingPage : ContentPage
             new(Color.FromArgb(dark), 0.75f),
             new(Color.FromArgb(dark).WithLuminosity(0.12f), 1f),
         }, new Point(0.35, 0.3), 0.75);
-        _sphere.Shadow = new Shadow { Brush = new SolidColorBrush(Color.FromArgb(dark)), Opacity = 0.7f, Radius = 60, Offset = new Point(0, 20) };
         _over.Text = "IBOX";
         _buttonText.Text = L.Get(index == Slides.Length - 1 ? "Onb_Start" : "Onb_Next");
         _languages.IsVisible = index == Slides.Length - 1;

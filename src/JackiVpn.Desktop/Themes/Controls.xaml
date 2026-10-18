@@ -83,15 +83,10 @@
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type v:ClaySurface}">
                     <Grid>
-                        <!-- Light theme only: a soft white glow up-left (E.ClayLight is null on the dark theme, so no cost there). -->
-                        <Border x:Name="LightShadow" CornerRadius="{TemplateBinding CornerRadius}" Background="{DynamicResource B.Card}"
-                                Effect="{DynamicResource E.ClayLight}" Visibility="{DynamicResource V.LightOnly}" IsHitTestVisible="False">
-                            <Border.CacheMode><BitmapCache SnapsToDevicePixels="True" /></Border.CacheMode>
-                        </Border>
-                        <Border x:Name="DarkShadow" CornerRadius="{TemplateBinding CornerRadius}" Background="{DynamicResource B.Card}"
-                                Effect="{DynamicResource E.ClayShadow}" IsHitTestVisible="False">
-                            <Border.CacheMode><BitmapCache SnapsToDevicePixels="True" /></Border.CacheMode>
-                        </Border>
+                        <!-- Shadows as pictures rendered once (SoftShadow), not live effects: nothing re-blurs while the
+                             eye, a chart or an animation inside the card redraws. Light theme only: a soft white glow up-left. -->
+                        <v:SoftShadow x:Name="LightShadow" CornerRadius="{TemplateBinding CornerRadius}" Kind="Light" />
+                        <v:SoftShadow x:Name="DarkShadow" CornerRadius="{TemplateBinding CornerRadius}" Kind="Clay" />
                         <Border CornerRadius="{TemplateBinding CornerRadius}" Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
                                 Padding="{TemplateBinding Padding}" SnapsToDevicePixels="True">
@@ -107,7 +102,7 @@
                             <Setter TargetName="LightShadow" Property="Visibility" Value="Collapsed" />
                         </Trigger>
                         <Trigger Property="Elevation" Value="Raised">
-                            <Setter TargetName="DarkShadow" Property="Effect" Value="{DynamicResource E.ClayShadowRaised}" />
+                            <Setter TargetName="DarkShadow" Property="Kind" Value="Raised" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -137,7 +132,7 @@
     </Style>
     <Style x:Key="Banner.Warning" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource B.WarningSoft}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource B.Warning}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="8" />
         <Setter Property="Padding" Value="12,10" />
@@ -145,11 +140,11 @@
     </Style>
     <Style x:Key="Banner.Danger" TargetType="Border" BasedOn="{StaticResource Banner.Warning}">
         <Setter Property="Background" Value="{DynamicResource B.DangerSoft}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource B.Danger}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
     </Style>
     <Style x:Key="Banner.Info" TargetType="Border" BasedOn="{StaticResource Banner.Warning}">
         <Setter Property="Background" Value="{DynamicResource B.AccentSoft}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource B.Accent}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
     </Style>
     <Style x:Key="Separator.Line" TargetType="Border">
         <Setter Property="Height" Value="1" />
@@ -240,8 +235,8 @@
     </Style>
     <Style x:Key="Button.Danger" TargetType="Button" BasedOn="{StaticResource Button.Base}">
         <Setter Property="Foreground" Value="{DynamicResource B.Danger}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource B.Danger}" />
-        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="Background" Value="{DynamicResource B.DangerSoft}" />
     </Style>
     <Style x:Key="Button.Ghost" TargetType="Button" BasedOn="{StaticResource Button.Base}">
         <Setter Property="Background" Value="Transparent" />
@@ -366,6 +361,37 @@
         <Setter Property="FontSize" Value="12" />
     </Style>
 
+    <!-- PIN and password fields: the same look as text boxes (the system one stays white in the dark theme). -->
+    <Style TargetType="PasswordBox">
+        <Setter Property="Foreground" Value="{DynamicResource B.Text}" />
+        <Setter Property="Background" Value="{DynamicResource B.Input}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource B.Border}" />
+        <Setter Property="CaretBrush" Value="{DynamicResource B.Text}" />
+        <Setter Property="SelectionBrush" Value="{DynamicResource B.Accent}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="8,6" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="PasswordBox">
+                    <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{StaticResource ControlRadius}" SnapsToDevicePixels="True">
+                        <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource B.Accent}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Bd" Property="Opacity" Value="0.5" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- Toggle switch (CheckBox) -->
     <Style x:Key="Toggle" TargetType="CheckBox">
         <Setter Property="Foreground" Value="{DynamicResource B.Text}" />
@@ -388,9 +414,6 @@
                                 <Ellipse.RenderTransform>
                                     <TranslateTransform />
                                 </Ellipse.RenderTransform>
-                                <Ellipse.Effect>
-                                    <DropShadowEffect BlurRadius="4" ShadowDepth="1" Opacity="0.35" />
-                                </Ellipse.Effect>
                             </Ellipse>
                         </Grid>
                     </Grid>
@@ -450,11 +473,10 @@
                 <ControlTemplate TargetType="RadioButton">
                     <Grid>
                         <Border x:Name="Hover" CornerRadius="7" Background="{DynamicResource B.HoverOverlay}" Opacity="0" />
-                        <Border x:Name="Selected" CornerRadius="7" Background="{DynamicResource B.AccentGradientH}" Opacity="0">
-                            <Border.Effect>
-                                <DropShadowEffect BlurRadius="12" ShadowDepth="0" Opacity="0.35" Color="Black" />
-                            </Border.Effect>
-                        </Border>
+                        <Grid x:Name="Selected" Opacity="0">
+                            <v:SoftShadow CornerRadius="7" Kind="Soft" />
+                            <Border CornerRadius="7" Background="{DynamicResource B.AccentGradientH}" />
+                        </Grid>
                         <ContentPresenter Margin="16,7" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Grid>
                     <ControlTemplate.Triggers>
@@ -612,7 +634,7 @@
                     <Grid>
                         <Border x:Name="Bd" Background="{DynamicResource B.CardFill}" BorderBrush="{DynamicResource B.Border}" BorderThickness="1" CornerRadius="16" />
                         <Border x:Name="Hover" Background="{DynamicResource B.HoverOverlay}" CornerRadius="16" Opacity="0" />
-                        <Border x:Name="Sel" BorderBrush="{DynamicResource B.Accent}" BorderThickness="1.5" CornerRadius="16" Opacity="0" />
+                        <Border x:Name="Sel" Background="{DynamicResource B.AccentSoft}" CornerRadius="16" Opacity="0" />
                         <ContentPresenter Margin="16,12" />
                     </Grid>
                     <ControlTemplate.Triggers>
@@ -670,7 +692,10 @@
                 <ControlTemplate TargetType="ListBoxItem">
                     <Grid Width="50" Height="50" Background="Transparent">
                         <Border x:Name="Tile" CornerRadius="16" Background="{DynamicResource B.TileFill}" BorderBrush="{DynamicResource B.Border}" BorderThickness="1" />
-                        <Border x:Name="Glow" CornerRadius="16" Background="{DynamicResource B.AccentGradient}" Opacity="0" Effect="{DynamicResource E.AccentGlow}" />
+                        <Grid x:Name="Glow" Opacity="0">
+                            <v:SoftShadow CornerRadius="16" Kind="Accent" />
+                            <Border CornerRadius="16" Background="{DynamicResource B.AccentGradient}" />
+                        </Grid>
                         <Border x:Name="Hover" CornerRadius="16" Background="{DynamicResource B.HoverOverlay}" Opacity="0" />
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Grid>
@@ -762,7 +787,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Thumb">
-                    <Border x:Name="T" CornerRadius="4" Background="{DynamicResource B.Border}" />
+                    <Border x:Name="T" CornerRadius="4" Background="{DynamicResource B.Divider}" />
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="T" Property="Background" Value="{DynamicResource B.TextMuted}" />

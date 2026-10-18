@@ -103,9 +103,17 @@ public static class SingBoxConfigBuilder
             (built.IsEndpoint ? endpoints : outbounds).Add(built.Node);
         }
 
-        outbounds.Add(new JsonObject { ["type"] = "direct", ["tag"] = DirectTag });
+        var direct = new JsonObject { ["type"] = "direct", ["tag"] = DirectTag };
+        outbounds.Add(direct);
         var traffic = plan.Traffic ?? new TrafficPolicy();
         var work = AddWorkRoute(traffic, caps, outbounds, endpoints, secrets, notes);
+        if (work.Route == WorkRoute.Off && CompanyResolver(traffic) is not null)
+        {
+            // On the workplace's network, what goes out directly is looked up where the network itself looks things up:
+            // the company resolver knows its own names (the public bootstrap resolver never does). This is the lookup
+            // the core makes itself when it dials a name (system proxy, or fast DNS in TUN mode), not just apps' DNS.
+            direct["domain_resolver"] = DnsInternal;
+        }
         var shaperEndpoint = plan.Shaper;
         var shapeClasses = shaperEndpoint is not null && traffic.Shaping ? ShapeClassesOf(traffic) : [];
         if (shapeClasses.Count > 0)
@@ -160,7 +168,13 @@ public static class SingBoxConfigBuilder
                 },
             };
             var exclude = new List<string>(plan.Tun.RouteExcludeAddresses);
-            if (plan.Routing.BypassLan)
+            if (plan.Routing.BypassLan && work.Route == WorkRoute.Server && traffic.InternalCidrs.Count > 0)
+            {
+                // A work server inside this tunnel carries company (private) ranges: only this device's own local
+                // network stays out of the TUN; other private destinations are routed by the rules below.
+                exclude.AddRange(traffic.WorkLocal.Where(NetText.IsCidr).Concat(["169.254.0.0/16", "fe80::/10"]));
+            }
+            else if (plan.Routing.BypassLan)
             {
                 exclude.AddRange(["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16", "fc00::/7", "fe80::/10"]);
             }
@@ -171,6 +185,9 @@ public static class SingBoxConfigBuilder
             {
                 exclude.AddRange(traffic.InternalCidrs.Where(NetText.IsCidr));
             }
+
+            // The second VPN's own gateway (IPsec) is reached on the normal network, never through this tunnel.
+            exclude.AddRange(traffic.WorkBypass.Where(NetText.IsCidr));
 
             if (exclude.Count > 0)
             {
@@ -220,6 +237,12 @@ public static class SingBoxConfigBuilder
             directProcesses.Add(backend.BackendExecutablePath);
         }
 
+        if (traffic.FriendsDirect && traffic.Friends.Select(FriendPattern).OfType<string>().ToList() is { Count: > 0 } friends)
+        {
+            // Friendly apps (Alita) take their own network path, their name lookups too (before DNS hijacking).
+            routeRules.Add(new JsonObject { ["process_path_regex"] = SingBoxOutboundBuilder.Array(friends), ["outbound"] = DirectTag });
+        }
+
         if (plan.Kind == SessionKind.Tun && directProcesses.Count > 0)
         {
             routeRules.Add(new JsonObject
@@ -227,6 +250,11 @@ public static class SingBoxConfigBuilder
                 ["process_path"] = SingBoxOutboundBuilder.Array(directProcesses.Distinct(StringComparer.OrdinalIgnoreCase)),
                 ["outbound"] = DirectTag,
             });
+        }
+
+        if (traffic.WorkBypass.Where(NetText.IsCidr).ToList() is { Count: > 0 } gateway)
+        {
+            routeRules.Add(new JsonObject { ["ip_cidr"] = SingBoxOutboundBuilder.Array(gateway), ["outbound"] = DirectTag });
         }
 
         if (plan.Kind == SessionKind.Tun && work.Route == WorkRoute.Adapter)
@@ -242,6 +270,12 @@ public static class SingBoxConfigBuilder
         }
 
         AddBlockRules(routeRules, traffic);
+        if (work.Route != WorkRoute.Off && traffic.WorkLocal.Where(NetText.IsCidr).ToList() is { Count: > 0 } local)
+        {
+            // This device's own local network never goes to the second VPN, whatever company range covers it.
+            routeRules.Add(new JsonObject { ["ip_cidr"] = SingBoxOutboundBuilder.Array(local), ["outbound"] = DirectTag });
+        }
+
         if (Clean(traffic.InternalDomains) is { Count: > 0 } internalDomains)
         {
             routeRules.Add(new JsonObject { ["domain_suffix"] = SingBoxOutboundBuilder.Array(internalDomains), ["outbound"] = work.Tag });
@@ -394,6 +428,18 @@ public static class SingBoxConfigBuilder
         }
     }
 
+    /// <summary>
+    /// The company's own resolver: the first DNS server of the workplace that is a real address on the network — never
+    /// IBOX's own tunnel resolver or a fake address (a workplace saved while connected could have picked those up).
+    /// </summary>
+    internal static string? CompanyResolver(TrafficPolicy traffic) =>
+        traffic.InternalDns
+            .Where(NetText.IsIpLiteral)
+            .Select(NetText.TrimBrackets)
+            .FirstOrDefault(d => System.Net.IPAddress.TryParse(d, out var ip)
+                && !System.Net.IPAddress.IsLoopback(ip)
+                && !NetText.InAnyCidr(ip, ["172.18.0.0/15", "198.18.0.0/15", "fdfe:dcba:9876::/48"]));
+
     private static JsonObject BuildDns(CoreSessionPlan plan, bool ipv6, HashSet<string> ruleSetsUsed, IReadOnlyList<string> directProcesses, TrafficPolicy traffic, WorkPath work)
     {
         var dns = plan.Dns;
@@ -432,11 +478,17 @@ public static class SingBoxConfigBuilder
             });
         }
 
-        if (Clean(traffic.InternalDomains) is { Count: > 0 } internalNames)
+        // On the workplace's own network: its resolver knows the company's names (a public resolver never does), so
+        // it answers them and every name the rules send direct — also when the network announces no DNS suffix.
+        var companyResolver = CompanyResolver(traffic);
+        var onSite = work.Route == WorkRoute.Off && companyResolver is not null;
+        var directServer = DnsDirect;
+        var internalNames = Clean(traffic.InternalDomains);
+        if (internalNames.Count > 0 || onSite)
         {
             // Workplace names are answered by the company's own resolver (or the network's), never through the tunnel.
             var internalServer = DnsDirect;
-            if (traffic.InternalDns.FirstOrDefault(NetText.IsIpLiteral) is { } companyDns)
+            if (companyResolver is { } companyDns)
             {
                 var company = new JsonObject { ["type"] = "udp", ["tag"] = DnsInternal, ["server"] = NetText.TrimBrackets(companyDns) };
                 if (work.Route == WorkRoute.Server)
@@ -465,7 +517,15 @@ public static class SingBoxConfigBuilder
                 internalServer = DnsInternal;
             }
 
-            rules.Add(new JsonObject { ["domain_suffix"] = SingBoxOutboundBuilder.Array(internalNames), ["action"] = "route", ["server"] = internalServer });
+            if (internalNames.Count > 0)
+            {
+                rules.Add(new JsonObject { ["domain_suffix"] = SingBoxOutboundBuilder.Array(internalNames), ["action"] = "route", ["server"] = internalServer });
+            }
+
+            if (onSite)
+            {
+                directServer = internalServer;
+            }
         }
 
         if (!ipv6)
@@ -490,7 +550,7 @@ public static class SingBoxConfigBuilder
             rules.Add(tunneled);
         }
 
-        if (final == DnsRemote)
+        if (final == DnsRemote || directServer != DnsDirect)
         {
             // Names that are routed Direct are also resolved directly (correct geo-answers, no tunnel hairpin).
             foreach (var rule in plan.Routing.Rules.Where(r => r.Enabled && !r.Invert))
@@ -505,7 +565,7 @@ public static class SingBoxConfigBuilder
                 {
                     case RuleActionType.Direct:
                         dnsRule["action"] = "route";
-                        dnsRule["server"] = DnsDirect;
+                        dnsRule["server"] = directServer;
                         rules.Add(dnsRule);
                         break;
                     case RuleActionType.Block:
@@ -515,7 +575,7 @@ public static class SingBoxConfigBuilder
                 }
             }
 
-            if (UsesFakeIp(plan))
+            if (final == DnsRemote && UsesFakeIp(plan))
             {
                 servers.Add(new JsonObject
                 {
@@ -844,6 +904,7 @@ public static class SingBoxConfigBuilder
         "openfortivpn", "PanGPS.exe", "PanGPA.exe", "PanGPS", "wireguard.exe", "wg-quick", "SonicWallConnect.exe", "SWGVC.exe",
         "nm-openvpn-service", "nm-openconnect-service", "charon", "ipsec", "strongswan", "xl2tpd", "pppd", "pulsesecure",
         "Pulse.exe", "dsAccessService.exe", "Zscaler.exe", "ZSATunnel.exe", "f5fpclientW.exe", "CheckPointVPN.exe", "TracSrvWrapper.exe",
+        "kvpncsvc.exe", "kvpncgui.exe", "kvpncadm.exe", "kerio-kvc", "kvpnc", "nm-l2tp-service", "nm-strongswan-service", "charon-nm",
     ];
 
     /// <summary>How internal names and subnets leave this session.</summary>
@@ -981,7 +1042,9 @@ public static class SingBoxConfigBuilder
             .Concat(routing.Rules.Where(r => r.Enabled).SelectMany(r => r.Conditions)
                 .Where(c => c.Type is RuleConditionType.ProcessName or RuleConditionType.ProcessPath)
                 .SelectMany(c => c.Values))
-            .Select(AppPattern).OfType<string>().Distinct(StringComparer.Ordinal).ToList();
+            .Select(AppPattern).OfType<string>()
+            .Concat(traffic.Friends.Select(FriendPattern).OfType<string>()) // friendly apps are never slowed
+            .Distinct(StringComparer.Ordinal).ToList();
 
         // Media players and downloaders get their own (lower) classes; apps the user routes by name are left alone.
         foreach (var (cls, apps) in CategoryClasses(traffic))
@@ -1001,6 +1064,12 @@ public static class SingBoxConfigBuilder
 
         rules.Add(new JsonObject { ["type"] = "logical", ["mode"] = "and", ["rules"] = conditions, ["outbound"] = ShapeTag(ShapeClasses.Background) });
     }
+
+    /// <summary>Case-insensitive pattern for a program whose file name contains <paramref name="part"/> ("alita": Alita.exe, alita-agent).</summary>
+    public static string? FriendPattern(string? part) =>
+        string.IsNullOrWhiteSpace(part) || part.Length > 64 || !part.All(c => char.IsLetterOrDigit(c) || c is '-' or '_' or '.')
+            ? null
+            : "(?i)(^|[\\\\/])[^\\\\/]*" + System.Text.RegularExpressions.Regex.Escape(part.Trim()) + "[^\\\\/]*$";
 
     /// <summary>Case-insensitive pattern for an executable name or full path ("chrome.exe" matches …\Chrome.exe).</summary>
     public static string? AppPattern(string? app)

@@ -94,6 +94,11 @@ public partial class App : System.Windows.Application
         };
 
         ThemeManager.Apply(AppTheme.System);
+        if (InstanceSuffix.Length == 0)
+        {
+            StartupManager.Refresh();
+        }
+
         try
         {
             await StartAsync(e.Args.Contains(StartupManager.MinimizedArgument, StringComparer.OrdinalIgnoreCase));
@@ -113,6 +118,17 @@ public partial class App : System.Windows.Application
         await _services.Settings.LoadAsync(CancellationToken.None);
         await _services.Accounts.InitializeAsync(CancellationToken.None);
         _services.Agent.Sync();
+
+        // A waiting IBAR connects as soon as IBOX is up (it waits on this event; nobody polls).
+        try
+        {
+            using var ready = new System.Threading.EventWaitHandle(false, System.Threading.EventResetMode.AutoReset, Services.Ecosystem.ReadyEvent);
+            ready.Set();
+        }
+        catch (Exception ex) when (ex is System.Threading.WaitHandleCannotBeOpenedException or UnauthorizedAccessException or System.IO.IOException)
+        {
+            // IBAR will find IBOX on its next start
+        }
 
         // First run (or settings from before presets were materialized): write the selected preset's rules
         // into the editable rule list. A user who removed every rule has Preset = Custom and is left alone.
@@ -146,6 +162,9 @@ public partial class App : System.Windows.Application
         }
 
         WheelScrolling.Install();
+#if DEBUG
+        PerfProbe.StartIfAsked(_services.Logger);
+#endif
         _vm = new MainViewModel(_services, new DialogService());
         _window = new MainWindow(_vm) { CloseToTray = () => _services.Settings.Current.Ui.CloseToTray };
         MainWindow = _window;
@@ -177,6 +196,15 @@ public partial class App : System.Windows.Application
 
         await _vm.InitializeAsync();
         _services.StartBackground();
+        if (_window.IsVisible && Application.Onboarding.Tour.ShouldShow(_services.Settings.Current.Ui.TourSeen, (await _services.Profiles.GetAllAsync(_services.Lifetime)).Count))
+        {
+            // A fresh install: the short tour, once the window has settled (not blocking the rest of the start).
+            _ = Dispatcher.BeginInvoke(async () =>
+            {
+                await Task.Delay(600);
+                await _vm.ShowTourAsync();
+            }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        }
         SetupNotch();
         _activity = new ActivityDetector(_services.Orchestrator, _services.LoggerFactory.CreateLogger("JackiVpn.Activity")) { GameChanged = _services.Traffic.ReportGame };
         _activity.Start();
@@ -261,6 +289,8 @@ public partial class App : System.Windows.Application
 
     private Views.NotchWindow? _notch;
     private Services.MediaSessionSource? _media;
+    private Services.NotchShelf? _shelf;
+    private Services.AiAssistants? _assistants;
 
     /// <summary>The notch follows its setting (Settings page or tray menu) and mirrors the connection.</summary>
     private void SetupNotch()
@@ -271,10 +301,22 @@ public partial class App : System.Windows.Application
         }
 
         var services = _services;
+
+        // The notch's shelf and the AI assistants (Claude / ChatGPT notifications, Claude Code / Codex requests).
+        _shelf = new Services.NotchShelf(System.IO.Path.Combine(services.Paths.UserDataRoot, "shelf"));
+        _assistants = new Services.AiAssistants(services.LoggerFactory.CreateLogger("JackiVpn.Notch"), InstanceSuffix);
+        _assistants.Alert += (_, alert) => Dispatcher.BeginInvoke(() => _notch?.ShowAlert(alert));
+        _assistants.Activity += (_, a) => Dispatcher.BeginInvoke(() => _notch?.SetAgentActivity(a.Source, a.Activity, a.Icon));
+        _assistants.Ask = (message, icon, ct) =>
+            Dispatcher.InvokeAsync(() => _notch?.AskAsync(message, icon, ct) ?? Task.FromResult(Domain.Agent.NotchBridge.AskThere)).Task.Unwrap();
+
         void Sync(Domain.Settings.NotchSettings n)
         {
             _tray!.SetNotchChecked(n.Enabled);
-            if (n.Enabled && _notch is null)
+            // IBAR (the notch app) running: it shows the notch and serves the assistants; IBOX steps aside.
+            var show = n.Enabled && !services.Agent.NotchYielded && !Services.Ecosystem.IbarRunning();
+            _assistants.Sync(show && n.AiAssistants);
+            if (show && _notch is null)
             {
                 _notch = new Views.NotchWindow();
                 _notch.OpenRequested += (_, _) => ShowWindow();
@@ -301,11 +343,12 @@ public partial class App : System.Windows.Application
                     _ => _media!.PlayPauseAsync(),
                 };
                 _notch.SetNowPlaying(_media.Current);
+                _notch.AttachShelf(_shelf);
                 _notch.Apply(n);
                 _notch.Update(services.Orchestrator.Status, Domain.Visuals.ModePalette.Of(services.Orchestrator.Status.Activity, services.Traffic.Mode));
                 _notch.Show();
             }
-            else if (!n.Enabled && _notch is not null)
+            else if (!show && _notch is not null)
             {
                 _notch.Close();
                 _notch = null;
@@ -324,6 +367,7 @@ public partial class App : System.Windows.Application
         services.Settings.Changed += (_, _) => Dispatcher.BeginInvoke(Mirror);
         services.Orchestrator.StatusChanged += (_, _) => Dispatcher.BeginInvoke(Mirror);
         services.Traffic.Changed += (_, _) => Dispatcher.BeginInvoke(Mirror);
+        services.Agent.NotchYieldChanged += (_, _) => Dispatcher.BeginInvoke(() => Sync(services.Settings.Current.Ui.Notch));
         Sync(services.Settings.Current.Ui.Notch);
 
         // Visual check of a test copy only (own data folder): cycles the notch through the states.
