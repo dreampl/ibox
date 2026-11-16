@@ -10,7 +10,8 @@
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
                     <Button Content="Paste / Import…" Command="{Binding ImportPasteCommand}" Margin="0,0,8,0" ToolTip="Paste share links, Base64 lists or full configs" />
                     <Button Content="From clipboard" Command="{Binding ImportClipboardCommand}" Margin="0,0,8,0" />
-                    <Button Content="From file…" Command="{Binding ImportFileCommand}" />
+                    <Button Content="From file…" Command="{Binding ImportFileCommand}" Margin="0,0,8,0" />
+                    <Button Content="DNS tunnel…" Command="{Binding AddDnsTunnelCommand}" ToolTip="Add a DNS tunnel (dnstt) server: works where almost everything else is blocked" />
                 </StackPanel>
                 <StackPanel>
                     <TextBlock Text="{Binding Summary}" Style="{StaticResource Text.PageSubtitle}" />

@@ -63,6 +63,7 @@ public static class Fmt
         ProxyProtocol.Hysteria2 => "Hysteria2",
         ProxyProtocol.Tuic => "TUIC",
         ProxyProtocol.WireGuard => "WireGuard",
+        ProxyProtocol.Dnstt => "DNS tunnel",
         _ => p.ToString(),
     };
 

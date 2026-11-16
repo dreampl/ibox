@@ -50,7 +50,8 @@ public sealed record SessionPlan(
     CoreSelection Selection,
     CoreSessionPlan Frontend,
     CoreSessionPlan? Backend,
-    IReadOnlyList<string> Warnings)
+    IReadOnlyList<string> Warnings,
+    DnsTunnelEndpoint? DnsTunnel = null)
 {
     public bool Chained => Backend is not null;
 }
@@ -71,14 +72,41 @@ public sealed class SessionPlanFactory(CoreBinaryCatalog catalog)
         }
 
         var kind = request.Mode == ConnectionMode.Tun ? SessionKind.Tun : SessionKind.SystemProxy;
-        var selection = CoreSelector.Select(request.Profile, request.Core, kind, request.MuxEnabled, singBox, xray);
+        var ports = PortAllocator.GetFreeLoopbackPorts(6);
+
+        // A DNS tunnel server: the dnstt client listens on a loopback port and the cores see a SOCKS5 server there.
+        DnsTunnelEndpoint? dnsTunnel = null;
+        var profile = await Connectivity.SecureDns.Shared.PinIfLocallyBlockedAsync(request.Profile, ct).ConfigureAwait(false);
+        var dns = request.Dns;
+        if (Cores.Hosting.DnsTunnel.IsDnsTunnel(profile))
+        {
+            if (!catalog.IsInstalled(CoreKind.Dnstt))
+            {
+                throw new SessionPlanException("DNS tunnel servers need the dnstt client, which is not installed with this version of the app.");
+            }
+
+            // Several resolvers (auto, the carrier's own DNS, public ones, DoH): the first in order that reaches the tunnel.
+            var candidates = Cores.Hosting.DnsTunnel.Candidates(profile);
+            var resolver = await Cores.Hosting.DnsTunnel.PickResolverAsync(catalog, profile, Logger, ct).ConfigureAwait(false)
+                ?? throw new SessionPlanException(candidates.Count == 0
+                    ? "The DNS tunnel has no resolver to use (this network gave no DNS server); add one, e.g. 8.8.8.8."
+                    : $"None of the DNS resolvers reached the tunnel ({string.Join(", ", candidates)}). This network may block DNS tunnels; try DNS over HTTPS or another resolver.");
+            dnsTunnel = Cores.Hosting.DnsTunnel.Plan(catalog, profile, ports[5], resolver);
+            profile = Cores.Hosting.DnsTunnel.AsLocalSocks(profile, ports[5]);
+            if (dns.Remote.Transport == DnsTransport.Udp)
+            {
+                // The tunnel carries TCP only: plain DNS through it is asked over TCP instead.
+                dns = dns with { Remote = dns.Remote with { Transport = DnsTransport.Tcp } };
+            }
+        }
+
+        var selection = CoreSelector.Select(profile, request.Core, kind, request.MuxEnabled, singBox, xray);
         if (!selection.IsUsable)
         {
             throw new SessionPlanException(string.Join(" ", selection.Report.Issues.Where(i => i.Impact == CapabilityImpact.Blocking).Select(i => i.Message)));
         }
 
         var warnings = selection.Report.Issues.Where(i => i.Impact == CapabilityImpact.Degraded).Select(i => i.Message).ToList();
-        var ports = PortAllocator.GetFreeLoopbackPorts(5);
         ShaperEndpoint? shaper = null;
         if (request.Traffic is { Shaping: true } traffic && Cores.Generation.SingBoxConfigBuilder.ShapeClassesOf(traffic).Count > 0)
         {
@@ -110,6 +138,16 @@ public sealed class SessionPlanFactory(CoreBinaryCatalog catalog)
         ChainBackendEndpoint? chain = null;
         var exclude = new List<string>();
         var directProcesses = new List<string> { catalog.PathOf(CoreKind.SingBox) };
+        if (dnsTunnel is not null)
+        {
+            // The client's queries go to the resolver on the real network, never into the tunnel they carry.
+            directProcesses.Add(dnsTunnel.ExecutablePath);
+            if (kind == SessionKind.Tun && dnsTunnel.ResolverAddress is { } resolver && IPAddress.TryParse(resolver, out var resolverIp))
+            {
+                exclude.Add(Cidr(resolverIp));
+            }
+        }
+
         if (selection.UseChain)
         {
             var backendPort = ports[2];
@@ -118,11 +156,11 @@ public sealed class SessionPlanFactory(CoreBinaryCatalog catalog)
             // Xray dials the server itself. Resolve the name here (FakeIP answers left in the system cache by an
             // earlier session are ignored) and give Xray the address, keeping the name for SNI/Host: a stale fake
             // address is why chained configs (XHTTP, gRPC with custom paths) used to work only on the first connect.
-            var addresses = await ResolveServerAsync(request.Profile.Server, FlushDns, ct).ConfigureAwait(false);
+            var addresses = await ResolveServerAsync(profile.Server, FlushDns, ct).ConfigureAwait(false);
             backend = new CoreSessionPlan
             {
                 Kind = SessionKind.ChainBackend,
-                Profiles = [PinServerAddress(request.Profile, addresses)],
+                Profiles = [PinServerAddress(profile, addresses)],
                 ListenPort = backendPort,
                 MuxEnabled = request.MuxEnabled,
                 DebugLogging = request.DebugLogging,
@@ -140,9 +178,9 @@ public sealed class SessionPlanFactory(CoreBinaryCatalog catalog)
         var frontend = new CoreSessionPlan
         {
             Kind = kind,
-            Profiles = [request.Profile],
+            Profiles = [profile],
             ListenPort = listen,
-            Dns = request.Dns,
+            Dns = dns,
             Ipv6 = request.Ipv6,
             TunnelSupportsIpv6 = request.TunnelSupportsIpv6,
             Routing = request.Routing,
@@ -156,7 +194,7 @@ public sealed class SessionPlanFactory(CoreBinaryCatalog catalog)
             {
                 QuicPolicy.Block => true,
                 QuicPolicy.Allow => false,
-                _ => !request.Profile.IsUdpBasedProtocol,
+                _ => !profile.IsUdpBasedProtocol,
             },
             MuxEnabled = request.MuxEnabled,
             ClashApi = api,
@@ -172,8 +210,10 @@ public sealed class SessionPlanFactory(CoreBinaryCatalog catalog)
             warnings.Add("DNS is resolved outside the tunnel in this DNS mode (not leak-protected).");
         }
 
-        return new SessionPlan(selection, frontend, backend, warnings);
+        return new SessionPlan(selection, frontend, backend, warnings, dnsTunnel);
     }
+
+    public Microsoft.Extensions.Logging.ILogger Logger { get; init; } = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
 
     /// <summary>Clears the OS DNS cache (Windows) when only FakeIP answers come back.</summary>
     public Action? FlushDns { get; init; }

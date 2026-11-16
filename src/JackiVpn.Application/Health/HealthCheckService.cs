@@ -147,13 +147,21 @@ public sealed class HealthCheckService
 
             var sbGroup = new List<ProxyProfile>();
             var xrGroup = new List<ProxyProfile>();
-            foreach (var p in due)
+            var dnsGroup = new List<ProxyProfile>();
+            var pinned = await Task.WhenAll(due.Select(p => Connectivity.SecureDns.Shared.PinIfLocallyBlockedAsync(p, ct))).ConfigureAwait(false);
+            foreach (var p in pinned)
             {
                 var validation = ProfileValidator.Validate(p);
                 if (!validation.IsValid)
                 {
                     await RecordAsync(p.Id, Failure(ProbeFailureKind.InvalidConfig, validation.Errors.First().Message), settings, ct).ConfigureAwait(false);
                     Report(p.Id);
+                    continue;
+                }
+
+                if (DnsTunnel.IsDnsTunnel(p))
+                {
+                    dnsGroup.Add(p);
                     continue;
                 }
 
@@ -182,6 +190,11 @@ public sealed class HealthCheckService
                 }
             }
 
+            foreach (var p in dnsGroup)
+            {
+                await RunDnsTunnelAsync(p, singBoxCaps, options, settings, Report, ct).ConfigureAwait(false);
+            }
+
             return profiles.Select(p => Snapshot(p.Id)).ToArray();
         }
         finally
@@ -190,7 +203,51 @@ public sealed class HealthCheckService
         }
     }
 
-    private async Task RunBatchAsync(ICoreEngine engine, CoreCapabilities caps, ProxyProfile[] batch, ProbeRequestOptions options, AppSettings settings, Action<string> report, CancellationToken ct)
+    /// <summary>
+    /// A DNS tunnel server: its own dnstt client for the test, then the usual sing-box probe through it. Slow by
+    /// nature (every byte is a DNS query), so it gets a longer timeout and no direct TCP/TLS timing.
+    /// </summary>
+    private async Task RunDnsTunnelAsync(ProxyProfile profile, CoreCapabilities caps, ProbeRequestOptions options, AppSettings settings, Action<string> report, CancellationToken ct)
+    {
+        if (!_catalog.IsInstalled(CoreKind.Dnstt))
+        {
+            await RecordAsync(profile.Id, Failure(ProbeFailureKind.Unsupported, "The DNS tunnel client is not installed with this version of the app."), settings, ct).ConfigureAwait(false);
+            report(profile.Id);
+            return;
+        }
+
+        var resolver = await DnsTunnel.PickResolverAsync(_catalog, profile, _logger, ct).ConfigureAwait(false);
+        if (resolver is null)
+        {
+            await RecordAsync(profile.Id, Failure(ProbeFailureKind.Timeout, "No DNS resolver reached the tunnel on this network."), settings, ct).ConfigureAwait(false);
+            report(profile.Id);
+            return;
+        }
+
+        var port = PortAllocator.GetFreeLoopbackPorts(1)[0];
+        CoreProcess? client = null;
+        try
+        {
+            client = await DnsTunnel.StartAsync(_catalog, DnsTunnel.Plan(_catalog, profile, port, resolver), _workDir, _logger, ct, background: true).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is CoreStartException or CoreIntegrityException or ArgumentException)
+        {
+            await RecordAsync(profile.Id, Failure(ProbeFailureKind.CoreStartFailed, ex.Message), settings, ct).ConfigureAwait(false);
+            report(profile.Id);
+            return;
+        }
+
+        try
+        {
+            await RunBatchAsync(_singBox, caps, [DnsTunnel.AsLocalSocks(profile, port)], options, settings, report, ct, dnsTunnel: true).ConfigureAwait(false);
+        }
+        finally
+        {
+            await client.DisposeAsync().ConfigureAwait(false);
+        }
+    }
+
+    private async Task RunBatchAsync(ICoreEngine engine, CoreCapabilities caps, ProxyProfile[] batch, ProbeRequestOptions options, AppSettings settings, Action<string> report, CancellationToken ct, bool dnsTunnel = false)
     {
         var ports = PortAllocator.GetFreeLoopbackPorts(batch.Length);
         var plan = new CoreSessionPlan
@@ -213,7 +270,7 @@ public sealed class HealthCheckService
                     // Isolate the broken profile(s) instead of failing the whole batch.
                     foreach (var single in batch)
                     {
-                        await RunBatchAsync(engine, caps, [single], options, settings, report, ct).ConfigureAwait(false);
+                        await RunBatchAsync(engine, caps, [single], options, settings, report, ct, dnsTunnel).ConfigureAwait(false);
                     }
 
                     return;
@@ -277,7 +334,7 @@ public sealed class HealthCheckService
                 await gate.WaitAsync(ct).ConfigureAwait(false);
                 try
                 {
-                    var samples = await ProbeOneAsync(profile, new Uri($"socks5://127.0.0.1:{ports[i]}"), options, settings, ct).ConfigureAwait(false);
+                    var samples = await ProbeOneAsync(profile, new Uri($"socks5://127.0.0.1:{ports[i]}"), options, settings, ct, dnsTunnel).ConfigureAwait(false);
                     foreach (var s in samples)
                     {
                         await RecordAsync(profile.Id, s, settings, ct).ConfigureAwait(false);
@@ -303,12 +360,14 @@ public sealed class HealthCheckService
         }
     }
 
-    private async Task<IReadOnlyList<HealthSample>> ProbeOneAsync(ProxyProfile p, Uri proxy, ProbeRequestOptions options, AppSettings settings, CancellationToken ct)
+    private async Task<IReadOnlyList<HealthSample>> ProbeOneAsync(ProxyProfile p, Uri proxy, ProbeRequestOptions options, AppSettings settings, CancellationToken ct, bool dnsTunnel = false)
     {
         var samples = new List<HealthSample>();
-        var timeout = options.Quick && settings.Probe.Timeout > QuickTimeout ? QuickTimeout : settings.Probe.Timeout;
+        var timeout = dnsTunnel
+            ? (settings.Probe.Timeout > DnsTunnel.ProbeTimeout ? settings.Probe.Timeout : DnsTunnel.ProbeTimeout)
+            : options.Quick && settings.Probe.Timeout > QuickTimeout ? QuickTimeout : settings.Probe.Timeout;
         DirectProbeResult? direct = null;
-        if (!p.IsUdpBasedProtocol && !options.Quick)
+        if (!p.IsUdpBasedProtocol && !options.Quick && !dnsTunnel)
         {
             direct = await DirectProbe.RunAsync(
                 new EndpointTarget(p.Server, p.Port, p.Tls.Enabled && !p.Tls.IsReality, p.Tls.ServerName, p.Tls.Alpn, p.Tls.AllowInsecure),

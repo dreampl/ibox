@@ -15,7 +15,7 @@ Initialize-Dotnet
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 $singBoxVersion = '1.14.2'
-$xrayVersion = '26.3.27'
+$xrayVersion = '26.10.31'
 $version = ([xml](Get-Content (Join-Path $root 'Directory.Build.props') -Raw)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
 $work = Join-Path $root "artifacts\publish\$version\linux"
 $stage = Join-Path $work 'pkg'

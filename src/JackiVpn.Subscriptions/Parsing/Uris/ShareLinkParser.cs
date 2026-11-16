@@ -8,13 +8,13 @@ namespace JackiVpn.Subscriptions.Parsing.Uris;
 
 /// <summary>
 /// Parses single share links: vless, vmess (v2rayN base64 JSON and standard URI forms), trojan,
-/// ss (SIP002 + legacy), socks/socks5, http/https, hysteria2/hy2, tuic, wireguard/wg.
+/// ss (SIP002 + legacy), socks/socks5, http/https, hysteria2/hy2, tuic, wireguard/wg, dnstt (DNS tunnel).
 /// </summary>
 public static class ShareLinkParser
 {
     public static readonly IReadOnlySet<string> SupportedSchemes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
-        "vless", "vmess", "trojan", "ss", "socks", "socks5", "socks4", "http", "https", "hysteria2", "hy2", "tuic", "wireguard", "wg",
+        "vless", "vmess", "trojan", "ss", "socks", "socks5", "socks4", "http", "https", "hysteria2", "hy2", "tuic", "wireguard", "wg", "dnstt",
     };
 
     public static bool LooksLikeShareLink(string line)
@@ -51,6 +51,7 @@ public static class ShareLinkParser
             "hysteria2" or "hy2" => ParseHysteria2(ShareLink.Parse(raw)),
             "tuic" => ParseTuic(ShareLink.Parse(raw)),
             "wireguard" or "wg" => ParseWireGuard(ShareLink.Parse(raw)),
+            "dnstt" => ParseDnstt(ShareLink.Parse(raw)),
             _ => throw new ProfileParseException($"Unsupported scheme '{ProfileFactory.Truncate(scheme)}'."),
         };
 
@@ -330,6 +331,60 @@ public static class ShareLinkParser
             Credentials = new ProxyCredentials { Username = user, Password = pass },
             Extensions = link.Query.UnconsumedAsExtensions(),
         };
+    }
+
+    /// <summary>
+    /// <c>dnstt://user:pass@t.example.com?pubkey=HEX&amp;resolver=1.2.3.4:53#Name</c>. The resolver may also be
+    /// <c>https://…</c> (DoH, URL-encoded) or <c>tls://host</c> (DoT); <c>doh=</c> / <c>dot=</c> are accepted too.
+    /// User and password are the SOCKS5 credentials at the far end (optional).
+    /// </summary>
+    private static ProxyProfile ParseDnstt(ShareLink link)
+    {
+        var (user, pass) = SplitUserPass(link.UserInfo, allowBase64: true);
+        var q = link.Query;
+        var key = q.Get("pubkey", "pk", "publickey", "key")?.Trim();
+        if (string.IsNullOrEmpty(key))
+        {
+            throw new ProfileParseException("DNS tunnel link has no public key (pubkey=).");
+        }
+
+        var resolver = q.Get("resolver", "dns", "udp")?.Trim();
+        if (string.IsNullOrEmpty(resolver) && q.Get("doh")?.Trim() is { Length: > 0 } doh)
+        {
+            resolver = doh;
+        }
+
+        if (string.IsNullOrEmpty(resolver) && q.Get("dot")?.Trim() is { Length: > 0 } dot)
+        {
+            resolver = dot.Contains("://", StringComparison.Ordinal) ? dot : "tls://" + dot;
+        }
+
+        if (string.IsNullOrEmpty(resolver))
+        {
+            throw new ProfileParseException("DNS tunnel link has no resolver (resolver=).");
+        }
+
+        return new ProxyProfile
+        {
+            Id = string.Empty,
+            Name = link.Fragment ?? string.Empty,
+            Protocol = ProxyProtocol.Dnstt,
+            Server = link.RequireHost(),
+            Port = link.RequirePort(53),
+            Credentials = new ProxyCredentials { Username = user, Password = pass },
+            Udp = false,
+            Dnstt = new DnsttOptions { PublicKey = key.ToLowerInvariant(), Resolver = resolver },
+            Extensions = q.UnconsumedAsExtensions(),
+        };
+    }
+
+    /// <summary>Writes a DNS tunnel profile as a <c>dnstt://</c> link (the format <see cref="Parse"/> reads).</summary>
+    public static string FormatDnstt(string domain, string publicKey, string resolver, string? user, string? password, string? name)
+    {
+        var auth = string.IsNullOrEmpty(user) ? string.Empty
+            : Uri.EscapeDataString(user) + (string.IsNullOrEmpty(password) ? string.Empty : ":" + Uri.EscapeDataString(password)) + "@";
+        var link = $"dnstt://{auth}{domain.Trim().TrimEnd('.')}?pubkey={publicKey.Trim().ToLowerInvariant()}&resolver={Uri.EscapeDataString(resolver.Trim())}";
+        return string.IsNullOrWhiteSpace(name) ? link : link + "#" + Uri.EscapeDataString(name.Trim());
     }
 
     private static ProxyProfile ParseHttp(ShareLink link)

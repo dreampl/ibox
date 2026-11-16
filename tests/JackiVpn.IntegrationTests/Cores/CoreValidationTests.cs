@@ -43,7 +43,7 @@ public sealed class CoreValidationTests(CoreFixture cores) : IClassFixture<CoreF
         { "vless-ws-tls-fragment", $"vless://{U}@104.16.1.1:443?security=tls&sni=a.example.com&fp=firefox&alpn=http%2F1.1&type=ws&host=a.example.com&path=%2Fws&fragment=tlshello,100-200,10-20#x" },
         { "vless-reality-vision", $"vless://{U}@r.example.com:443?security=reality&sni=www.microsoft.com&fp=chrome&pbk={Pbk}&sid=0123abcd&type=tcp&flow=xtls-rprx-vision#x" },
         { "vless-xhttp", $"vless://{U}@x.example.com:443?security=tls&type=xhttp&path=%2Fx&mode=auto&host=x.example.com#x" },
-        { "vless-kcp", $"vless://{U}@k.example.com:443?type=kcp#x" },
+        { "vless-kcp", $"vless://{U}@k.example.com:443?security=tls&sni=k.example.com&type=kcp#x" },
         { "vless-grpc-tls", $"vless://{U}@p.example.com:443?security=tls&sni=p.example.com&type=grpc&serviceName=s#x" },
         { "vmess-tcp-http-header", $"vmess://{U}@v.example.com:80?type=tcp&headerType=http&host=www.example.com&path=%2F#x" },
         { "trojan-grpc", "trojan://pass@t.example.com:443?sni=t.example.com&type=grpc&serviceName=tg#x" },

@@ -32,6 +32,9 @@ public enum CoreKind
 {
     SingBox = 0,
     Xray,
+
+    /// <summary>The dnstt DNS tunnel client (in front of the sing-box frontend for DNS tunnel servers).</summary>
+    Dnstt,
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<CorePreference>))]

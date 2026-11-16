@@ -1,0 +1,21 @@
+IBOX 2.2.3
+
+Fixed
+- HTTPUpgrade and other servers whose address your network hides or fakes (e.g. cloudflare-ech.com) now connect: IBOX finds the real address over encrypted DNS.
+- Plain VLESS servers (no TLS) always run on sing-box: the new Xray refuses them.
+- Xray updated to 26.10.31 on Windows, Android and Linux (HTTPUpgrade and the newest Xray configs work).
+- No more warning at the top when another program's system proxy is on while the tunnel (TUN) is connected.
+
+New: DNS tunnel servers (Windows)
+- A new kind of server that sends your traffic as DNS questions (dnstt), so it still works where almost everything else is blocked. It is slow (tens of KB/s): for messages and emergencies.
+- It is a full server like any other: TUN or system proxy, routing rules, kill switch, server test and Smart connect.
+- Servers > DNS tunnel…: enter the tunnel's domain, the server's public key and, if the server has one, a user name and password. A dnstt:// link can also be pasted.
+- DNS resolver "auto" (the default) tries your carrier's own DNS, 8.8.8.8, 1.1.1.1, Shecan and DNS over HTTPS at the same time and keeps the first in that order that works. One resolver or a list of your own can be entered instead.
+
+New: Game mode
+- When a game starts, IBOX moves once to a clearly faster healthy server (at least 25% and 30 ms lower ping, no shakier). Never during a game: a move would drop the match.
+
+Changed
+- Ads are blocked by default (Iran-friendly routing). If you turned the ad rule off yourself, it stays off.
+- PasarGuard subscriptions are read in Xray format first: XHTTP configs and their mux settings are no longer lost.
+- Hysteria 2 servers from Xray-format subscriptions are imported (those with obfuscation are skipped with a warning).

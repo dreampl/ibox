@@ -103,6 +103,26 @@ public sealed class SecureDns
         return NetText.IsPrivateOrLocal(ip) || Sessions.SessionPlanFactory.IsFakeIp(ip) || ip.Equals(IPAddress.Any);
     }
 
+    /// <summary>One cache for every caller that pins server names (tests and connects of the same server share it).</summary>
+    public static SecureDns Shared { get; } = new();
+
+    /// <summary>
+    /// When the network's resolver hides or poisons the server's name (e.g. cloudflare-ech.com on some carriers),
+    /// returns the profile pointed at the secure-DNS address, keeping the name as SNI / Host. Otherwise unchanged.
+    /// </summary>
+    public async Task<Domain.Profiles.ProxyProfile> PinIfLocallyBlockedAsync(Domain.Profiles.ProxyProfile profile, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        if (profile.Protocol == Domain.Profiles.ProxyProtocol.Dnstt || IPAddress.TryParse(NetText.TrimBrackets(profile.Server), out _)
+            || !await LocalAnswerIsBadAsync(profile.Server, ct).ConfigureAwait(false))
+        {
+            return profile;
+        }
+
+        var addresses = await ResolveAsync(profile.Server, ct).ConfigureAwait(false);
+        return addresses.Count == 0 ? profile : Sessions.SessionPlanFactory.PinServerAddress(profile, addresses);
+    }
+
     /// <summary>True when the system resolver's answer for a name is missing or obviously poisoned.</summary>
     public static async Task<bool> LocalAnswerIsBadAsync(string host, CancellationToken ct)
     {

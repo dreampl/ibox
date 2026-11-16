@@ -46,28 +46,36 @@ $manifestCores = [ordered]@{}
 
 foreach ($core in $lock.cores) {
     Write-Host "==> $($core.id) $($core.version)" -ForegroundColor Cyan
-    $fileName = [IO.Path]::GetFileName(([Uri]$core.url).AbsolutePath)
-    $archive = Join-Path $cacheDir "$($core.id)-$($core.version)-$fileName"
-    $expected = $core.sha256.ToLowerInvariant()
-
-    $needDownload = $Force -or -not (Test-Path $archive) -or ((Get-Sha256 $archive) -ne $expected)
-    if ($needDownload) {
-        Write-Host "    downloading $($core.url)"
-        $tmp = "$archive.partial"
-        if (Test-Path $tmp) { Remove-Item -Force $tmp }
-        Invoke-WebRequest -UseBasicParsing -Uri $core.url -OutFile $tmp -Headers @{ 'User-Agent' = 'jackivpn-build' }
-        $actual = Get-Sha256 $tmp
-        if ($actual -ne $expected) {
-            Remove-Item -Force $tmp
-            throw "SHA-256 mismatch for $($core.id): expected $expected, got $actual. Refusing to use the archive."
-        }
-        Move-Item -Force $tmp $archive
-    }
-    Write-Host "    archive sha256 OK ($expected)"
-
     $extract = Join-Path $cacheDir "extract-$($core.id)"
-    if (Test-Path $extract) { Remove-Item -Recurse -Force $extract }
-    Expand-Archive -Path $archive -DestinationPath $extract -Force
+    if ($core.PSObject.Properties.Name -contains 'build') {
+        # No upstream binaries: built from source (pinned toolchain, checksum-verified modules).
+        if (Test-Path $extract) { Remove-Item -Recurse -Force $extract }
+        & (Join-Path $PSScriptRoot 'build-dnstt.ps1') -OutDir $extract
+        $expected = $null
+    }
+    else {
+        $fileName = [IO.Path]::GetFileName(([Uri]$core.url).AbsolutePath)
+        $archive = Join-Path $cacheDir "$($core.id)-$($core.version)-$fileName"
+        $expected = $core.sha256.ToLowerInvariant()
+
+        $needDownload = $Force -or -not (Test-Path $archive) -or ((Get-Sha256 $archive) -ne $expected)
+        if ($needDownload) {
+            Write-Host "    downloading $($core.url)"
+            $tmp = "$archive.partial"
+            if (Test-Path $tmp) { Remove-Item -Force $tmp }
+            Invoke-WebRequest -UseBasicParsing -Uri $core.url -OutFile $tmp -Headers @{ 'User-Agent' = 'jackivpn-build' }
+            $actual = Get-Sha256 $tmp
+            if ($actual -ne $expected) {
+                Remove-Item -Force $tmp
+                throw "SHA-256 mismatch for $($core.id): expected $expected, got $actual. Refusing to use the archive."
+            }
+            Move-Item -Force $tmp $archive
+        }
+        Write-Host "    archive sha256 OK ($expected)"
+
+        if (Test-Path $extract) { Remove-Item -Recurse -Force $extract }
+        Expand-Archive -Path $archive -DestinationPath $extract -Force
+    }
 
     $all = Get-ChildItem -Path $extract -Recurse -File
     $fileEntries = @()

@@ -13,14 +13,19 @@ sing-box 1.14.2 (Windows x64, Android arm64 / arm / x86_64)
   Corresponding source: https://github.com/SagerNet/sing-box/tree/v1.14.2
   The official release binaries are redistributed without modification.
 
-Xray-core 26.3.27 (Windows x64; with geoip.dat / geosite.dat from the same release)
+Xray-core 26.10.31 (Windows x64, Android, Linux x64; with geoip.dat / geosite.dat from the same release)
   License: MPL-2.0
-  Source: https://github.com/XTLS/Xray-core/tree/v26.3.27
+  Source: https://github.com/XTLS/Xray-core/tree/v26.10.31
 
 Wintun 0.14.1 (Windows x64, signed by WireGuard LLC)
   License: Prebuilt Binaries License (redistribution of the unmodified signed DLL is permitted);
            source code under GPL-2.0
   Source: https://git.zx2c4.com/wintun/
+
+dnstt 1.20260501.0 (Windows x64, dnstt-client; DNS tunnel servers)
+  License: Public domain (CC0-1.0)
+  Source: https://www.bamsoftware.com/git/dnstt.git
+  Built unmodified from source with Go 1.27.3 (reproducible build, see cores/cores.lock.json).
 
 hev-socks5-tunnel 2.18.0 (Android only, tun2socks)
   License: MIT

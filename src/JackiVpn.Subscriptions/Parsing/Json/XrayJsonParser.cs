@@ -14,7 +14,7 @@ public static class XrayJsonParser
 {
     private static readonly HashSet<string> ProxyProtocols = new(StringComparer.OrdinalIgnoreCase)
     {
-        "vless", "vmess", "trojan", "shadowsocks", "socks", "http", "wireguard",
+        "vless", "vmess", "trojan", "shadowsocks", "socks", "http", "wireguard", "hysteria",
     };
 
     private static readonly HashSet<string> OutboundKnown = new(StringComparer.Ordinal)
@@ -123,10 +123,11 @@ public static class XrayJsonParser
             "vless" or "vmess" => ParseVnext(proto, settings, name),
             "trojan" or "shadowsocks" or "socks" or "http" => ParseServers(proto, settings, name),
             "wireguard" => ParseWireGuard(settings, name),
+            "hysteria" => ParseHysteria(settings, stream, name),
             _ => throw new ProfileParseException($"Unsupported Xray protocol '{ProfileFactory.Truncate(proto)}'."),
         };
 
-        if (stream is not null && profile.Protocol != ProxyProtocol.WireGuard)
+        if (stream is not null && profile.Protocol is not (ProxyProtocol.WireGuard or ProxyProtocol.Hysteria2))
         {
             var (transport, tls) = ParseStream(stream);
             profile = profile with { Transport = transport, Tls = tls };
@@ -261,6 +262,50 @@ public static class XrayJsonParser
                 },
             }
             : profile;
+    }
+
+    /// <summary>
+    /// Xray's Hysteria 2 outbound (PasarGuard's <c>/xray</c> format): settings.address/port/version, the password in
+    /// streamSettings.hysteriaSettings.auth, TLS in tlsSettings. Same profile as a <c>hysteria2://</c> link, so it runs
+    /// on sing-box as before. Obfs lives in Xray's finalmask, which has no portable equivalent: such configs are refused
+    /// (with a warning) instead of being built without their obfuscation.
+    /// </summary>
+    private static ProxyProfile ParseHysteria(JsonObject settings, JsonObject? stream, string name)
+    {
+        var hy = stream?.Obj("hysteriaSettings");
+        if ((settings.Int("version") ?? hy?.Int("version") ?? 2) != 2)
+        {
+            throw new ProfileParseException("Only Hysteria version 2 is supported.");
+        }
+
+        if (stream?.Obj("finalmask") is not null || stream?.Obj("finalMask") is not null)
+        {
+            throw new ProfileParseException("Hysteria 2 with Xray finalmask (obfs) is not supported yet; skipped.");
+        }
+
+        var tls = stream?.Obj("tlsSettings");
+        return new ProxyProfile
+        {
+            Id = string.Empty,
+            Name = name,
+            Protocol = ProxyProtocol.Hysteria2,
+            Server = settings.Str("address") ?? throw new ProfileParseException("Outbound has no address."),
+            Port = settings.Int("port") ?? throw new ProfileParseException("Outbound has no port."),
+            Credentials = new ProxyCredentials { Password = hy?.Str("auth") ?? throw new ProfileParseException("Hysteria outbound has no auth.") },
+            Tls = new TlsOptions
+            {
+                Enabled = true,
+                ServerName = tls?.Str("serverName"),
+                Alpn = tls?.StrList("alpn") ?? [],
+                Fingerprint = tls?.Str("fingerprint"),
+                AllowInsecure = tls?.Bool("allowInsecure") == true,
+            },
+            Hysteria2 = new Hysteria2Options
+            {
+                UpMbps = hy?.Int("up"),
+                DownMbps = hy?.Int("down"),
+            },
+        };
     }
 
     private static ProxyProfile ParseWireGuard(JsonObject settings, string name)

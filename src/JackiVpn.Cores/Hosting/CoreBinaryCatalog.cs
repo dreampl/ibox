@@ -73,6 +73,7 @@ public sealed class CoreBinaryCatalog
     {
         CoreKind.SingBox => "sing-box",
         CoreKind.Xray => "xray",
+        CoreKind.Dnstt => "dnstt",
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 
@@ -84,10 +85,13 @@ public sealed class CoreBinaryCatalog
     {
         (CoreKind.SingBox, true, _) => "libsingbox.so",
         (CoreKind.Xray, true, _) => "libxray.so",
+        (CoreKind.Dnstt, true, _) => "libdnstt.so",
         (CoreKind.SingBox, _, true) => "sing-box.exe",
         (CoreKind.Xray, _, true) => "xray.exe",
+        (CoreKind.Dnstt, _, true) => "dnstt-client.exe",
         (CoreKind.SingBox, _, _) => "sing-box",
         (CoreKind.Xray, _, _) => "xray",
+        (CoreKind.Dnstt, _, _) => "dnstt-client",
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 

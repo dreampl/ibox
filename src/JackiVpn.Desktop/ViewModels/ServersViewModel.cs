@@ -604,7 +604,7 @@ public sealed partial class ServersViewModel : ObservableObject
 
         if (string.IsNullOrWhiteSpace(text))
         {
-            text = await _dialogs.PromptAsync("Import", "Paste share links (vless://, vmess://, trojan://, ss://, hysteria2://, tuic://, wireguard://…), a Base64 list, or a sing-box / Xray / Clash config:", multiline: true, monospace: true) ?? string.Empty;
+            text = await _dialogs.PromptAsync("Import", "Paste share links (vless://, vmess://, trojan://, ss://, hysteria2://, tuic://, wireguard://, dnstt://…), a Base64 list, or a sing-box / Xray / Clash config:", multiline: true, monospace: true) ?? string.Empty;
         }
 
         await ImportTextAsync(text);
@@ -615,6 +615,15 @@ public sealed partial class ServersViewModel : ObservableObject
     {
         var text = await _dialogs.PromptAsync("Import", "Paste share links, a Base64 list, or a sing-box / Xray / Clash config:", multiline: true, monospace: true);
         await ImportTextAsync(text ?? string.Empty);
+    }
+
+    [RelayCommand]
+    private async Task AddDnsTunnelAsync()
+    {
+        if (Views.DnsTunnelWindow.Show() is { } link)
+        {
+            await ImportTextAsync(link);
+        }
     }
 
     [RelayCommand]

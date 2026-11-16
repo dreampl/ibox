@@ -20,7 +20,7 @@ public sealed class CoreValidationFailedException(string message, IReadOnlyList<
 
 /// <summary>
 /// Runs the core process(es) of one session: validates every generated config with the core itself first
-/// (a rejected config never starts), starts the Xray backend before the sing-box frontend, waits for real
+/// (a rejected config never starts), starts the DNS tunnel client and the Xray backend before the sing-box frontend, waits for real
 /// readiness, records the processes in the journal and reports any unexpected exit immediately.
 /// </summary>
 public sealed class CoreSupervisor : IAsyncDisposable
@@ -89,6 +89,13 @@ public sealed class CoreSupervisor : IAsyncDisposable
                 _shaper.Start();
             }
 
+            if (plan.DnsTunnel is { } tunnel)
+            {
+                // The DNS tunnel client first: the cores dial it as their SOCKS5 server.
+                var client = await DnsTunnel.StartAsync(_catalog, tunnel, _workDir, _logger, ct).ConfigureAwait(false);
+                Track(client);
+            }
+
             if (backendConfig is not null)
             {
                 var backend = await LaunchAsync(_xray!, backendConfig, ct).ConfigureAwait(false);
@@ -132,6 +139,12 @@ public sealed class CoreSupervisor : IAsyncDisposable
     {
         using var binary = _catalog.Verify(engine.Kind);
         var process = await CoreProcess.StartAsync(binary, engine.BuildLaunchSpec(_workDir), config, _logger, ct).ConfigureAwait(false);
+        Track(process);
+        return process;
+    }
+
+    private void Track(CoreProcess process)
+    {
         string? journalId = null;
         if (_journal is not null)
         {
@@ -140,7 +153,6 @@ public sealed class CoreSupervisor : IAsyncDisposable
 
         _processes.Add((process, journalId));
         _ = process.Exited.ContinueWith(t => OnExited(process, t.Result), CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
-        return process;
     }
 
     private async Task WaitForTunAsync(CoreProcess front, CoreSessionPlan plan, CancellationToken ct)

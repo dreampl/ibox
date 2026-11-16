@@ -233,6 +233,11 @@ public sealed class LinuxServices : IAsyncDisposable
             Settings.Update(s => s with { Routing = s.Routing with { Rules = preset.Rules, RuleSets = preset.RuleSets, Final = preset.Final } });
         }
 
+        if (RoutingPresets.EnableAdBlockDefault(Settings.Current.Routing.Rules) is { } adsOn)
+        {
+            Settings.Update(s => s with { Routing = s.Routing with { Rules = adsOn } });
+        }
+
         await Health.LoadAsync(ct).ConfigureAwait(false);
         GnomeProxy.RecoverStale(Logger);
         _ = Task.Run(Workplace.Refresh, CancellationToken.None);

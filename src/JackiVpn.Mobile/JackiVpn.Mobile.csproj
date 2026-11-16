@@ -70,7 +70,7 @@
     <AndroidNativeLibrary Include="Platforms\Android\libs\arm64-v8a\libsingbox.so" Abi="arm64-v8a" />
     <AndroidNativeLibrary Include="Platforms\Android\libs\armeabi-v7a\libsingbox.so" Abi="armeabi-v7a" />
     <AndroidNativeLibrary Include="Platforms\Android\libs\x86_64\libsingbox.so" Abi="x86_64" />
-    <!-- Xray 26.3.27 (official XTLS builds, SHA-256 verified against the release .dgst): XHTTP and other
+    <!-- Xray 26.10.31 (official XTLS builds, SHA-256 verified against the release .dgst): XHTTP and other
          Xray-only transports, chained behind sing-box exactly like on Windows. -->
     <AndroidNativeLibrary Include="Platforms\Android\libs\arm64-v8a\libxray.so" Abi="arm64-v8a" />
     <AndroidNativeLibrary Include="Platforms\Android\libs\armeabi-v7a\libxray.so" Abi="armeabi-v7a" />
