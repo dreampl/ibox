@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
+using JackiVpn.Application.Connection;
 using JackiVpn.Application.Health;
 using JackiVpn.Application.Sessions;
 using JackiVpn.Domain.Profiles;
@@ -167,6 +168,33 @@ public class ReleaseFeaturesTests
     {
         ConfigTraits.IsRelay(Link("vless://11111111-2222-4333-8444-555555555555@193.151.151.14:443?security=reality&pbk=x&sni=shop.jackidrive.ir#%F0%9F%87%AE%F0%9F%87%B7%20Relay%20%E2%9A%A1reality")).Should().BeTrue();
         ConfigTraits.IsRelay(Link("vless://11111111-2222-4333-8444-555555555555@154.211.2.164:8443?security=reality&pbk=x&sni=shop.jackidrive.ir#%E2%9A%A1reality")).Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData("🇮🇷 J Core USA Relay  ⭐VIP  Jacki")]
+    [InlineData("⭐ 🇮🇷 J Core Relay  🚀xhttp  JACKI")]
+    [InlineData("رله ایران")]
+    public void The_panels_relay_names_are_all_recognised(string remark)
+    {
+        ConfigTraits.IsRelay(Link("vless://11111111-2222-4333-8444-555555555555@193.151.151.14:8447?security=reality&pbk=x&sni=shop.jackidrive.ir#"
+            + Uri.EscapeDataString(remark))).Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData("cell:43211", ConnectionOrchestrator.RelayPreference)]          // MCI: the relay is the dependable path
+    [InlineData("cell:43235", ConnectionOrchestrator.RelayMobilePreference)]    // Irancell
+    [InlineData("cell:43220", ConnectionOrchestrator.RelayMobilePreference)]    // Rightel
+    [InlineData("wifi", 0.0)]                                                   // measurements decide, relay quota spared
+    [InlineData("other", 0.0)]
+    public void Relay_bonus_follows_the_network(string network, double expected)
+    {
+        ConnectionOrchestrator.RelayBonus(network).Should().Be(expected);
+    }
+
+    [Fact]
+    public void Relay_bonus_on_mobile_is_below_mci_and_above_nothing()
+    {
+        ConnectionOrchestrator.RelayMobilePreference.Should().BeGreaterThan(0).And.BeLessThan(ConnectionOrchestrator.RelayPreference);
     }
 
     [Fact]

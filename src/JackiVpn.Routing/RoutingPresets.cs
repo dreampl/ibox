@@ -50,7 +50,7 @@ public static class RoutingPresets
             RuleActionType.Proxy),
         RoutingPreset.IranFriendly => new PresetResult(
             [
-                Rule("ir-ads-block", "Block ads (optional)", RuleAction.Block, RoutingPreset.IranFriendly, new RuleCondition(RuleConditionType.GeoSite, ["category-ads-all"])) with { Enabled = false },
+                Rule(AdsRuleId, AdsRuleName, RuleAction.Block, RoutingPreset.IranFriendly, new RuleCondition(RuleConditionType.GeoSite, ["category-ads-all"])),
                 Rule("ir-tld-direct", ".ir domains direct", RuleAction.Direct, RoutingPreset.IranFriendly, new RuleCondition(RuleConditionType.DomainSuffix, ["ir"])),
                 Rule("ir-geosite-direct", "Iranian sites direct", RuleAction.Direct, RoutingPreset.IranFriendly, new RuleCondition(RuleConditionType.GeoSite, ["category-ir"])),
                 Rule("ir-geoip-direct", "Iranian IPs direct", RuleAction.Direct, RoutingPreset.IranFriendly, new RuleCondition(RuleConditionType.GeoIp, ["ir"])),
@@ -60,6 +60,32 @@ public static class RoutingPresets
             RuleActionType.Proxy),
         _ => new PresetResult([], [], RuleActionType.Proxy),
     };
+
+    /// <summary>The Iran-friendly preset's ad blocker. On by default; the rule-set ships with the app (no GitHub needed).</summary>
+    public const string AdsRuleId = "ir-ads-block";
+    public const string AdsRuleName = "Block ads";
+
+    /// <summary>Name the ad rule had while it was off by default; a rule still carrying it was never touched by the user.</summary>
+    private const string LegacyAdsRuleName = "Block ads (optional)";
+
+    /// <summary>
+    /// One-time move to "ads blocked by default" for rule lists written by older versions. Only a rule that is still
+    /// exactly the old default (old name, off, from the preset) is switched on; it is renamed at the same time, so a
+    /// user who turns ads off again later is never overridden. Returns null when there is nothing to change.
+    /// </summary>
+    public static IReadOnlyList<RoutingRule>? EnableAdBlockDefault(IReadOnlyList<RoutingRule> rules)
+    {
+        ArgumentNullException.ThrowIfNull(rules);
+        if (!rules.Any(IsUntouchedLegacyAdsRule))
+        {
+            return null;
+        }
+
+        return rules.Select(r => IsUntouchedLegacyAdsRule(r) ? r with { Enabled = true, Name = AdsRuleName } : r).ToList();
+    }
+
+    private static bool IsUntouchedLegacyAdsRule(RoutingRule r) =>
+        r.Id == AdsRuleId && r.FromPreset == RoutingPreset.IranFriendly && !r.Enabled && r.Name == LegacyAdsRuleName;
 
     /// <summary>Rule-set definitions implied by GeoIp/GeoSite conditions that the user has not declared yet.</summary>
     public static IReadOnlyList<RuleSetDefinition> ImpliedRuleSets(IEnumerable<RoutingRule> rules, IReadOnlyCollection<RuleSetDefinition> declared)

@@ -32,8 +32,12 @@ public static partial class PasarGuardEndpoints
 
     public static readonly IReadOnlyList<string> MetaEndpoints = [Info, Usage, "apps", "raw"];
 
-    /// <summary>Default content endpoint order: richest native formats first (they carry fragment/uTLS options).</summary>
-    public static readonly IReadOnlyList<string> DefaultContentOrder = [SingBox, Xray, Links, LinksBase64, ClashMeta, Base];
+    /// <summary>
+    /// Default content endpoint order. Xray JSON first: it is the only format that carries every config with all of
+    /// its options (XHTTP and its <c>extra</c>, mux, fragment, uTLS). PasarGuard leaves XHTTP out of <c>sing_box</c>
+    /// entirely (sing-box has no XHTTP), so starting there silently lost the XHTTP configs and the mux settings.
+    /// </summary>
+    public static readonly IReadOnlyList<string> DefaultContentOrder = [Xray, Links, LinksBase64, SingBox, ClashMeta, Base];
 
     public static bool TryParse(Uri? url, out PasarGuardUrl? result)
     {
@@ -92,7 +96,12 @@ public static partial class PasarGuardEndpoints
         }
 
         Add(userEndpoint);
-        Add(preferred);
+        // A remembered sing_box (from the old default order) is not moved to the front: it would keep existing users
+        // on the format without XHTTP forever. It is still tried, in its default place, if the others fail.
+        if (preferred != SingBox)
+        {
+            Add(preferred);
+        }
         foreach (var e in DefaultContentOrder)
         {
             Add(e);

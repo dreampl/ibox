@@ -299,6 +299,11 @@ public sealed class MobileServices : IAsyncDisposable
             Settings.Update(s => s with { Routing = s.Routing with { Rules = preset.Rules, RuleSets = preset.RuleSets, Final = preset.Final } });
         }
 
+        if (RoutingPresets.EnableAdBlockDefault(Settings.Current.Routing.Rules) is { } adsOn)
+        {
+            Settings.Update(s => s with { Routing = s.Routing with { Rules = adsOn } });
+        }
+
         await Health.LoadAsync(Lifetime).ConfigureAwait(false);
         _network = new AndroidNetworkMonitor(Context, Orchestrator);
         _network.Start();

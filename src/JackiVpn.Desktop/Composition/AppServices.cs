@@ -108,7 +108,7 @@ public sealed class AppServices : IAsyncDisposable
 
         Service = new ServiceControl(LoggerFactory.CreateLogger("JackiVpn.ServiceControl"));
         AdapterDns = new Application.Connectivity.AdapterDnsService(new Services.WindowsAdapterDnsControl(Service), System.IO.Path.Combine(Paths.UserStateDir, "adapter-dns-original.json"), LoggerFactory.CreateLogger("JackiVpn.AdapterDns"));
-        var plans = new SessionPlanFactory(Catalog) { FlushDns = static () => JackiVpn.Networking.Adapters.NetworkInspector.FlushDnsCache() };
+        var plans = new SessionPlanFactory(Catalog) { FlushDns = static () => JackiVpn.Networking.Adapters.NetworkInspector.FlushDnsCache(), Logger = LoggerFactory.CreateLogger("JackiVpn.DnsTunnel") };
         var sessionLogger = LoggerFactory.CreateLogger("JackiVpn.Session");
         NetworkMonitor = new NetworkChangeMonitor(LoggerFactory.CreateLogger("JackiVpn.Network"), Domain.ProductInfo.TunInterfaceName);
         Workplace = new Application.Workplace.WorkplaceService(new WindowsNetworkFacts(), settings, LoggerFactory.CreateLogger("JackiVpn.Workplace"));

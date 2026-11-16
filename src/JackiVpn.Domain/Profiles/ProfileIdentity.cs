@@ -41,6 +41,8 @@ public static class ProfileIdentity
         Append(sb, p.Hysteria2?.ObfsPassword);
         Append(sb, p.WireGuard?.PeerPublicKey);
         Append(sb, p.WireGuard?.PrivateKey);
+        Append(sb, p.Dnstt?.PublicKey.ToLowerInvariant());
+        Append(sb, p.Dnstt?.Resolver);
         return Hash(sb.ToString());
     }
 

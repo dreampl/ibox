@@ -81,6 +81,7 @@ public static class Names
         Domain.Profiles.ProxyProtocol.Hysteria2 => "Hysteria2",
         Domain.Profiles.ProxyProtocol.Tuic => "TUIC",
         Domain.Profiles.ProxyProtocol.WireGuard => "WireGuard",
+        Domain.Profiles.ProxyProtocol.Dnstt => "DNS tunnel",
         _ => p.ToString(),
     };
 

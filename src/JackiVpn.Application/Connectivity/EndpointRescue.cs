@@ -82,7 +82,7 @@ public sealed class EndpointRescue
         ArgumentNullException.ThrowIfNull(profile);
         var options = _settings().Connectivity;
         if (!CanProbeDirectly() || !(options.SecureDnsRescue || options.CleanIpScan || options.FingerprintRotation) || profile.IsUdpBasedProtocol
-            || profile.Protocol == ProxyProtocol.WireGuard)
+            || profile.Protocol is ProxyProtocol.WireGuard or ProxyProtocol.Dnstt)
         {
             return false;
         }

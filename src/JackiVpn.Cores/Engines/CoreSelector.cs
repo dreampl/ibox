@@ -40,6 +40,8 @@ public static class CoreSelector
         {
             case CorePreference.SingBox:
                 return new CoreSelection(CoreKind.SingBox, false, sbReport, all, "sing-box selected by user.");
+            case CorePreference.Xray when xrReport is { IsUsable: false } && sbReport.IsUsable:
+                return new CoreSelection(CoreKind.SingBox, false, sbReport, all, "Xray selected, but it cannot run this profile: sing-box used instead.");
             case CorePreference.Xray when xrReport is not null:
                 return new CoreSelection(CoreKind.Xray, true, xrReport, all, "Xray selected by user (runs behind the sing-box frontend).");
             case CorePreference.Xray:

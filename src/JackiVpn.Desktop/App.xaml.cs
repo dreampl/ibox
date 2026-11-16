@@ -138,6 +138,12 @@ public partial class App : System.Windows.Application
             _services.Settings.Update(s => s with { Routing = s.Routing with { Rules = preset.Rules, RuleSets = preset.RuleSets, Final = preset.Final } });
         }
 
+        // Ads blocked by default since 2.2: switches on the old, never-touched "off" rule once (see EnableAdBlockDefault).
+        if (Routing.RoutingPresets.EnableAdBlockDefault(_services.Settings.Current.Routing.Rules) is { } adsOn)
+        {
+            _services.Settings.Update(s => s with { Routing = s.Routing with { Rules = adsOn } });
+        }
+
         var settings = _services.Settings.Current;
         Motion.Reduced = settings.Ui.ReduceMotion || !SystemParameters.ClientAreaAnimation;
         ThemeManager.Apply(settings.Ui.Theme);

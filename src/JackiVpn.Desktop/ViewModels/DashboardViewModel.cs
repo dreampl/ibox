@@ -339,9 +339,7 @@ public sealed partial class DashboardViewModel : ObservableObject
                 Networking.SystemProxy.SystemProxyHealth.ForeignDead =>
                     ($"Windows' proxy is set to {finding.Server}, but nothing is running there (probably another VPN app that was closed). " +
                      "Apps that use the system proxy — browsers, Claude, Telegram Desktop — will fail to connect. Turn it off, then restart apps like Claude so they pick up the change.", true),
-                Networking.SystemProxy.SystemProxyHealth.ForeignLive when status.State == ConnectionState.Connected && status.Mode == ConnectionMode.Tun =>
-                    ($"Windows' proxy points to another program ({finding.Server}). Apps that use the system proxy, including Claude, go through that program instead of this tunnel. " +
-                     "Close that program (or turn off its system proxy) and restart Claude for one consistent path.", false),
+                // A live proxy of another program while TUN is on is the user's own setup: no banner for it.
                 _ => ((string?)null, false),
             };
         }

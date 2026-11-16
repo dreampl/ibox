@@ -513,7 +513,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private static Task LicensesAsync() => Shell.Current.DisplayAlertAsync(
         L.Get("Set_Licenses"),
         "sing-box 1.14.2 — GPL-3.0-or-later. github.com/SagerNet/sing-box (tag v1.14.2). Unmodified official binary.\n\n" +
-        "Xray-core 26.3.27 — MPL-2.0. github.com/XTLS/Xray-core (tag v26.3.27). Unmodified official binary.\n\n" +
+        "Xray-core 26.10.31 — MPL-2.0. github.com/XTLS/Xray-core (tag v26.10.31). Unmodified official binary.\n\n" +
         "hev-socks5-tunnel 2.18.0 — MIT. github.com/heiher/hev-socks5-tunnel\n\n" +
         "Rule-sets: SagerNet sing-geoip / sing-geosite (GPL-3.0 / CC BY-SA).\n\n" +
         ".NET MAUI, CommunityToolkit.Mvvm, Microsoft.Data.Sqlite, YamlDotNet — MIT. SQLitePCLRaw — Apache-2.0. Open Sans — SIL OFL 1.1.",

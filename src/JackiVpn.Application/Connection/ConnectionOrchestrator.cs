@@ -536,8 +536,21 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
     /// <summary>Bonus of relay (Iranian bridge) configs on networks known to throttle direct foreign paths.</summary>
     public const double RelayPreference = 6;
 
+    /// <summary>
+    /// Bonus of relay configs on any other mobile network. The panel only puts relay configs into the subscription
+    /// for operators it measured as throttled, so on mobile data their presence is already the server's verdict.
+    /// Wi-Fi gets no bonus: real measurements decide there, and the relay's shared quota is spared.
+    /// </summary>
+    public const double RelayMobilePreference = 4;
+
     /// <summary>Mobile networks where direct paths to foreign servers stall (MCI); the relay is the reliable path there.</summary>
     private static readonly string[] RelayFirstNetworks = ["cell:43211"];
+
+    /// <summary>Relay bonus for the network the device is on (<c>cell:&lt;MCC-MNC&gt;</c>, <c>wifi</c>, <c>other</c>).</summary>
+    public static double RelayBonus(string network) =>
+        RelayFirstNetworks.Contains(network, StringComparer.Ordinal) ? RelayPreference
+        : network.StartsWith("cell:", StringComparison.Ordinal) ? RelayMobilePreference
+        : 0;
 
     /// <summary>Ranking bonus from what is known about this server on the current network.</summary>
     private double Preference(ProxyProfile p, IReadOnlySet<string> official, string network)
@@ -548,9 +561,9 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
             bonus += NetworkPreference;
         }
 
-        if (ConfigTraits.IsRelay(p) && RelayFirstNetworks.Contains(network, StringComparer.Ordinal))
+        if (ConfigTraits.IsRelay(p))
         {
-            bonus += RelayPreference;
+            bonus += RelayBonus(network);
         }
 
         return bonus;
@@ -800,15 +813,26 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
         // next server or to the rescue (encrypted DNS, clean CDN address, another fingerprint).
         if (_d.VerifyData)
         {
-            var sample = await _d.LiveProbe.ProbeAsync(session.Backend.Mode, result.LocalProxyPort, settings.Probe, ct).ConfigureAwait(false);
+            var sample = await _d.LiveProbe.ProbeAsync(session.Backend.Mode, result.LocalProxyPort, ProbeFor(profile, settings.Probe), ct).ConfigureAwait(false);
             if (!sample.Success)
             {
+                if (Cores.Hosting.DnsTunnel.IsDnsTunnel(profile))
+                {
+                    Cores.Hosting.DnsTunnel.ForgetResolver(profile); // the next attempt races the resolvers again
+                }
+
                 throw new ConnectionException($"The tunnel started but no data came back through {profile.DisplayName} ({sample.Failure}).");
             }
 
             await Swallow(() => _d.Health.RecordLiveSampleAsync(profile.Id, sample, CancellationToken.None)).ConfigureAwait(false);
         }
     }
+
+    /// <summary>A DNS tunnel answers in seconds, not milliseconds: its checks wait longer before calling it dead.</summary>
+    private static ProbeSettings ProbeFor(ProxyProfile? profile, ProbeSettings probe) =>
+        profile is not null && Cores.Hosting.DnsTunnel.IsDnsTunnel(profile) && probe.Timeout < Cores.Hosting.DnsTunnel.ProbeTimeout
+            ? probe with { Timeout = Cores.Hosting.DnsTunnel.ProbeTimeout }
+            : probe;
 
     private async Task OnConnectedAsync(Session session, IReadOnlyList<string> routingWarnings, AppSettings settings, bool isSwitch)
     {
@@ -1714,7 +1738,7 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
                 }
 
                 var epoch = session.Epoch;
-                var sample = await _d.LiveProbe.ProbeAsync(session.Backend.Mode, session.Start?.LocalProxyPort, settings.Probe, ct).ConfigureAwait(false);
+                var sample = await _d.LiveProbe.ProbeAsync(session.Backend.Mode, session.Start?.LocalProxyPort, ProbeFor(session.Profile, settings.Probe), ct).ConfigureAwait(false);
                 if (session.Epoch != epoch)
                 {
                     continue;
@@ -1850,10 +1874,59 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
             return;
         }
 
+        var before = EffectiveActivity;
         _detectedActivity = detected;
         var effective = EffectiveActivity;
         Log.LogInformation("Activity: {Detected} (effective {Effective}).", detected, effective);
         Publish(s => s with { Activity = effective });
+        if (effective == ActivityProfile.Gaming && before != ActivityProfile.Gaming)
+        {
+            _ = Task.Run(() => MoveToLowerPingForGameAsync(CancellationToken.None), CancellationToken.None);
+        }
+    }
+
+    /// <summary>
+    /// A game just started: move once to a clearly lower-ping healthy server (<see cref="GameModeEngine"/>). Same
+    /// limits as proactive moves: Smart sessions only, proactive switching on, owned (Jacki) nodes only. After this
+    /// the game is quiet and nothing optional moves the connection until it ends.
+    /// </summary>
+    private async Task MoveToLowerPingForGameAsync(CancellationToken ct)
+    {
+        try
+        {
+            await _op.WaitAsync(ct).ConfigureAwait(false);
+            try
+            {
+                var settings = _d.Settings();
+                if (_session is not { Profile: { } current } session || _state.State != ConnectionState.Connected
+                    || !session.Smart || !settings.Smart.ProactiveSwitching || !session.JackiSmart(current.Id))
+                {
+                    return;
+                }
+
+                var candidates = session.Pool.Where(p => session.OwnedIds.Contains(p.Id) && p.Id != current.Id).Select(p => _d.Health.Snapshot(p.Id));
+                var best = GameModeEngine.PickLowerPing(_d.Health.Snapshot(current.Id), candidates);
+                if (best is null || session.Pool.FirstOrDefault(p => p.Id == best.ProfileId) is not { } target)
+                {
+                    Log.LogInformation("Game mode: staying on {Server} (no clearly lower-ping server).", current.DisplayName);
+                    return;
+                }
+
+                var reason = $"game mode: {best.MedianLatencyMs:0} ms vs {_d.Health.Snapshot(current.Id).MedianLatencyMs:0} ms";
+                if (await SwitchLockedAsync(session, target, reason, ConnectionOutcome.FailedOver, ct).ConfigureAwait(false))
+                {
+                    _d.Notifications.Notify(NotificationCategory.AutomaticFailover, "🎮 Game mode", $"Moved to the lowest-ping server: {target.DisplayName}.");
+                }
+            }
+            finally
+            {
+                _op.Release();
+            }
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            Log.LogWarning("Game mode server check failed: {Error}", ex.Message);    // optional work: never disturbs the session
+        }
     }
 
     private FailoverDecision Decide(Session session, ProxyProfile current, AppSettings settings, bool proactive)
@@ -1921,7 +1994,7 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
             await Task.Delay(TimeSpan.FromSeconds(2), _d.Time, ct).ConfigureAwait(false);
             var settings = _d.Settings();
             var epoch = session.Epoch;
-            var sample = await _d.LiveProbe.ProbeAsync(session.Backend.Mode, session.Start?.LocalProxyPort, settings.Probe, ct).ConfigureAwait(false);
+            var sample = await _d.LiveProbe.ProbeAsync(session.Backend.Mode, session.Start?.LocalProxyPort, ProbeFor(session.Profile, settings.Probe), ct).ConfigureAwait(false);
             if (sample.Success)
             {
                 Publish(s => s with { LastError = null });

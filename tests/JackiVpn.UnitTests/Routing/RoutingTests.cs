@@ -118,7 +118,7 @@ public class RoutingTests
         var preset = RoutingPresets.Build(RoutingPreset.IranFriendly);
 
         preset.Rules.Should().Contain(r => r.Id == "ir-geoip-direct");
-        preset.Rules.Single(r => r.Id == "ir-ads-block").Enabled.Should().BeFalse();
+        preset.Rules.Single(r => r.Id == "ir-ads-block").Enabled.Should().BeTrue("ads are blocked by default");
         var edited = preset.Rules.Select(r => r.Id == "ir-tld-direct" ? r with { Action = RuleAction.Proxy } : r).ToList();
 
         var json = RulesPortability.Export(new RulesDocument { Rules = edited, RuleSets = preset.RuleSets });
@@ -127,6 +127,45 @@ public class RoutingTests
         validation.IsValid.Should().BeTrue(validation.ToString());
         doc!.Rules.Single(r => r.Id == "ir-tld-direct").Action.Should().Be(RuleAction.Proxy);
         doc.RuleSets.Should().HaveCount(3);
+    }
+
+    private static RoutingRule LegacyAdsRule(bool enabled = false, string name = "Block ads (optional)") => new()
+    {
+        Id = RoutingPresets.AdsRuleId,
+        Name = name,
+        Enabled = enabled,
+        Action = RuleAction.Block,
+        FromPreset = RoutingPreset.IranFriendly,
+        Conditions = [new RuleCondition(RuleConditionType.GeoSite, ["category-ads-all"])],
+    };
+
+    [Fact]
+    public void Old_untouched_ad_rule_is_switched_on_once()
+    {
+        var other = RoutingPresets.Build(RoutingPreset.IranFriendly).Rules.Single(r => r.Id == "ir-tld-direct");
+        var migrated = RoutingPresets.EnableAdBlockDefault([LegacyAdsRule(), other]);
+
+        migrated.Should().NotBeNull();
+        var ads = migrated!.Single(r => r.Id == RoutingPresets.AdsRuleId);
+        ads.Enabled.Should().BeTrue();
+        ads.Name.Should().Be(RoutingPresets.AdsRuleName);
+        migrated.Single(r => r.Id == "ir-tld-direct").Should().Be(other, "other rules stay exactly as they were");
+        RoutingPresets.EnableAdBlockDefault(migrated).Should().BeNull("it runs once: the renamed rule is no longer the old default");
+    }
+
+    [Fact]
+    public void Ad_rule_the_user_turned_off_after_the_move_is_left_alone()
+    {
+        RoutingPresets.EnableAdBlockDefault([LegacyAdsRule(enabled: false, name: RoutingPresets.AdsRuleName)]).Should().BeNull();
+    }
+
+    [Fact]
+    public void Renamed_or_hand_made_ad_rules_are_left_alone()
+    {
+        RoutingPresets.EnableAdBlockDefault([LegacyAdsRule(name: "my ads rule")]).Should().BeNull();
+        RoutingPresets.EnableAdBlockDefault([LegacyAdsRule() with { FromPreset = null }]).Should().BeNull();
+        RoutingPresets.EnableAdBlockDefault([LegacyAdsRule(enabled: true)]).Should().BeNull("already on");
+        RoutingPresets.EnableAdBlockDefault([]).Should().BeNull();
     }
 
     [Fact]

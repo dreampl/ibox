@@ -207,8 +207,9 @@ public sealed class ConnectionTuner
     {
         ArgumentNullException.ThrowIfNull(profile);
         var settings = _settings();
-        if (!settings.Performance.AutoTune)
+        if (!settings.Performance.AutoTune || Cores.Hosting.DnsTunnel.IsDnsTunnel(profile))
         {
+            // Nothing to tune on a DNS tunnel: no TLS handshake, no multiplexing.
             return false;
         }
 

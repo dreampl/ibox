@@ -17,11 +17,11 @@
     },
     {
       "id": "xray",
-      "version": "26.3.27",
-      "url": "https://github.com/XTLS/Xray-core/releases/download/v26.3.27/Xray-windows-64.zip",
-      "sha256": "d004c39288ce9ada487c6f398c7c545f7d749e44bdfdd59dbc9f865afba4e1ad",
+      "version": "26.10.31",
+      "url": "https://github.com/XTLS/Xray-core/releases/download/v26.10.31/Xray-windows-64.zip",
+      "sha256": "2e04a9995a6f2ad1b28c0bb25c708ecb2695e43a1c9c7889c4b6ac2b48cf7a6a",
       "license": "MPL-2.0",
-      "source": "https://github.com/XTLS/Xray-core/tree/v26.3.27",
+      "source": "https://github.com/XTLS/Xray-core/tree/v26.10.31",
       "files": [
         { "match": "xray.exe", "target": "xray.exe" },
         { "match": "geoip.dat", "target": "geoip.dat" },
@@ -40,6 +40,26 @@
       "files": [
         { "match": "wintun/bin/amd64/wintun.dll", "target": "wintun.dll", "authenticode": true },
         { "match": "wintun/LICENSE.txt", "target": "licenses/wintun-LICENSE.txt" }
+      ]
+    },
+    {
+      "id": "dnstt",
+      "version": "1.20260501.0",
+      "license": "Public domain (CC0-1.0)",
+      "source": "https://www.bamsoftware.com/git/dnstt.git",
+      "comment": "No upstream binaries: built from source by scripts/build-dnstt.ps1 with the pinned Go toolchain (modules verified by sum.golang.org).",
+      "build": {
+        "go": "1.27.3",
+        "goSha256": "f26081f438319757f8a1b46d7d0b2c5ec7583d4038e485e0aa725cfde7885fff",
+        "module": "www.bamsoftware.com/git/dnstt.git",
+        "package": "www.bamsoftware.com/git/dnstt.git/dnstt-client",
+        "outputs": {
+          "windows-amd64": "7ddd9cfc1ed5a085d1393b8c15e7fee3a76cebd0e1ae78d91633a4690ae346ea"
+        }
+      },
+      "files": [
+        { "match": "windows-amd64/dnstt-client.exe", "target": "dnstt-client.exe" },
+        { "match": "COPYING", "target": "licenses/dnstt-COPYING.txt", "optional": true }
       ]
     }
   ]

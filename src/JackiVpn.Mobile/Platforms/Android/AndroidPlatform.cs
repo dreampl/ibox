@@ -151,7 +151,7 @@ public sealed class AndroidKeystoreSecretProtector : ISecretProtector
 public static class AndroidCores
 {
     public const string SingBoxVersion = "1.14.2";
-    public const string XrayVersion = "26.3.27";
+    public const string XrayVersion = "26.10.31";
 
     public static CoreBinaryCatalog CreateCatalog(Context context, string dataDir)
     {

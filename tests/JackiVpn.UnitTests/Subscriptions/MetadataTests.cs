@@ -158,8 +158,35 @@ public class MetadataTests
     [Fact]
     public void Content_order_prefers_user_then_previous_then_defaults()
     {
-        PasarGuardEndpoints.ContentOrder("links", "xray").Should().StartWith(["xray", "links", "sing_box"]);
-        PasarGuardEndpoints.ContentOrder(null, "info").First().Should().Be("sing_box", "meta endpoints are not content endpoints");
+        PasarGuardEndpoints.ContentOrder("links", "clash_meta").Should().StartWith(["clash_meta", "links", "xray"]);
+        PasarGuardEndpoints.ContentOrder(null, "info").First().Should().Be("xray", "meta endpoints are not content endpoints");
+    }
+
+    [Fact]
+    public void Xray_comes_before_sing_box_because_the_panel_drops_xhttp_from_sing_box()
+    {
+        var order = PasarGuardEndpoints.ContentOrder(null, null).ToList();
+
+        order.Should().StartWith(["xray", "links", "links_base64"]);
+        order.IndexOf("xray").Should().BeLessThan(order.IndexOf("sing_box"));
+        order.Should().Contain("sing_box", "sing_box stays as a fallback when the other formats fail");
+    }
+
+    [Fact]
+    public void A_remembered_sing_box_no_longer_jumps_the_queue()
+    {
+        // Users upgraded from the old order have sing_box remembered as the endpoint that worked last.
+        var order = PasarGuardEndpoints.ContentOrder("sing_box", null);
+
+        order.First().Should().Be("xray");
+        order.Should().Contain("sing_box");
+    }
+
+    [Fact]
+    public void Sing_box_chosen_in_the_url_is_still_respected()
+    {
+        PasarGuardEndpoints.ContentOrder("sing_box", "sing_box").First().Should().Be("sing_box");
+        PasarGuardEndpoints.ContentOrder("links", null).First().Should().Be("links", "any other remembered endpoint still goes first");
     }
 
     [Fact]

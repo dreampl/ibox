@@ -16,6 +16,12 @@ public enum ProxyProtocol
     Hysteria2,
     Tuic,
     WireGuard,
+
+    /// <summary>
+    /// DNS tunnel (dnstt): the dnstt client sends the stream as DNS queries through a recursive resolver to the
+    /// server's domain; a SOCKS5 proxy (optional user/password) waits at the far end. TCP only.
+    /// </summary>
+    Dnstt,
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<TransportType>))]
@@ -302,6 +308,19 @@ public sealed record WireGuardOptions
     public int? PersistentKeepaliveSeconds { get; init; }
 }
 
+public sealed record DnsttOptions
+{
+    /// <summary>Server's Noise public key: 32 bytes as 64 hex characters (not secret).</summary>
+    public required string PublicKey { get; init; }
+
+    /// <summary>
+    /// The resolver(s) the queries go to: <c>ip[:port]</c> (plain UDP DNS, port 53 by default), <c>https://…</c>
+    /// (DoH), <c>tls://host[:port]</c> (DoT, port 853 by default), <c>system</c> (the network's own DNS) or
+    /// <c>auto</c>. Several, separated by commas, are tried together; the first in the list that works is used.
+    /// </summary>
+    public required string Resolver { get; init; }
+}
+
 public sealed record ProfileOrigin
 {
     public ProfileOriginKind Kind { get; init; } = ProfileOriginKind.Manual;
@@ -358,6 +377,8 @@ public sealed record ProxyProfile
     public TuicOptions? Tuic { get; init; }
 
     public WireGuardOptions? WireGuard { get; init; }
+
+    public DnsttOptions? Dnstt { get; init; }
 
     public IpPreference IpPreference { get; init; } = IpPreference.Default;
 

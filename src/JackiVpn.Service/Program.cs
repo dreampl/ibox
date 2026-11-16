@@ -246,7 +246,7 @@ static async Task<int> RunHostAsync(string[] args, bool console)
     s.AddSingleton(_ => new NetworkStateJournal(paths.ServiceJournalPath));
     s.AddSingleton<IKillSwitch>(sp => new WfpKillSwitch(sp.GetRequiredService<ILoggerFactory>().CreateLogger("JackiVpn.KillSwitch")));
     s.AddSingleton(sp => new WinHttpProxyManager(new WinHttpProxyApi(), sp.GetRequiredService<NetworkStateJournal>(), sp.GetRequiredService<ILoggerFactory>().CreateLogger("JackiVpn.WinHttp")));
-    s.AddSingleton(sp => new SessionPlanFactory(sp.GetRequiredService<CoreBinaryCatalog>()) { FlushDns = static () => JackiVpn.Networking.Adapters.NetworkInspector.FlushDnsCache() });
+    s.AddSingleton(sp => new SessionPlanFactory(sp.GetRequiredService<CoreBinaryCatalog>()) { FlushDns = static () => JackiVpn.Networking.Adapters.NetworkInspector.FlushDnsCache(), Logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("JackiVpn.DnsTunnel") });
     s.AddSingleton(sp =>
     {
         var catalog = sp.GetRequiredService<CoreBinaryCatalog>();

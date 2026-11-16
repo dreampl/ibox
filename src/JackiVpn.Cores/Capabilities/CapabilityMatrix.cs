@@ -12,6 +12,9 @@ public static class CapabilityMatrix
 
     public static readonly Version MinXray = new(1, 8, 0);
 
+    /// <summary>Xray after 26.3.27 refuses to start with plain (no TLS, no encryption) VLESS to a public address.</summary>
+    public static readonly Version XrayPlainVlessRefused = new(26, 4, 0);
+
     public static CoreCapabilities ForSingBox(CoreVersionInfo v)
     {
         ArgumentNullException.ThrowIfNull(v);
@@ -144,6 +147,13 @@ public static class CapabilityMatrix
             && (!string.IsNullOrEmpty(t.KcpSeed) || t.HeaderType is { Length: > 0 } ht && !ht.Equals("none", StringComparison.OrdinalIgnoreCase)))
         {
             Block(CoreFeature.Kcp, $"Xray {caps.Version.DisplayVersion} removed mKCP header/seed (replaced by FinalMask); this legacy mKCP profile cannot be used.");
+        }
+
+        if (p.Protocol == ProxyProtocol.Vless && caps.Kind == CoreKind.Xray && caps.Version.Version >= XrayPlainVlessRefused && !p.Tls.Enabled
+            && p.Credentials.Encryption is null or "" or "none"
+            && !(System.Net.IPAddress.TryParse(p.Server, out var ip) && JackiVpn.Domain.Common.NetText.IsPrivateOrLocal(ip)))
+        {
+            Block(CoreFeature.Vless, $"Xray {caps.Version.DisplayVersion} refuses VLESS without TLS to a public server; sing-box carries it.");
         }
 
         if (t.Type == TransportType.Quic && caps.Kind == CoreKind.SingBox)

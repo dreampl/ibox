@@ -155,6 +155,29 @@ public static partial class ProfileValidator
                 }
 
                 break;
+            case ProxyProtocol.Dnstt:
+                if (p.Dnstt is null)
+                {
+                    r.Error("Dnstt", "DNS tunnel settings are missing.");
+                    break;
+                }
+
+                if (NetText.IsIpLiteral(p.Server) || !NetText.IsValidHostName(p.Server))
+                {
+                    r.Error(nameof(p.Server), "The DNS tunnel needs the tunnel's domain name (e.g. t.example.com), not an address.");
+                }
+
+                if (!DnsttResolver.IsPublicKey(p.Dnstt.PublicKey))
+                {
+                    r.Error("Dnstt.PublicKey", "Public key must be 64 hex characters.");
+                }
+
+                if (DnsttResolver.ParseList(p.Dnstt.Resolver) is null)
+                {
+                    r.Error("Dnstt.Resolver", "Resolver must be auto, system, an IP address (1.2.3.4 or 1.2.3.4:53), https://… (DoH) or tls://host (DoT); several are separated by commas.");
+                }
+
+                break;
         }
 
         ValidateTransport(r, p.Transport);

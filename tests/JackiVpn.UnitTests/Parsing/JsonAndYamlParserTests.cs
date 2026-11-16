@@ -98,6 +98,58 @@ public class JsonAndYamlParserTests
         p.Extensions!["sockopt"]!["tcpKeepAliveIdle"]!.GetValue<int>().Should().Be(100);
     }
 
+    // PasarGuard's /xray output for a Hysteria 2 host (shape copied from the live panel, secret replaced).
+    private const string XrayHysteria2 = """
+        [{"remarks": "🇺🇸 🎮 Gaming 🏠", "outbounds": [
+          {"protocol": "hysteria", "tag": "proxy", "settings": {"version": 2, "address": "172.86.111.133", "port": 443},
+           "streamSettings": {"network": "hysteria", "security": "tls",
+             "tlsSettings": {"serverName": "shop.jacki-inc.ir", "fingerprint": "chrome", "alpn": ["h3"]},
+             "hysteriaSettings": {"version": 2, "auth": "s3cret-auth"}}},
+          {"protocol": "freedom", "tag": "direct"}]}]
+        """;
+
+    [Fact]
+    public void Xray_hysteria2_outbound_becomes_a_hysteria2_profile()
+    {
+        var r = Parse(XrayHysteria2);
+
+        r.Issues.Should().BeEmpty();
+        var p = r.Profiles.Should().ContainSingle().Subject;
+        p.Name.Should().Be("🇺🇸 🎮 Gaming 🏠");
+        p.Protocol.Should().Be(ProxyProtocol.Hysteria2);
+        p.Server.Should().Be("172.86.111.133");
+        p.Port.Should().Be(443);
+        p.Credentials.Password.Should().Be("s3cret-auth");
+        p.Tls.Enabled.Should().BeTrue();
+        p.Tls.ServerName.Should().Be("shop.jacki-inc.ir");
+        p.Tls.Alpn.Should().Equal("h3");
+    }
+
+    [Fact]
+    public void Xray_hysteria2_matches_the_same_hysteria2_link()
+    {
+        var fromXray = Parse(XrayHysteria2).Profiles.Single();
+        var fromLink = Link("hysteria2://s3cret-auth@172.86.111.133:443?sni=shop.jacki-inc.ir&alpn=h3#%F0%9F%87%BA%F0%9F%87%B8%20%F0%9F%8E%AE%20Gaming%20%F0%9F%8F%A0");
+
+        fromXray.Fingerprint.Should().Be(fromLink.Fingerprint, "the same server must merge, not duplicate, when the endpoint changes");
+        fromXray.Credentials.Password.Should().Be(fromLink.Credentials.Password);
+        fromXray.Tls.ServerName.Should().Be(fromLink.Tls.ServerName);
+    }
+
+    [Fact]
+    public void Xray_hysteria_with_finalmask_or_v1_is_skipped_not_broken()
+    {
+        var masked = XrayHysteria2.Replace("\"hysteriaSettings\"", "\"finalmask\": {\"udp\": [{\"type\": \"salamander\"}]}, \"hysteriaSettings\"", StringComparison.Ordinal);
+        var v1 = XrayHysteria2.Replace("\"version\": 2, \"address\"", "\"version\": 1, \"address\"", StringComparison.Ordinal);
+
+        foreach (var json in new[] { masked, v1 })
+        {
+            var r = Parse(json);
+            r.Profiles.Should().BeEmpty();
+            r.Issues.Should().NotBeEmpty();
+        }
+    }
+
     [Fact]
     public void PasarGuard_xray_array_of_configs()
     {
