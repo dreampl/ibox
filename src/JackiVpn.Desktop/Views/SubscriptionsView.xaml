@@ -66,6 +66,7 @@
                                     <StackPanel>
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" />
+                                            <Border Style="{StaticResource NexBadge}" Margin="10,0,0,0" Visibility="{Binding IsNex, Converter={StaticResource Bool2Vis}}"><TextBlock Text="Nex" FontSize="11" FontWeight="SemiBold" Foreground="#F2F2FF" /></Border>
                                             <Border Background="{DynamicResource B.AccentGradient}" CornerRadius="8" Padding="8,1" Margin="10,0,0,0" VerticalAlignment="Center"
                                                     Visibility="{Binding IsOfficial, Converter={StaticResource Bool2Vis}}" ToolTip="Official Jacki subscription (verified over HTTPS)">
                                                 <TextBlock Text="✓ Official" FontSize="11" FontWeight="SemiBold" Foreground="White" />

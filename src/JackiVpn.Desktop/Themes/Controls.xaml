@@ -895,4 +895,21 @@
     <Style x:Key="Row" TargetType="Grid">
         <Setter Property="Margin" Value="0,0,0,14" />
     </Style>
+    <!-- Nex service badge: a static gradient pill (no looping animation, so it costs nothing while shown). -->
+    <Style x:Key="NexBadge" TargetType="Border">
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="8,1" />
+        <Setter Property="Margin" Value="8,0,0,0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="ToolTip" Value="Nex: 3 locations, faster speeds, Iranian sites and apps, V2Ray + AmneziaWG" />
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+                    <GradientStop Color="#663E618A" Offset="0" />
+                    <GradientStop Color="#C04C99D8" Offset="0.5" />
+                    <GradientStop Color="#A05C4C9B" Offset="1" />
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+    </Style>
 </ResourceDictionary>
