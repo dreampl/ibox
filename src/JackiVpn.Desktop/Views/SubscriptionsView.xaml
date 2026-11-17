@@ -50,6 +50,10 @@
                     <DataTemplate DataType="{x:Type vm:SubscriptionItem}">
                         <v:ClaySurface>
                             <StackPanel>
+                                <WrapPanel Margin="0,0,0,8" Visibility="{Binding IsNex, Converter={StaticResource Bool2Vis}}">
+                                    <Button Content="Manage Nex subscription" Click="OnNexManagementClick" Margin="0,0,6,0" />
+                                    <Button Content="AmneziaWG" Click="OnNexAmneziaClick" />
+                                </WrapPanel>
                                 <DockPanel>
                                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
                                         <Button Content="Update" Margin="0,0,6,0"

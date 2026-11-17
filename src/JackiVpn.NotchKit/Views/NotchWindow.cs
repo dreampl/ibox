@@ -663,7 +663,7 @@ public sealed partial class NotchWindow : Window
         }
 
         _ping.Foreground = new SolidColorBrush(ping is null ? Color.FromRgb(0x6B, 0x72, 0x80) : pingColor);
-        _server.Text = !ConnectionVisible ? IdleText : connected ? st.ProfileName ?? "—" : st.State == ConnectionState.Faulted ? st.LastError ?? "Connection failed" : "Click the eye to open IBOX";
+        _server.Text = !ConnectionVisible ? IdleText : connected ? st.ProfileName ?? "—" : st.State == ConnectionState.Faulted ? st.LastError ?? "Connection failed" : "Click the eye to connect";
         _extra.Text = ExtraLine ?? string.Empty;
         _extra.Visibility = string.IsNullOrEmpty(ExtraLine) ? Visibility.Collapsed : Visibility.Visible;
         _where.Text = connected
@@ -943,6 +943,13 @@ public sealed partial class NotchWindow : Window
             return;
         }
 
+        var eyePoint = e.GetPosition(_eye);
+        var onEye = ConnectionVisible && new Rect(_eye.RenderSize).Contains(eyePoint);
+        if (e.ClickCount > 1 && onEye)
+        {
+            return;
+        }
+
         if (e.ClickCount == 2)
         {
             OpenRequested?.Invoke(this, EventArgs.Empty);
@@ -953,6 +960,7 @@ public sealed partial class NotchWindow : Window
         {
             _dragging = true;
             _dragMoved = false;
+            _eyePressed = onEye;
             _dragStartCursor = p.X;
             _dragStartY = p.Y;
             _dragStartCenter = _center;
@@ -966,6 +974,7 @@ public sealed partial class NotchWindow : Window
     }
 
     private double _dragStartY;
+    private bool _eyePressed;
     private double _pressU = 0.5;
 
     private void OnDrag(object sender, MouseEventArgs e)
@@ -1021,6 +1030,10 @@ public sealed partial class NotchWindow : Window
             return;
         }
 
+        var toggle = _eyePressed && !_dragMoved && ScreenCursor.TryGet(out var p)
+            && Math.Abs(p.X - _dragStartCursor) <= 4 * ScreenScale()
+            && Math.Abs(p.Y - _dragStartY) <= 4 * ScreenScale();
+        _eyePressed = false;
         _dragging = false;
         _pill.ReleaseMouseCapture();
 
@@ -1041,6 +1054,10 @@ public sealed partial class NotchWindow : Window
         {
             // A tap: the eye reacts (double blink and a hop).
             _eye.Eye.Poke(); _eye.Wake();
+            if (toggle && ConnectionVisible && _status.State != ConnectionState.Disconnecting)
+            {
+                ToggleRequested?.Invoke(this, EventArgs.Empty);
+            }
         }
     }
 

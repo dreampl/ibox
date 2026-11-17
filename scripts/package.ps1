@@ -19,7 +19,8 @@
 param(
     [switch]$SkipWindows,
     [switch]$SkipAndroid,
-    [switch]$SkipTests
+    [switch]$SkipTests,
+    [string]$OutputRoot
 )
 
 $ErrorActionPreference = 'Stop'
@@ -28,8 +29,10 @@ $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Initialize-Dotnet
 
 $version = ([xml](Get-Content (Join-Path $root 'Directory.Build.props') -Raw)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
-$release = Join-Path $root "artifacts\release\$version"
-$publish = Join-Path $root "artifacts\publish\$version"
+if (-not $OutputRoot) { $OutputRoot = Join-Path $root 'artifacts' }
+$OutputRoot = [IO.Path]::GetFullPath($OutputRoot)
+$release = Join-Path $OutputRoot "release\$version"
+$publish = Join-Path $OutputRoot "publish\$version"
 New-Item -ItemType Directory -Force $release | Out-Null
 
 Push-Location $root

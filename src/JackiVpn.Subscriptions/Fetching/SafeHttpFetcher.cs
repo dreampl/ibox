@@ -43,6 +43,7 @@ public sealed record FetchRequest
 {
     public required Uri Url { get; init; }
     public HttpMethod Method { get; init; } = HttpMethod.Get;
+    public string? JsonBody { get; init; }
     public string? IfNoneMatch { get; init; }
     public string? IfModifiedSince { get; init; }
 
@@ -141,6 +142,10 @@ public sealed class SafeHttpFetcher : IHttpFetcher, IDisposable
             for (var hop = 0; ; hop++)
             {
                 using var msg = new HttpRequestMessage(method, current);
+                if (request.JsonBody is { } json)
+                {
+                    msg.Content = new StringContent(json, Encoding.UTF8, "application/json");
+                }
                 msg.Options.Set(OriginKey, origin!);
                 msg.Headers.TryAddWithoutValidation("User-Agent", request.UserAgent);
                 msg.Headers.TryAddWithoutValidation("Accept", request.Accept);
@@ -172,6 +177,11 @@ public sealed class SafeHttpFetcher : IHttpFetcher, IDisposable
                 var status = (int)response.StatusCode;
                 if (status is 301 or 302 or 303 or 307 or 308)
                 {
+                    if (request.JsonBody is not null)
+                    {
+                        throw new FetchException(FetchFailureKind.Blocked, "Redirects are blocked for JSON requests.", status);
+                    }
+
                     var location = response.Headers.Location;
                     var target = location is null ? null : location.IsAbsoluteUri ? location : new Uri(current, location);
                     var redirectCheck = UrlSafetyPolicy.ValidateRedirect(origin!, current, target, hop + 1);

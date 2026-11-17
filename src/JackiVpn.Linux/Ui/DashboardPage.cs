@@ -820,7 +820,7 @@ public sealed class DashboardPage(Shell shell) : Page(shell)
     {
         var subs = await S.Subscriptions.GetAllAsync(Shell.Lifetime.Token);
         _plan.Children.Clear();
-        var sub = subs.FirstOrDefault(x => x.Enabled);
+        var sub = subs.FirstOrDefault(x => x.Enabled && x.IsNex) ?? subs.FirstOrDefault(x => x.Enabled);
         if (sub is null)
         {
             return;
@@ -868,10 +868,56 @@ public sealed class DashboardPage(Shell shell) : Page(shell)
                 },
             },
         };
+        if (sub.IsNex)
+        {
+            info.Children.Insert(0, Badge("NEX", Color.Parse("#9A8CEB")));
+            info.Children.Add(new TextBlock { Text = "3 locations · Higher speed · Iranian sites and apps · V2Ray and AmneziaWG", FontSize = 12, Foreground = B(Text2), Margin = new Thickness(0, 4, 0, 0), TextWrapping = TextWrapping.Wrap });
+        }
+
         var strip = Clay(new DockPanel { Children = { chevron, pill, tile, info } }, new Thickness(18, 14), 24);
+        if (sub.IsNex)
+        {
+            strip.BorderThickness = new Thickness(1);
+            var start = DateTime.UtcNow;
+            void UpdateTrim()
+            {
+                var angle = (DateTime.UtcNow - start).TotalSeconds * Math.PI / 8;
+                var x = Math.Cos(angle) * 0.5;
+                var y = Math.Sin(angle) * 0.5;
+                strip.BorderBrush = new LinearGradientBrush
+                {
+                    StartPoint = new RelativePoint(0.5 - x, 0.5 - y, RelativeUnit.Relative),
+                    EndPoint = new RelativePoint(0.5 + x, 0.5 + y, RelativeUnit.Relative),
+                    GradientStops = { new GradientStop(Color.Parse("#887EC8F0"), 0), new GradientStop(Color.Parse("#889A8CEB"), 1) },
+                };
+            }
+            var timer = new DispatcherTimer(TimeSpan.FromMilliseconds(250), DispatcherPriority.Background, (_, _) => UpdateTrim());
+            strip.AttachedToVisualTree += (_, _) => { UpdateTrim(); timer.Start(); };
+            strip.DetachedFromVisualTree += (_, _) => timer.Stop();
+        }
         strip.Margin = new Thickness(0, 20, 0, 0);
         strip.Cursor = new Cursor(StandardCursorType.Hand);
-        strip.PointerPressed += (_, _) => Shell.Navigate(Shell.Subscriptions);
+        strip.PointerPressed += (_, _) =>
+        {
+            if (sub.IsNex)
+            {
+                _ = Guard(async () =>
+                {
+                    var uri = await S.SubscriptionService.GetNexManagementUriAsync(sub.Id, Shell.Lifetime.Token);
+                    if (uri is null)
+                    {
+                        Shell.Toast("NEX", "Management link is unavailable.", warning: true);
+                        return;
+                    }
+
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("xdg-open", uri.AbsoluteUri) { UseShellExecute = false })?.Dispose();
+                });
+            }
+            else
+            {
+                Shell.Navigate(Shell.Subscriptions);
+            }
+        };
         _plan.Children.Add(strip);
     }
 

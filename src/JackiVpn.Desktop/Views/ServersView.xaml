@@ -183,6 +183,16 @@
                             <StackPanel VerticalAlignment="Center">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxWidth="420" />
+                                    <Border Visibility="{Binding IsNex, Converter={StaticResource Bool2Vis}}" CornerRadius="8" Padding="8,1" Margin="8,0,0,0" VerticalAlignment="Center" ToolTip="Nex: 3 locations, faster speeds, Iranian sites and apps, V2Ray + AmneziaWG">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+                                                <GradientStop Color="#243E618A" Offset="0" /><GradientStop Color="#854C99D8" Offset="0.48" /><GradientStop Color="#685C4C9B" Offset="0.55" /><GradientStop Color="#243E618A" Offset="1" />
+                                                <LinearGradientBrush.RelativeTransform><RotateTransform CenterX="0.5" CenterY="0.5" /></LinearGradientBrush.RelativeTransform>
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                        <Border.Triggers><EventTrigger RoutedEvent="Loaded"><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetProperty="(Border.Background).(Brush.RelativeTransform).(RotateTransform.Angle)" From="0" To="360" Duration="0:0:24" RepeatBehavior="Forever" /></Storyboard></BeginStoryboard></EventTrigger></Border.Triggers>
+                                        <TextBlock Text="Nex" FontSize="11" FontWeight="SemiBold" Foreground="#E8E8FF" />
+                                    </Border>
                                     <Border Background="{DynamicResource B.AccentGradient}" CornerRadius="8" Padding="7,1" Margin="8,0,0,0" VerticalAlignment="Center"
                                             Visibility="{Binding IsOfficial, Converter={StaticResource Bool2Vis}}" ToolTip="Official Jacki server (verified official subscription)">
                                         <TextBlock Text="✓ Official" FontSize="11" FontWeight="SemiBold" Foreground="White" />

@@ -3,6 +3,7 @@
              xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:controls="clr-namespace:JackiVpn.Mobile.Controls"
+             xmlns:views="clr-namespace:JackiVpn.Mobile.Views"
              xmlns:loc="clr-namespace:JackiVpn.Mobile.Localization"
              xmlns:vm="clr-namespace:JackiVpn.Mobile.ViewModels"
              x:DataType="vm:HomeViewModel">
@@ -61,12 +62,19 @@
         <Border x:Name="InfoCard" Grid.Row="3" BackgroundColor="{StaticResource Surface}" Stroke="{StaticResource Stroke}" StrokeShape="RoundRectangle 24"
                 Padding="16,14" Margin="0,0,0,104">
             <VerticalStackLayout Spacing="12">
+                <Grid IsVisible="{Binding NexServiceAvailable}" ColumnDefinitions="Auto,*" ColumnSpacing="9">
+                    <views:NexBadge IsVisible="{Binding NexServiceAvailable}" />
+                    <Label Grid.Column="1" Text="{Binding NexPerks}" Style="{StaticResource Caption}" FontSize="10" MaxLines="2" LineBreakMode="TailTruncation" VerticalOptions="Center" />
+                </Grid>
                 <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
                     <Border WidthRequest="42" HeightRequest="42" StrokeShape="RoundRectangle 21" StrokeThickness="0" BackgroundColor="{StaticResource Surface2}">
                         <Label x:Name="FlagLabel" Text="{Binding LocationFlag}" FontSize="22" HorizontalOptions="Center" VerticalOptions="Center" />
                     </Border>
                     <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="1">
-                        <Label Text="{Binding LocationTitle}" Style="{StaticResource Value}" LineBreakMode="TailTruncation" />
+                        <HorizontalStackLayout Spacing="7">
+                            <Label Text="{Binding LocationTitle}" Style="{StaticResource Value}" LineBreakMode="TailTruncation" />
+                            <views:NexBadge IsVisible="{Binding ServerIsNex}" />
+                        </HorizontalStackLayout>
                         <Label Text="{Binding LocationSubtitle}" Style="{StaticResource Caption}" LineBreakMode="TailTruncation" />
                     </VerticalStackLayout>
                     <Button Grid.Column="2" Style="{StaticResource Pill}" Text="{loc:T Home_Change}" Command="{Binding ChooseServerCommand}" VerticalOptions="Center" />

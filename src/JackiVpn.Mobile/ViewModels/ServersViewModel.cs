@@ -23,16 +23,18 @@ public sealed partial class ServerItem : ObservableObject
     [ObservableProperty] private bool _isTesting;
     [ObservableProperty] private string? _countryCode;
 
-    public ServerItem(ProxyProfile profile, NodeHealthSnapshot health, string group, bool isOfficial = false)
+    public ServerItem(ProxyProfile profile, NodeHealthSnapshot health, string group, bool isOfficial = false, bool isNex = false)
     {
         _profile = profile;
         _health = health;
         Group = group;
         IsOfficial = isOfficial;
+        IsNex = isNex;
     }
 
     /// <summary>From an official provider subscription (verified over HTTPS).</summary>
     public bool IsOfficial { get; }
+    public bool IsNex { get; }
 
     /// <summary>Measured fast (Excellent/Good) — shown only when a test backs it.</summary>
     public bool IsFast => Health.Label is HealthLabel.Excellent or HealthLabel.Good;
@@ -128,7 +130,7 @@ public sealed partial class ServerItem : ObservableObject
 }
 
 /// <summary>Servers of one subscription (or "Manual"); collapsible.</summary>
-public sealed class ServerGroup(string name, bool official, IReadOnlyList<ServerItem> items) : ObservableCollection<ServerItem>(items)
+public sealed class ServerGroup(string name, bool official, bool nex, IReadOnlyList<ServerItem> items) : ObservableCollection<ServerItem>(items)
 {
     private readonly IReadOnlyList<ServerItem> _all = items;
     private bool _isExpanded = true;
@@ -136,6 +138,7 @@ public sealed class ServerGroup(string name, bool official, IReadOnlyList<Server
     public string Name { get; } = name;
 
     public bool IsOfficial { get; } = official;
+    public bool IsNex { get; } = nex;
 
     public int Total => _all.Count;
 
@@ -254,7 +257,7 @@ public sealed partial class ServersViewModel : ObservableObject
         _all = profiles.Select(p =>
         {
             var sub = p.Origin.SubscriptionId is { } sid && subs.TryGetValue(sid, out var s) ? s : null;
-            var item = new ServerItem(p, _s.Health.Snapshot(p.Id), sub?.Name ?? "Manual", sub?.IsOfficial == true)
+            var item = new ServerItem(p, _s.Health.Snapshot(p.Id), sub?.Name ?? "Manual", sub?.IsOfficial == true, sub?.IsNex == true)
             {
                 IsDefault = p.Id == selectedId,
                 IsActive = p.Id == active,
@@ -300,7 +303,7 @@ public sealed partial class ServersViewModel : ObservableObject
         Groups.Clear();
         foreach (var g in list.GroupBy(i => i.Group).OrderByDescending(g => g.Any(i => i.IsOfficial)).ThenBy(g => g.Key == "Manual").ThenBy(g => g.Key, StringComparer.CurrentCultureIgnoreCase))
         {
-            var group = new ServerGroup(g.Key == "Manual" ? Localization.L.Get("Srv_Manual") : g.Key, g.Any(i => i.IsOfficial), g.ToList());
+            var group = new ServerGroup(g.Key == "Manual" ? Localization.L.Get("Srv_Manual") : g.Key, g.Any(i => i.IsOfficial), g.Any(i => i.IsNex), g.ToList());
             if (collapsed.Contains(group.Name))
             {
                 group.Toggle();

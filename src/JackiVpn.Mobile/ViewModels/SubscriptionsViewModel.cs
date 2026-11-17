@@ -260,6 +260,12 @@ public sealed partial class SubscriptionsViewModel : ObservableObject
             ("sync", L.Get("Sub_SendToDevice"), "sync", false),
             ("rename", L.Get("Act_Rename"), "edit", false),
         };
+        if (item.Model.IsNex)
+        {
+            actions.Insert(0, ("nexpage", L.Get("Sub_NexPage"), "edit", false));
+            actions.Insert(0, ("nexamnezia", "AmneziaWG", "devices", false));
+        }
+
         if (!item.IsOfficial)
         {
             actions.Add((item.SendsDeviceId ? "idoff" : "idon", L.Get(item.SendsDeviceId ? "Sub_StopDeviceId" : "Sub_SendDeviceId"), "fingerprint", false));
@@ -268,7 +274,11 @@ public sealed partial class SubscriptionsViewModel : ObservableObject
         actions.Add(("delete", L.Get("Act_Delete"), "trash", true));
         var choice = await Controls.Sheets.ActionsAsync(item.Name, [.. actions]);
         switch (choice)
-        {            case "update":
+        {
+            case "nexpage" or "nexamnezia":
+                await OpenNexAsync(item, choice == "nexamnezia");
+                break;
+            case "update":
                 await RefreshOneAsync(item);
                 break;
             case "check":
@@ -310,6 +320,43 @@ public sealed partial class SubscriptionsViewModel : ObservableObject
                 }
 
                 break;
+        }
+    }
+
+    private async Task OpenNexAsync(SubscriptionItem item, bool showAmnezia)
+    {
+        try
+        {
+            if (!showAmnezia)
+            {
+                var uri = await _s.SubscriptionService.GetNexManagementUriAsync(item.Id, _s.Lifetime);
+                if (uri is null || !await Browser.Default.OpenAsync(uri, BrowserLaunchMode.External))
+                {
+                    Message = L.Get("Sub_NexUnavailable");
+                }
+
+                return;
+            }
+
+            var configs = await _s.SubscriptionService.GetNexAmneziaConfigsAsync(item.Id, _s.Lifetime);
+            if (configs.Count == 0)
+            {
+                Message = L.Get("Sub_NexUnavailable");
+                return;
+            }
+
+            var labels = configs.Select((config, index) => $"{index + 1}. {config.Location} {config.Label}".Trim()).ToArray();
+            var choice = await Shell.Current.DisplayActionSheetAsync("AmneziaWG", L.Get("Cancel"), null, labels);
+            var selected = Array.IndexOf(labels, choice);
+            if (selected >= 0 && await Shell.Current.DisplayAlertAsync("AmneziaWG", L.Get("Sub_NexCopyHint"), L.Get("Sub_NexCopy"), L.Get("Cancel")))
+            {
+                await Clipboard.Default.SetTextAsync(configs[selected].Key!);
+                Message = L.Get("Sub_NexCopied");
+            }
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            Message = L.Get("Sub_NexUnavailable");
         }
     }
 }

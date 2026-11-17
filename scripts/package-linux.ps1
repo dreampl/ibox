@@ -7,6 +7,8 @@
   their official GitHub releases and verified (sing-box: GitHub's SHA-256 asset digest; Xray: its .dgst file);
   their hashes go into cores\manifest.json, which the app checks before every launch.
 #>
+param([string]$OutputRoot)
+
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
@@ -17,7 +19,9 @@ Initialize-Dotnet
 $singBoxVersion = '1.14.2'
 $xrayVersion = '26.10.31'
 $version = ([xml](Get-Content (Join-Path $root 'Directory.Build.props') -Raw)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
-$work = Join-Path $root "artifacts\publish\$version\linux"
+if (-not $OutputRoot) { $OutputRoot = Join-Path $root 'artifacts' }
+$OutputRoot = [IO.Path]::GetFullPath($OutputRoot)
+$work = Join-Path $OutputRoot "publish\$version\linux"
 $stage = Join-Path $work 'pkg'
 $app = Join-Path $stage 'opt\jackivpn'
 $dl = Join-Path $root 'cores\linux-download'
@@ -75,6 +79,6 @@ $manifest = [ordered]@{
 Copy-Item THIRD_PARTY_NOTICES.txt $app
 
 Write-Step 'Building the .deb'
-$out = Join-Path $root "artifacts\release\$version"
+$out = Join-Path $OutputRoot "release\$version"
 Invoke-Dotnet run scripts\make-deb.cs -- $stage $version $out
 Get-ChildItem $out | Where-Object { $_.Name -clike 'jackivpn*' } | ForEach-Object { '{0,-44} {1,8:N1} MB  {2}' -f $_.Name, ($_.Length / 1MB), (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLowerInvariant() }

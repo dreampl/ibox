@@ -38,6 +38,10 @@ public sealed partial class HomeViewModel : ObservableObject
     [ObservableProperty] private string? _selectionReason;
     [ObservableProperty] private string? _lastError;
     [ObservableProperty] private string _selectionText = "Smart: fastest working server";
+    [ObservableProperty] private bool _serverIsNex;
+    [ObservableProperty] private bool _nexServiceAvailable;
+    public string NexPerks => L.Get("Nex_Perks");
+    private string? _nexProfileId;
     [ObservableProperty] private bool _jackiSmart;
     [ObservableProperty] private bool _isSpeedTesting;
     [ObservableProperty] private double _speedFraction;
@@ -63,8 +67,14 @@ public sealed partial class HomeViewModel : ObservableObject
             OnPropertyChanged(nameof(SmartMode));
             _ = RefreshSelectionAsync();
         });
+        services.SubscriptionService.Updated += (_, _) => Fmt.OnUi(() =>
+        {
+            _ = RefreshNexServiceAsync();
+            _ = RefreshNexProfileAsync(_nexProfileId, true);
+        });
         Apply(services.Orchestrator.Status);
         _ = RefreshSelectionAsync();
+        _ = RefreshNexServiceAsync();
         services.Traffic.Changed += (_, _) => Fmt.OnUi(Refresh);
         services.Usage.Updated += (_, _) =>
         {
@@ -184,6 +194,7 @@ public sealed partial class HomeViewModel : ObservableObject
     /// <summary>Re-reads every text after a language switch.</summary>
     public void Relocalize()
     {
+        OnPropertyChanged(nameof(NexPerks));
         Apply(_s.Orchestrator.Status);
         _ = RefreshSelectionAsync();
     }
@@ -362,6 +373,7 @@ public sealed partial class HomeViewModel : ObservableObject
         SelectionReason = st.SelectionReason;
         JackiSmart = st.JackiSmartConnectActive;
         _last = st;
+        _ = RefreshNexProfileAsync(st.State == ConnectionState.Connected ? st.ProfileId : _s.Settings.Current.Connection.SmartMode ? null : _s.Settings.Current.Connection.SelectedProfileId);
         (StatusTitle, StatusDetail) = st.State switch
         {
             ConnectionState.Disconnected => (L.Get("St_Off"), L.Get("St_OffDetail")),
@@ -440,15 +452,34 @@ public sealed partial class HomeViewModel : ObservableObject
         var c = _s.Settings.Current.Connection;
         if (c.SmartMode)
         {
+            if (!IsConnected) _ = RefreshNexProfileAsync(null);
             SelectionText = L.Get("Home_AutoServerDetail");
             Refresh();
             return;
         }
 
         var p = c.SelectedProfileId is { } id ? await _s.Profiles.GetAsync(id, _s.Lifetime) : null;
+        if (!IsConnected) _ = RefreshNexProfileAsync(p?.Id);
         SelectionText = p is null ? L.Get("Home_NoServer") : p.DisplayName;
         SelectionTitle = p?.DisplayName ?? L.Get("Home_NoServer");
         SelectionDetail = p is null ? L.Get("Home_NoServerDetail") : Fmt.Protocol(p.Protocol) + " · " + Fmt.Transport(p.Transport.Type);
         Refresh();
+    }
+
+    private async Task RefreshNexProfileAsync(string? profileId, bool force = false)
+    {
+        if (!force && _nexProfileId == profileId) return;
+        _nexProfileId = profileId;
+        var profile = profileId is null ? null : await _s.Profiles.GetAsync(profileId, _s.Lifetime);
+        var subscriptionId = profile?.Origin.SubscriptionId;
+        var subs = subscriptionId is null ? null : await _s.Subscriptions.GetAllAsync(_s.Lifetime);
+        if (_nexProfileId == profileId)
+            ServerIsNex = subs?.Any(s => s.Id == subscriptionId && s.IsNex) == true;
+    }
+
+    private async Task RefreshNexServiceAsync()
+    {
+        var subs = await _s.Subscriptions.GetAllAsync(_s.Lifetime);
+        NexServiceAvailable = subs.Any(s => s.IsNex);
     }
 }

@@ -34,6 +34,17 @@ public class OfficialProviderTests
     public void Official_url_requires_https_on_an_official_domain(string url, bool official) =>
         OfficialProviders.IsOfficialUrl(url).Should().Be(official);
 
+    [Theory]
+    [InlineData("https://sub.jackidrive.ir:2083/sub/_jp/nx/0123456789abcdef", true)]
+    [InlineData("https://sub.jackidrive.ir:2083/sub/_jp/nx/0123456789abcdef/", true)]
+    [InlineData("https://sub.jackidrive.ir:2083/other/sub/_jp/nx/0123456789abcdef", false)]
+    [InlineData("https://sub.jackidrive.ir:2083/sub/_jp/nx/short", false)]
+    [InlineData("https://sub.jackidrive.ir/sub/_jp/nx/0123456789abcdef", false)]
+    [InlineData("https://sub.jackidrive.ir.evil.com:2083/sub/_jp/nx/0123456789abcdef", false)]
+    [InlineData("https://sub.jackidrive.ir:2083/sub/_jp/nx/0123456789abcdef?extra=1", false)]
+    public void Nex_requires_the_exact_official_combo_route(string url, bool expected) =>
+        NexSubscriptionUrl.TryParse(url, out _).Should().Be(expected);
+
     [Fact]
     public void Official_subscriptions_are_owned_only_over_https()
     {

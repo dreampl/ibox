@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input.Platform;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -79,6 +80,11 @@ public sealed class SubscriptionsPage(Shell shell) : Page(shell)
         if (s.IsOfficial)
         {
             title.Children.Add(Badge("✓ Official", Accent));
+        }
+
+        if (s.IsNex)
+        {
+            title.Children.Add(Badge("NEX", Color.Parse("#9A8CEB")));
         }
 
         if (_updating.Contains(s.Id))
@@ -179,6 +185,46 @@ public sealed class SubscriptionsPage(Shell shell) : Page(shell)
         panel.Children.Add(options);
 
         var links = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        if (s.IsNex)
+        {
+            links.Children.Add(Ghost("Manage NEX", () => _ = Guard(async () =>
+            {
+                var uri = await S.SubscriptionService.GetNexManagementUriAsync(s.Id, Shell.Lifetime.Token);
+                if (uri is null)
+                {
+                    Shell.Toast("NEX", "Management link is unavailable.", warning: true);
+                }
+                else
+                {
+                    Open(uri.AbsoluteUri);
+                }
+            })));
+            var configsPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+            links.Children.Add(Ghost("AmneziaWG configs", () => _ = Guard(async () =>
+            {
+                var configs = await S.SubscriptionService.GetNexAmneziaConfigsAsync(s.Id, Shell.Lifetime.Token);
+                configsPanel.Children.Clear();
+                if (configs.Count == 0)
+                {
+                    configsPanel.Children.Add(Caption("No AmneziaWG configs available."));
+                    return;
+                }
+
+                var selector = new ComboBox { ItemsSource = configs.Select(c => $"{c.Label} ({c.Location})").ToArray(), SelectedIndex = 0, MinWidth = 180 };
+                configsPanel.Children.Add(selector);
+                configsPanel.Children.Add(Ghost("Copy selected config", () => _ = Guard(async () =>
+                {
+                    var index = selector.SelectedIndex;
+                    if (index >= 0 && index < configs.Count && TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
+                    {
+                        await clipboard.SetTextAsync(configs[index].Key);
+                        Shell.Toast("AmneziaWG", "Config copied.");
+                    }
+                })));
+            })));
+            panel.Children.Add(configsPanel);
+        }
+
         if (m.SupportUrl is { Length: > 0 } support)
         {
             links.Children.Add(Ghost("Support", () => Open(support)));

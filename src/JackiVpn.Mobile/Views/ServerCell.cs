@@ -19,7 +19,8 @@ public sealed class ServerCell : ContentView
     private readonly SignalBars _bars = new();
     private readonly Icon _star = new() { Name = "star", Size = 20 };
     private readonly OrbView _testing = new() { State = Domain.Visuals.OrbState.Searching, WidthRequest = 22, HeightRequest = 22, IsVisible = false };
-    private readonly Border _badge;
+    private readonly NexBadge _badge;
+    private readonly Border _officialBadge;
     private readonly Icon _more = new() { Name = "more", Size = 20, StrokeThickness = 3 };
     private readonly Grid _moreHit;
     private ServerItem? _item;
@@ -27,15 +28,16 @@ public sealed class ServerCell : ContentView
     public ServerCell(Func<ServerItem, Task> tapped, Func<ServerItem, Task> more, Func<ServerItem, Task> favorite)
     {
         _flagBubble = new Border { WidthRequest = 40, HeightRequest = 40, StrokeShape = new RoundRectangle { CornerRadius = 20 }, StrokeThickness = 0, Content = _flag };
-        _badge = new Border
+        _badge = new NexBadge { IsVisible = false };
+        _officialBadge = new Border
         {
             StrokeShape = new RoundRectangle { CornerRadius = 7 },
             StrokeThickness = 0,
             Padding = new Thickness(6, 1),
-            Background = (Brush)Microsoft.Maui.Controls.Application.Current!.Resources["PrimaryGradient"],
+            BackgroundColor = Rtl.Res("PrimarySoft"),
             VerticalOptions = LayoutOptions.Center,
             IsVisible = false,
-            Content = new Label { Text = "✓", FontSize = 10, TextColor = Colors.White, FontFamily = "OpenSansSemibold" },
+            Content = new Label { Text = Localization.L.Get("Badge_Official"), FontSize = 10, TextColor = Rtl.Res("Primary2"), FontFamily = "OpenSansSemibold" },
         };
         var starHit = new Grid { WidthRequest = 36, HeightRequest = 36, Children = { _star } };
         var starTap = new TapGestureRecognizer();
@@ -65,6 +67,7 @@ public sealed class ServerCell : ContentView
         _badge.HorizontalOptions = LayoutOptions.Start;
         nameRow.Add(_name, 0, 0);
         nameRow.Add(_badge, 1, 0);
+        nameRow.Add(_officialBadge, 1, 0);
         grid.Add(new VerticalStackLayout
         {
             VerticalOptions = LayoutOptions.Center,
@@ -140,7 +143,8 @@ public sealed class ServerCell : ContentView
         _testing.IsVisible = i.IsTesting;
         _testing.Tint = selected ? Color.FromArgb("#2A3550") : Rtl.Res("Text");
         _bars.IsVisible = !i.IsTesting;
-        _badge.IsVisible = i.IsOfficial;
+        _badge.IsVisible = i.IsNex;
+        _officialBadge.IsVisible = i.IsOfficial && !i.IsNex;
         _card.BackgroundColor = selected ? Color.FromArgb("#F2F5FF") : Rtl.Res("Surface2");
         _card.Stroke = selected ? Colors.Transparent : Rtl.Res("Stroke");
         _name.TextColor = selected ? Color.FromArgb("#0B1220") : Rtl.Res("Text");
@@ -163,6 +167,7 @@ public sealed class ServerGroupHeader : ContentView
     private readonly Label _name = new() { FontFamily = "OpenSansSemibold", FontSize = 13, LineBreakMode = LineBreakMode.TailTruncation };
     private readonly Label _count = new() { FontSize = 12 };
     private readonly Border _official;
+    private readonly NexBadge _nex;
 
     public ServerGroupHeader()
     {
@@ -179,12 +184,14 @@ public sealed class ServerGroupHeader : ContentView
             Content = new Label { FontSize = 10, TextColor = Rtl.Res("Primary2"), FontFamily = "OpenSansSemibold" }
                 .Also(l => l.SetBinding(Label.TextProperty, new Binding("[Badge_Official]", source: Localization.L.Instance))),
         };
+        _nex = new NexBadge();
         // The name takes the remaining width and is shortened; badge, count and chevron always stay visible.
         var grid = new Grid { ColumnDefinitions = [new(GridLength.Star), new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Auto)], ColumnSpacing = 8, Padding = new Thickness(4, 14, 4, 8) };
         _name.MaxLines = 1;
         _name.VerticalOptions = LayoutOptions.Center;
         grid.Add(_name, 0, 0);
         grid.Add(_official, 1, 0);
+        grid.Add(_nex, 1, 0);
         grid.Add(_count, 2, 0);
         grid.Add(_chevron, 3, 0);
         _count.HorizontalOptions = LayoutOptions.End;
@@ -209,7 +216,8 @@ public sealed class ServerGroupHeader : ContentView
         {
             _name.Text = g.Name;
             _count.Text = g.CountText;
-            _official.IsVisible = g.IsOfficial;
+            _official.IsVisible = g.IsOfficial && !g.IsNex;
+            _nex.IsVisible = g.IsNex;
             _chevron.Rotation = g.IsExpanded ? 0 : (Localization.L.IsPersian ? 90 : -90);
         }
     }

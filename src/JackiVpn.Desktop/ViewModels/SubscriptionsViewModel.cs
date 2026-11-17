@@ -31,6 +31,7 @@ public sealed partial class SubscriptionItem : ObservableObject
     }
 
     public bool IsOfficial => Model.IsOfficial;
+    public bool IsNex => Model.IsNex;
 
     /// <summary>Official providers always get the device ID; for others it is the user's choice (default off).</summary>
     public bool SendDeviceId
@@ -184,6 +185,12 @@ public sealed partial class SubscriptionsViewModel : ObservableObject
         services.SubscriptionService.Updated += (_, r) => Ui.Post(() => _ = ReloadOneAsync(r.SubscriptionId));
         services.SubscriptionService.AccountChecked += (_, id) => Ui.Post(() => _ = ReloadOneAsync(id));
     }
+
+    public Task<Uri?> NexManagementUriAsync(SubscriptionItem item) =>
+        _s.SubscriptionService.GetNexManagementUriAsync(item.Id, _s.Lifetime);
+
+    public Task<IReadOnlyList<NexAmneziaConfig>> NexAmneziaConfigsAsync(SubscriptionItem item) =>
+        _s.SubscriptionService.GetNexAmneziaConfigsAsync(item.Id, _s.Lifetime);
 
     public ObservableCollection<SubscriptionItem> Items { get; } = [];
 

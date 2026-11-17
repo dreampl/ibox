@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using JackiVpn.Application.Notifications;
 using JackiVpn.Domain.Abstractions;
 using JackiVpn.Domain.Profiles;
@@ -27,6 +29,18 @@ public sealed record SubscriptionUpdateReport(
 }
 
 public sealed class SubscriptionException(string message) : Exception(message);
+
+public sealed class NexAmneziaConfig
+{
+    [JsonPropertyName("tab")]
+    public string Label { get; init; } = string.Empty;
+
+    [JsonPropertyName("g")]
+    public string? Location { get; init; }
+
+    [JsonPropertyName("key")]
+    public string? Key { get; init; }
+}
 
 /// <summary>
 /// Adds, refreshes and auto-updates subscriptions. Refresh is transactional: nothing is written unless the
@@ -80,6 +94,61 @@ public sealed class SubscriptionService
 
     public event EventHandler<SubscriptionUpdateReport>? Updated;
 
+    public async Task<Uri?> GetNexManagementUriAsync(string id, CancellationToken ct)
+    {
+        var subscription = await _subscriptions.GetAsync(id, ct).ConfigureAwait(false);
+        if (subscription?.IsNex != true)
+        {
+            return null;
+        }
+
+        var source = await _subscriptions.GetSourceUrlAsync(id, ct).ConfigureAwait(false);
+        return NexSubscriptionUrl.TryParse(source, out var uri) ? uri : null;
+    }
+
+    public async Task<IReadOnlyList<NexAmneziaConfig>> GetNexAmneziaConfigsAsync(string id, CancellationToken ct)
+    {
+        var uri = await GetNexManagementUriAsync(id, ct).ConfigureAwait(false)
+            ?? throw new SubscriptionException("This Nex subscription is unavailable.");
+        var request = new FetchRequest
+        {
+            Url = new Uri(uri, "/sub/_jp/api/nexpage"),
+            Method = HttpMethod.Post,
+            JsonBody = JsonSerializer.Serialize(new { combo = uri.Segments[^1].TrimEnd('/') }),
+            Accept = "application/json",
+            UserAgent = _settings().Subscriptions.UserAgent,
+            MaxBytes = 512 * 1024,
+            Timeout = _settings().Subscriptions.Timeout,
+        };
+
+        try
+        {
+            var result = await _fetcherFactory().SendAsync(request, ct).ConfigureAwait(false);
+            if (result.StatusCode == 200 && result.Body is { } body)
+            {
+                using var document = JsonDocument.Parse(body);
+                if (document.RootElement.ValueKind == JsonValueKind.Object
+                    && document.RootElement.TryGetProperty("configs", out var configs)
+                    && configs.ValueKind == JsonValueKind.Array)
+                {
+                    return (configs.Deserialize<NexAmneziaConfig[]>() ?? [])
+                        .Where(config => config?.Key is { } key && key.StartsWith("vpn://", StringComparison.Ordinal))
+                        .ToArray();
+                }
+            }
+        }
+        catch (FetchException)
+        {
+            throw new SubscriptionException("Could not retrieve the Nex configurations. Try again later.");
+        }
+        catch (JsonException)
+        {
+            throw new SubscriptionException("The Nex server returned invalid configuration data.");
+        }
+
+        throw new SubscriptionException("Could not retrieve the Nex configurations. Check that the subscription is active.");
+    }
+
     public async Task<Subscription> AddAsync(string url, string? name, SubscriptionProviderKind? provider, CancellationToken ct)
     {
         var check = UrlSafetyPolicy.ValidateInitial(url, out var uri);
@@ -90,7 +159,11 @@ public sealed class SubscriptionService
 
         var settings = _settings();
         var kind = provider;
-        if (kind is null)
+        if (NexSubscriptionUrl.TryParse(url, out _))
+        {
+            kind = SubscriptionProviderKind.Generic;
+        }
+        else if (kind is null)
         {
             var fetcher = _fetcherFactory();
             kind = await new SubscriptionProviderDetector(fetcher).DetectAsync(uri!.ToString(), settings.Subscriptions, ct, DeviceHeaders(OfficialProviders.IsOfficialUrl(uri))).ConfigureAwait(false);
@@ -134,7 +207,8 @@ public sealed class SubscriptionService
         var settings = _settings();
         var now = _time.GetUtcNow();
         var fetcher = _fetcherFactory();
-        ISubscriptionProvider provider = sub.Provider == SubscriptionProviderKind.PasarGuard
+        var isCombo = NexSubscriptionUrl.TryParse(url, out _);
+        ISubscriptionProvider provider = !isCombo && sub.Provider == SubscriptionProviderKind.PasarGuard
             ? new PasarGuardSubscriptionProvider(fetcher, _parser, _time)
             : new GenericSubscriptionProvider(fetcher, _parser, _time);
 
@@ -199,6 +273,12 @@ public sealed class SubscriptionService
         }
 
         var metadata = result.Metadata.RetrievedUtc is null ? sub.Metadata : JackiVpn.Subscriptions.Metadata.SubscriptionMetadataParser.Merge(sub.Metadata, result.Metadata);
+        if (isCombo)
+        {
+            // The combo feed adds child-plan limits, which can count a shared allowance more than once.
+            metadata = metadata with { TotalBytes = null, IsUnlimitedTraffic = null, WebPageUrl = null };
+        }
+
         var ownership = result.Outcome == FetchOutcome.Failed
             ? sub.Ownership
             : ProfileOwnershipVerifier.VerifySubscription(sub.Host, result.WasHttps, result.ProviderHeaders, settings.Ownership, now);
@@ -236,6 +316,8 @@ public sealed class SubscriptionService
 
         var updated = sub with
         {
+            IsNex = result.IsNex,
+            Provider = isCombo ? SubscriptionProviderKind.Generic : sub.Provider,
             Metadata = metadata,
             Name = sub.Name == sub.Host && metadata.Title is { Length: > 0 } title ? title : sub.Name,
             LastAttemptUtc = now,

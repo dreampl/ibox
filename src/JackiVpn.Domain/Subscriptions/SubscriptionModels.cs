@@ -247,6 +247,8 @@ public sealed record Subscription
 
     public ProfileOwnership Ownership { get; init; } = ProfileOwnership.NotOwned;
 
+    public bool IsNex { get; init; }
+
     /// <summary>An official provider subscription (verified over HTTPS on a built-in official domain).</summary>
     [JsonIgnore]
     public bool IsOfficial => Ownership.IsOwned && Ownership.Method == OwnershipMethod.OfficialDomain;

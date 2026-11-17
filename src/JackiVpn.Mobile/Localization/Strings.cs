@@ -9,6 +9,7 @@ internal static class Strings
         ["Ok"] = ("OK", "باشه"),
         ["Cancel"] = ("Cancel", "انصراف"),
         ["Badge_Official"] = ("Official", "رسمی"),
+        ["Nex_Perks"] = ("3 locations · faster speeds · Iranian sites and apps · V2Ray + AmneziaWG", "۳ موقعیت · سرعت بیشتر · سایت‌ها و برنامه‌های ایرانی · V2Ray و AmneziaWG"),
 
         // Navigation
         ["Nav_Home"] = ("Home", "خانه"),
@@ -253,6 +254,11 @@ internal static class Strings
         ["Onb_Title3"] = ("Your language", "زبان شما"),
         ["Onb_Text3"] = ("Choose a language. You can change it any time in Settings.", "زبان را انتخاب کنید. هر زمان در تنظیمات قابل تغییر است."),
         ["Onb_Next"] = ("Next", "بعدی"),
+        ["Sub_NexPage"] = ("Manage Nex subscription", "مدیریت اشتراک Nex"),
+        ["Sub_NexUnavailable"] = ("Nex details are unavailable. Check your subscription and try again.", "جزئیات Nex در دسترس نیست. اشتراک را بررسی کنید و دوباره تلاش کنید."),
+        ["Sub_NexCopyHint"] = ("Copy this private key, then import it from clipboard in AmneziaVPN.", "کلید خصوصی را کپی کنید و در AmneziaVPN از کلیپ‌بورد وارد کنید."),
+        ["Sub_NexCopy"] = ("Copy key", "کپی کلید"),
+        ["Sub_NexCopied"] = ("Key copied. Import it in AmneziaVPN.", "کلید کپی شد. آن را در AmneziaVPN وارد کنید."),
         ["Onb_Start"] = ("Get started", "شروع"),
         ["Onb_Skip"] = ("Skip", "رد شدن"),
 

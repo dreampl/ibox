@@ -435,7 +435,14 @@
                                     <TextBlock DockPanel.Dock="Right" Style="{StaticResource Icon}" Text="&#xE76C;" FontSize="13" Foreground="{DynamicResource B.TextSecondary}" />
                                     <v:FlagView DockPanel.Dock="Left" Width="46" Height="46" CountryCode="{Binding ServerFlag}" Margin="0,0,14,0" />
                                     <StackPanel VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding ServerTitle}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding ServerTitle}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                            <Border Visibility="{Binding ServerIsNex, Converter={StaticResource Bool2Vis}}" CornerRadius="8" Padding="8,1" Margin="8,0,0,0" VerticalAlignment="Center" ToolTip="Nex: 3 locations, faster speeds, Iranian sites and apps, V2Ray + AmneziaWG">
+                                                <Border.Background><LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5"><GradientStop Color="#243E618A" Offset="0" /><GradientStop Color="#854C99D8" Offset="0.48" /><GradientStop Color="#685C4C9B" Offset="0.55" /><GradientStop Color="#243E618A" Offset="1" /><LinearGradientBrush.RelativeTransform><RotateTransform CenterX="0.5" CenterY="0.5" /></LinearGradientBrush.RelativeTransform></LinearGradientBrush></Border.Background>
+                                                <Border.Triggers><EventTrigger RoutedEvent="Loaded"><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetProperty="(Border.Background).(Brush.RelativeTransform).(RotateTransform.Angle)" From="0" To="360" Duration="0:0:24" RepeatBehavior="Forever" /></Storyboard></BeginStoryboard></EventTrigger></Border.Triggers>
+                                                <TextBlock Text="Nex" FontSize="11" FontWeight="SemiBold" Foreground="#E8E8FF" />
+                                            </Border>
+                                        </StackPanel>
                                         <TextBlock Text="{Binding ServerSubtitle}" FontSize="12" Foreground="{DynamicResource B.TextSecondary}" TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
                                     </StackPanel>
                                 </DockPanel>
@@ -487,7 +494,23 @@
                             <TextBlock Style="{StaticResource TileGlyph}" Text="&#xE8F1;" Foreground="{DynamicResource B.TextSecondary}" />
                         </Border>
                         <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="{Binding PlanName}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding PlanName}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                <Border Visibility="{Binding PlanIsNex, Converter={StaticResource Bool2Vis}}" CornerRadius="9" Padding="9,2" Margin="9,0,0,0" VerticalAlignment="Center">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+                                            <GradientStop Color="#243E618A" Offset="0" />
+                                            <GradientStop Color="#854C99D8" Offset="0.48" />
+                                            <GradientStop Color="#685C4C9B" Offset="0.55" />
+                                            <GradientStop Color="#243E618A" Offset="1" />
+                                            <LinearGradientBrush.RelativeTransform><RotateTransform CenterX="0.5" CenterY="0.5" /></LinearGradientBrush.RelativeTransform>
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                    <Border.Triggers><EventTrigger RoutedEvent="Loaded"><BeginStoryboard><Storyboard><DoubleAnimation Storyboard.TargetProperty="(Border.Background).(Brush.RelativeTransform).(RotateTransform.Angle)" From="0" To="360" Duration="0:0:24" RepeatBehavior="Forever" /></Storyboard></BeginStoryboard></EventTrigger></Border.Triggers>
+                                    <TextBlock Text="Nex" Foreground="#E8E8FF" FontSize="11" FontWeight="SemiBold" />
+                                </Border>
+                            </StackPanel>
+                            <TextBlock Text="3 locations · faster speeds · Iranian sites and apps · V2Ray + AmneziaWG" Visibility="{Binding PlanIsNex, Converter={StaticResource Bool2Vis}}" FontSize="11" Foreground="{DynamicResource B.TextSecondary}" Margin="0,2,0,0" />
                             <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
                                 <Ellipse x:Name="PlanDot" Width="8" Height="8" Fill="{DynamicResource B.Success}" Margin="0,0,7,0" VerticalAlignment="Center" />
                                 <TextBlock Text="{Binding PlanStatus}" FontSize="12.5" Foreground="{DynamicResource B.TextSecondary}" />

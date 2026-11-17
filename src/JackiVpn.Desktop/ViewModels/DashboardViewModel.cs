@@ -82,6 +82,9 @@ public sealed partial class DashboardViewModel : ObservableObject
 
     // Subscription plan
     [ObservableProperty] private string? _planName;
+    [ObservableProperty] private bool _planIsNex;
+    [ObservableProperty] private bool _serverIsNex;
+    private string? _nexProfileId;
     [ObservableProperty] private string _planUsage = Format.Unknown;
     [ObservableProperty] private double? _planPercent;
     [ObservableProperty] private string _planExpiry = Format.Unknown;
@@ -174,6 +177,17 @@ public sealed partial class DashboardViewModel : ObservableObject
         OnPropertyChanged(nameof(CoverageTile));
     }
 
+    private async Task RefreshNexProfileAsync(string? profileId, bool force = false)
+    {
+        if (!force && _nexProfileId == profileId) return;
+        _nexProfileId = profileId;
+        var profile = profileId is null ? null : await _s.Profiles.GetAsync(profileId, _s.Lifetime);
+        var subscriptionId = profile?.Origin.SubscriptionId;
+        var subs = subscriptionId is null ? null : await _s.Subscriptions.GetAllAsync(_s.Lifetime);
+        if (_nexProfileId == profileId)
+            ServerIsNex = subs?.Any(s => s.Id == subscriptionId && s.IsNex) == true;
+    }
+
     public DashboardViewModel(AppServices services, IDialogService dialogs, MainViewModel main)
     {
         _s = services;
@@ -204,7 +218,11 @@ public sealed partial class DashboardViewModel : ObservableObject
             OnPropertyChanged(nameof(ReduceMotion));
             _ = RefreshSelectionAsync();
         });
-        services.SubscriptionService.Updated += (_, _) => Ui.Post(() => _ = RefreshPlanAsync());
+        services.SubscriptionService.Updated += (_, _) => Ui.Post(() =>
+        {
+            _ = RefreshPlanAsync();
+            _ = RefreshNexProfileAsync(_nexProfileId, true);
+        });
         services.DualVpn.Changed += (_, _) => Ui.Post(RefreshDualVpn);
         RefreshDualVpn();
         services.Traffic.Changed += (_, _) => Ui.Post(() =>
@@ -653,6 +671,7 @@ public sealed partial class DashboardViewModel : ObservableObject
         }
 
         RefreshServerCard();
+        _ = RefreshNexProfileAsync(st.State == ConnectionState.Connected ? st.ProfileId : _s.Settings.Current.Connection.SmartMode ? null : _s.Settings.Current.Connection.SelectedProfileId);
     }
 
     private static void Push(double[] buffer, double value)
@@ -666,6 +685,7 @@ public sealed partial class DashboardViewModel : ObservableObject
         var c = _s.Settings.Current.Connection;
         if (c.SmartMode)
         {
+            if (!IsConnected) _ = RefreshNexProfileAsync(null);
             SelectionText = "Smart: picks the fastest working server";
             _selectedName = null;
             _selectedCountry = null;
@@ -675,6 +695,7 @@ public sealed partial class DashboardViewModel : ObservableObject
         }
 
         var p = c.SelectedProfileId is { } id ? await _s.Profiles.GetAsync(id, _s.Lifetime) : null;
+        if (!IsConnected) _ = RefreshNexProfileAsync(p?.Id);
         SelectionText = p is null ? "No server selected — choose one on the Servers page" : "Selected: " + p.DisplayName;
         _selectedName = p?.DisplayName;
         _selectedCountry = p is null ? null : _s.Insights.Get(p.Fingerprint)?.Exit?.CountryCode ?? Domain.Visuals.CountryGuess.FromName(p.DisplayName);
@@ -685,15 +706,17 @@ public sealed partial class DashboardViewModel : ObservableObject
     private async Task RefreshPlanAsync()
     {
         var subs = await _s.Subscriptions.GetAllAsync(_s.Lifetime);
-        var sub = subs.FirstOrDefault(x => x.Enabled);
+        var sub = subs.FirstOrDefault(x => x.Enabled && x.IsNex) ?? subs.FirstOrDefault(x => x.Enabled);
         if (sub is null)
         {
             PlanName = null;
+            PlanIsNex = false;
             return;
         }
 
         var m = sub.Metadata;
         PlanName = sub.Name;
+        PlanIsNex = sub.IsNex;
         PlanPercent = m.UsedPercent;
         PlanUsage = m.IsUnlimitedTraffic == true
             ? $"{Format.Bytes(m.UsedBytes)} used · Unlimited"
