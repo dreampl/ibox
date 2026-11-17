@@ -244,6 +244,13 @@ public static partial class BarApp
             ?? Notches.Values.FirstOrDefault();
     }
 
+    /// <summary>
+    /// Where a request goes: the notch under the pointer if it can show one, else any notch that can (a full-screen
+    /// app on one monitor must not send every request back to the terminal).
+    /// </summary>
+    private static NotchWindow? Asker() =>
+        Active() is { CanAsk: true } active ? active : Notches.Values.FirstOrDefault(n => n.CanAsk) ?? Active();
+
     private static void Wire()
     {
         var ui = System.Windows.Application.Current.Dispatcher;
@@ -298,7 +305,7 @@ public static partial class BarApp
             }
         });
         _assistants.Ask = (message, icon, ct) =>
-            ui.InvokeAsync(() => Active()?.AskAsync(message, icon, ct) ?? Task.FromResult(NotchBridge.AskThere)).Task.Unwrap();
+            ui.InvokeAsync(() => Asker()?.AskAsync(message, icon, ct) ?? Task.FromResult(NotchBridge.AskThere)).Task.Unwrap();
 
         _ibox.Changed += (_, eco) => ui.BeginInvoke(() =>
         {
@@ -323,7 +330,7 @@ public static partial class BarApp
                 Detail = NotchBridge.Clean("Notifications, a status chip and a small dashboard. Actions: " + actions, 600, lines: 4),
                 Note = manifest.Publisher is { } p ? "From " + p : null,
             };
-            var decision = await ui.InvokeAsync(() => Active()?.AskAsync(message, icon, ct) ?? Task.FromResult(NotchBridge.AskThere)).Task.Unwrap();
+            var decision = await ui.InvokeAsync(() => Asker()?.AskAsync(message, icon, ct) ?? Task.FromResult(NotchBridge.AskThere)).Task.Unwrap();
             return decision == NotchBridge.Allow;
         };
         _plugins.Message += (_, m) => ui.BeginInvoke(() => OnPlugin(m.Plugin, m.Request));

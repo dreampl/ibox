@@ -1258,6 +1258,13 @@ public sealed partial class NotchWindow : Window
         if (hide != _hiddenForFullScreen)
         {
             _hiddenForFullScreen = hide;
+            if (hide)
+            {
+                // Nobody can answer a hidden request: it goes back to the assistant at once instead of waiting
+                // out its time unseen.
+                DropAllRequests();
+            }
+
             Visibility = hide ? Visibility.Hidden : Visibility.Visible;
             if (!hide)
             {

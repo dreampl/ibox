@@ -362,7 +362,7 @@ public sealed partial class NotchWindow
     public Task<string> AskAsync(NotchMessage message, ImageSource? icon, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(message);
-        if ((!_settings.AiAssistants && message.Source != "plugin") || _hiddenForFullScreen || !IsVisible || _asks.Count >= 8)
+        if (ct.IsCancellationRequested || (!_settings.AiAssistants && message.Source != "plugin") || !CanAsk || _asks.Count >= 8)
         {
             return Task.FromResult(NotchBridge.AskThere);
         }
@@ -381,6 +381,9 @@ public sealed partial class NotchWindow
 
         return pending.Done.Task;
     }
+
+    /// <summary>Whether a request shown here can be seen and answered (shown, not hidden by a full-screen app).</summary>
+    public bool CanAsk => IsVisible && !_hiddenForFullScreen;
 
     private void ShowAsk(PendingAsk pending)
     {
