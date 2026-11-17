@@ -63,9 +63,9 @@ public sealed partial class NotchWindow
     private readonly TextBlock _askApp = new() { FontSize = 11, Foreground = new SolidColorBrush(Color.FromRgb(0x9C, 0xA3, 0xAF)), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(9, 0, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly TextBlock _askMore = new() { FontSize = 11, Foreground = new SolidColorBrush(Color.FromRgb(0x5A, 0xAC, 0xFF)), VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _askTitle = new() { FontSize = 14.5, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White, Margin = new Thickness(0, 9, 0, 7), TextTrimming = TextTrimming.CharacterEllipsis };
-    private readonly TextBlock _askDetail = new() { FontFamily = new FontFamily("Cascadia Mono, Consolas"), FontSize = 11.5, Foreground = new SolidColorBrush(Color.FromRgb(0xE5, 0xE7, 0xEB)), TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, MaxHeight = 47 };
+    private readonly TextBlock _askDetail = new() { FontFamily = new FontFamily("Cascadia Mono, Consolas"), FontSize = 11.5, Foreground = new SolidColorBrush(Color.FromRgb(0xE5, 0xE7, 0xEB)), TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, MaxHeight = 125, FlowDirection = FlowDirection.LeftToRight };
     private readonly Border _askDetailBox = new() { CornerRadius = new CornerRadius(9), Padding = new Thickness(10, 7, 10, 7), Background = new SolidColorBrush(Color.FromRgb(0x16, 0x1B, 0x26)) };
-    private readonly TextBlock _askNote = new() { FontSize = 11.5, Foreground = new SolidColorBrush(Color.FromRgb(0x9C, 0xA3, 0xAF)), Margin = new Thickness(0, 6, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis };
+    private readonly TextBlock _askNote = new() { FontSize = 11.5, Foreground = new SolidColorBrush(Color.FromRgb(0x9C, 0xA3, 0xAF)), Margin = new Thickness(0, 6, 0, 0), TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, MaxHeight = 32 };
     private readonly StackPanel _askButtons = new() { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
     private readonly ScaleTransform _askClock = new(1, 1);
     private readonly List<PendingAsk> _asks = [];
@@ -391,6 +391,7 @@ public sealed partial class NotchWindow
         _askDetail.Text = m.Detail ?? m.Tool ?? string.Empty;
         _askDetailBox.Visibility = string.IsNullOrEmpty(_askDetail.Text) ? Visibility.Collapsed : Visibility.Visible;
         _askNote.Text = m.Note ?? string.Empty;
+        _askNote.FlowDirection = NotchBridge.IsRtl(m.Note) ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
         _askNote.Visibility = string.IsNullOrEmpty(m.Note) ? Visibility.Collapsed : Visibility.Visible;
         UpdateAskCount();
 
