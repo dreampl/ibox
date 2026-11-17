@@ -147,17 +147,23 @@ public sealed class PowerButton : ContentView
         {
             _accentKey = accentGradientKey;
             _accent = accent;
+            // Any cross-fade still running belongs to an older colour: drop it, or it would finish later and paint
+            // that colour (e.g. gaming pink) onto the core after the state moved on.
+            CancelCrossFade();
             if (animate && visual == PowerVisual.Connected && !Motion.Reduced)
             {
                 // Cross-fade the core into the new activity colour.
                 _faceNext.Fill = Brush(accentGradientKey);
-                _faceNext.Opacity = 0;
-                _ = CrossFadeAsync();
+                _ = CrossFadeAsync(++_fade, accentGradientKey);
             }
             else
             {
                 _faceOn.Fill = Brush(accentGradientKey);
             }
+        }
+        else if (visual != PowerVisual.Connected)
+        {
+            CancelCrossFade();
         }
 
         if (changed)
@@ -166,10 +172,24 @@ public sealed class PowerButton : ContentView
         }
     }
 
-    private async Task CrossFadeAsync()
+    private int _fade;
+
+    private void CancelCrossFade()
+    {
+        _fade++;
+        _faceNext.CancelAnimations();
+        _faceNext.Opacity = 0;
+    }
+
+    private async Task CrossFadeAsync(int fade, string key)
     {
         await _faceNext.FadeToAsync(1, 450, Easing.CubicInOut);
-        _faceOn.Fill = _faceNext.Fill;
+        if (fade != _fade || key != _accentKey)
+        {
+            return;
+        }
+
+        _faceOn.Fill = Brush(key);
         _faceNext.Opacity = 0;
         _ = Motion.StretchAsync(_core);
     }
