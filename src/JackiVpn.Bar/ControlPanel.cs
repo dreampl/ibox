@@ -81,6 +81,7 @@ public sealed class ControlPanel : Window
         // Shelf and assistants.
         var tools = Card(T.S("Shelf"), null);
         tools.Children.Add(Check(T.S("Keep dropped files, text and links on the notch"), s.Shelf, v => _settings.Update(x => x with { Shelf = v })));
+        tools.Children.Add(Check(T.S("Bluetooth batteries of headphones, mice, keyboards and controllers on the notch"), s.BluetoothBattery, v => _settings.Update(x => x with { BluetoothBattery = v })));
         tools.Children.Add(new TextBlock { Text = T.S("AI assistants"), FontWeight = FontWeights.SemiBold, Foreground = _fg, Margin = new Thickness(0, 12, 0, 2) });
         tools.Children.Add(Check(T.S("Claude and ChatGPT notifications and requests on the notch"), s.AiAssistants, v => _settings.Update(x => x with { AiAssistants = v })));
         var hooks = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };

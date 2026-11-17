@@ -157,6 +157,7 @@ public sealed partial class NotchWindow : Window
         Grid.SetColumn(controls, 2);
         _music.Children.Add(controls);
         _details.Children.Add(_music);
+        _details.Children.Add(_batteryRow);
         foreach (UIElement row in _details.Children)
         {
             row.RenderTransform = new TranslateTransform();
@@ -325,7 +326,7 @@ public sealed partial class NotchWindow : Window
     private bool ShowsMusic => _settings.ShowNowPlaying && _nowPlaying is not null;
 
     /// <summary>The eye and the detail rows: one row more while something is playing.</summary>
-    private double DetailsArea => ExpandedHeight + (ShowsMusic ? 28 : 0);
+    private double DetailsArea => ExpandedHeight + (ShowsMusic ? 28 : 0) + (ShowsBatteries ? BatteryRowHeight : 0);
 
     /// <summary>Expanded height: the details, and the shelf below them when it holds something.</summary>
     private double ExpandedHeightNow => DetailsArea + (ShowsShelf ? ShelfRowHeight : 0) + PluginRowHeight;
@@ -752,6 +753,8 @@ public sealed partial class NotchWindow : Window
         _shelfMark.Opacity = lineOpacity;
         Canvas.SetLeft(_shelfMark, statusLeft + statusWidth + LineWidth() + ShelfMarkGap);
         Canvas.SetTop(_shelfMark, (height - 18) / 2);
+
+        SyncBatteryLife(e);
 
         // Details: vertically centred above the shelf, rows rising in one after another (staggered).
         Canvas.SetTop(_details, Math.Max(10, (DetailsArea - _details.DesiredSize.Height) / 2));
