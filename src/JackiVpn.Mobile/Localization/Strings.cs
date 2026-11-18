@@ -210,6 +210,8 @@ internal static class Strings
         ["Set_AlwaysOn"] = ("Always-on VPN & kill switch", "VPN همیشه روشن و Kill Switch"),
         ["Set_AlwaysOnHint"] = ("In Android's VPN settings: Always-on VPN + Block connections without VPN", "در تنظیمات VPN اندروید: Always-on VPN و Block connections without VPN"),
         ["Set_Account"] = ("Account", "حساب"),
+        ["Set_Ibox"] = ("IBOX account (Telegram)", "حساب IBOX (تلگرام)"),
+        ["Set_IboxHint"] = ("Your subscription (usage, expiry, exit country, renewals) and your music, signed in with Telegram", "اشتراکت (مصرف، انقضا، کشور خروجی، تمدید) و موزیکت، با ورود تلگرامی"),
         ["Set_Export"] = ("Export account", "خروجی گرفتن از حساب"),
         ["Set_ExportHint"] = ("Settings, subscriptions and servers in one password-protected file for another device (Windows, Linux or Android)", "تنظیمات، اشتراک‌ها و سرورها در یک فایل رمزدار برای دستگاه دیگر (ویندوز، لینوکس یا اندروید)"),
         ["Set_Import"] = ("Import account", "وارد کردن حساب"),
