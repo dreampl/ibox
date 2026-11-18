@@ -438,6 +438,32 @@ public sealed partial class DashboardViewModel : ObservableObject
     [RelayCommand]
     private void OpenServers() => _main.Navigate(_main.Servers);
 
+    /// <summary>
+    /// Smart mode (the best server) from the Mini view's picker: connects when off; when connected, reconnects so
+    /// the smart pick takes over (a connect while connected is ignored by the orchestrator).
+    /// </summary>
+    [RelayCommand]
+    private async Task UseSmartAsync()
+    {
+        var wasSmart = SmartMode;
+        SmartMode = true;
+        var state = _s.Orchestrator.State;
+        if (state == ConnectionState.Connected && !_s.Orchestrator.Status.DualOnly)
+        {
+            if (wasSmart)
+            {
+                return;
+            }
+
+            await _s.Orchestrator.DisconnectAsync();
+            await _s.Orchestrator.ConnectAsync(new ConnectRequest { Smart = true }, _s.Lifetime);
+        }
+        else if (ConnectionStateRules.IsIdle(state) || _s.Orchestrator.Status.DualOnly)
+        {
+            await ToggleAsync();
+        }
+    }
+
     [RelayCommand]
     private void DismissBanner() => ServiceBanner = null;
 

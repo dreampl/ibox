@@ -263,4 +263,13 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     public bool ReduceMotion => Views.Motion.Reduced;
+
+    /// <summary>The user asked for the compact Mini view (true) or the full Pro window (false); the app switches.</summary>
+    public event EventHandler<bool>? ViewModeRequested;
+
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    private void ShowMini() => ViewModeRequested?.Invoke(this, true);
+
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    private void ShowPro() => ViewModeRequested?.Invoke(this, false);
 }

@@ -1,0 +1,182 @@
+<Window x:Class="JackiVpn.Desktop.Views.MiniWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:JackiVpn.Desktop.ViewModels"
+        xmlns:v="clr-namespace:JackiVpn.Desktop.Views"
+        Title="IBOX" Width="340" Height="520" MinWidth="300" MinHeight="440" MaxWidth="440" MaxHeight="720"
+        WindowStartupLocation="Manual" WindowStyle="None" ResizeMode="CanResize"
+        Background="{DynamicResource B.WindowFill}" Foreground="{DynamicResource B.Text}"
+        FontFamily="{StaticResource UiFont}" FontSize="13"
+        UseLayoutRounding="True" TextOptions.TextFormattingMode="Ideal"
+        Icon="pack://application:,,,/IBOX;component/Assets/jacki.ico">
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="44" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
+
+    <Grid x:Name="Root" RenderTransformOrigin="0.5,0.5">
+        <Grid.RenderTransform><ScaleTransform /></Grid.RenderTransform>
+        <Rectangle Fill="{DynamicResource B.WindowGlow}" IsHitTestVisible="False" />
+
+        <DockPanel Margin="14,8,14,14">
+            <!-- Header: drag area (WindowChrome caption) with pin, Pro view and close. -->
+            <DockPanel DockPanel.Dock="Top" Height="36">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <ToggleButton x:Name="PinButton" Width="32" Height="32" Margin="0,0,2,0" Cursor="Hand" FontFamily="{StaticResource IconFont}" FontSize="13"
+                                  Content="&#xE718;" ToolTip="Keep on top" AutomationProperties.Name="Keep on top" WindowChrome.IsHitTestVisibleInChrome="True"
+                                  Checked="OnPinChanged" Unchecked="OnPinChanged">
+                        <ToggleButton.Template>
+                            <ControlTemplate TargetType="ToggleButton">
+                                <Border x:Name="Bd" Background="Transparent" CornerRadius="10">
+                                    <TextBlock x:Name="Glyph" Text="{TemplateBinding Content}" FontFamily="{TemplateBinding FontFamily}" FontSize="{TemplateBinding FontSize}"
+                                               Foreground="{DynamicResource B.TextSecondary}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Bd" Property="Background" Value="{DynamicResource B.CardFill}" />
+                                    </Trigger>
+                                    <Trigger Property="IsChecked" Value="True">
+                                        <Setter TargetName="Bd" Property="Background" Value="{DynamicResource B.AccentSoft}" />
+                                        <Setter TargetName="Glyph" Property="Foreground" Value="{DynamicResource B.Accent}" />
+                                        <Setter TargetName="Glyph" Property="Text" Value="&#xE840;" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </ToggleButton.Template>
+                    </ToggleButton>
+                    <Button Style="{StaticResource Button.Icon}" Content="&#xE740;" Command="{Binding ShowProCommand}" Margin="0,0,2,0"
+                            ToolTip="Pro view (full window)" AutomationProperties.Name="Pro view" WindowChrome.IsHitTestVisibleInChrome="True" />
+                    <Button Style="{StaticResource Button.Icon}" Content="&#xE921;" Click="OnMinimize" Margin="0,0,2,0"
+                            ToolTip="Minimize" AutomationProperties.Name="Minimize" WindowChrome.IsHitTestVisibleInChrome="True" />
+                    <Button Style="{StaticResource Button.Icon}" Content="&#xE8BB;" Click="OnClose" FontSize="11"
+                            ToolTip="Close" AutomationProperties.Name="Close" WindowChrome.IsHitTestVisibleInChrome="True" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="4,0,0,0">
+                    <Ellipse x:Name="StatusDot" Width="8" Height="8" Margin="0,0,8,0" Fill="{DynamicResource B.TextMuted}" VerticalAlignment="Center" />
+                    <TextBlock Text="IBOX" FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center" />
+                </StackPanel>
+            </DockPanel>
+
+            <!-- Speed / latency line -->
+            <TextBlock DockPanel.Dock="Bottom" HorizontalAlignment="Center" Margin="0,10,0,0" FontSize="12" Foreground="{DynamicResource B.TextSecondary}"
+                       AutomationProperties.Name="Speed and latency">
+                <Run Text="↓" Foreground="{DynamicResource B.Accent}" /><Run Text="{Binding Dashboard.DownloadSpeed, Mode=OneWay}" />
+                <Run Text="  ↑" Foreground="{DynamicResource B.Accent}" /><Run Text="{Binding Dashboard.UploadSpeed, Mode=OneWay}" />
+                <Run Text="  ·  " /><Run Text="{Binding Dashboard.LatencyText, Mode=OneWay}" />
+            </TextBlock>
+
+            <!-- Server row: opens the picker -->
+            <Button DockPanel.Dock="Bottom" Style="{StaticResource Button.Bare}" Foreground="{DynamicResource B.Text}" Click="OnOpenPicker" Margin="0,12,0,0"
+                    AutomationProperties.Name="Choose server" ToolTip="Choose server">
+                <Border Background="{DynamicResource B.Card}" BorderBrush="{DynamicResource B.Border}" BorderThickness="1" CornerRadius="16" Padding="12,10">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Right" Style="{StaticResource Icon}" Text="&#xE70D;" FontSize="11" Foreground="{DynamicResource B.TextMuted}" VerticalAlignment="Center" />
+                        <v:FlagView DockPanel.Dock="Left" Width="34" Height="34" CountryCode="{Binding Dashboard.ServerFlag}" Margin="0,0,12,0" />
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Dashboard.ServerTitle}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding Dashboard.ServerSubtitle}" Style="{StaticResource Text.Hint}" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </DockPanel>
+                </Border>
+            </Button>
+
+            <!-- Big toggle and state -->
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Viewbox Stretch="Uniform" MaxWidth="236" MaxHeight="236" Margin="12,8,12,4">
+                    <v:ConnectButton State="{Binding Dashboard.ButtonState}" Mode="{Binding Dashboard.Mode}" ReduceMotion="{Binding ReduceMotion}"
+                                     Command="{Binding Dashboard.ToggleCommand}" />
+                </Viewbox>
+                <StackPanel Grid.Row="1" HorizontalAlignment="Center">
+                    <TextBlock Text="{Binding Dashboard.StatusTitle}" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding Dashboard.StatusDetail}" Style="{StaticResource Text.Hint}" HorizontalAlignment="Center" TextAlignment="Center"
+                               TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
+                </StackPanel>
+            </Grid>
+        </DockPanel>
+
+        <!-- Server picker overlay: search, Smart first, then servers by score. Built only while open. -->
+        <Grid x:Name="Picker" Visibility="Collapsed" Background="{DynamicResource B.WindowFill}">
+            <Grid.RenderTransform><TranslateTransform /></Grid.RenderTransform>
+            <DockPanel Margin="14,8,14,14">
+                <DockPanel DockPanel.Dock="Top" Height="36">
+                    <Button DockPanel.Dock="Left" Style="{StaticResource Button.Icon}" Content="&#xE72B;" Click="OnClosePicker"
+                            ToolTip="Back" AutomationProperties.Name="Back" WindowChrome.IsHitTestVisibleInChrome="True" />
+                    <TextBlock Text="Choose server" FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center" Margin="6,0,0,0" />
+                </DockPanel>
+                <TextBox x:Name="Search" DockPanel.Dock="Top" Margin="0,6,0,10" Tag="Search servers" AutomationProperties.Name="Search servers"
+                         TextChanged="OnSearchChanged" />
+                <Button DockPanel.Dock="Top" Style="{StaticResource Button.Bare}" Foreground="{DynamicResource B.Text}" Click="OnPickSmart" Margin="0,0,0,6" AutomationProperties.Name="Smart: best server">
+                    <Border x:Name="SmartRow" Background="{DynamicResource B.Card}" BorderBrush="{DynamicResource B.Border}" BorderThickness="1" CornerRadius="14" Padding="12,9">
+                        <DockPanel>
+                            <TextBlock x:Name="SmartCheck" DockPanel.Dock="Right" Style="{StaticResource Icon}" Text="&#xE73E;" FontSize="12"
+                                       Foreground="{DynamicResource B.Accent}" VerticalAlignment="Center" Visibility="Collapsed" />
+                            <Border DockPanel.Dock="Left" Width="30" Height="30" CornerRadius="15" Background="{DynamicResource B.AccentSoft}" Margin="0,0,12,0">
+                                <TextBlock Style="{StaticResource Icon}" Text="&#xE945;" FontSize="13" Foreground="{DynamicResource B.Accent}" />
+                            </Border>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="Smart: best server" FontWeight="SemiBold" />
+                                <TextBlock Text="Picks the fastest working server" Style="{StaticResource Text.Hint}" />
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+                </Button>
+                <TextBlock x:Name="Empty" DockPanel.Dock="Top" TextWrapping="Wrap" Style="{StaticResource Text.Hint}" Margin="4,8,0,0" Visibility="Collapsed" />
+                <ListBox x:Name="List" Background="Transparent" Foreground="{DynamicResource B.Text}" BorderThickness="0" HorizontalContentAlignment="Stretch"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                         AutomationProperties.Name="Servers">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="Padding" Value="0" />
+                            <Setter Property="Margin" Value="0,0,0,4" />
+                            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ListBoxItem">
+                                        <ContentPresenter />
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:ServerItem}">
+                            <Button Style="{StaticResource Button.Bare}" Foreground="{DynamicResource B.Text}" Click="OnPickServer" AutomationProperties.Name="{Binding Name}" ToolTip="{Binding ScoreText}">
+                                <Border x:Name="Row" CornerRadius="12" Padding="10,7">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="Transparent" />
+                                            <Style.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter Property="Background" Value="{DynamicResource B.CardFill}" />
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding Latency}" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="8,0,0,0" />
+                                        <TextBlock x:Name="Check" DockPanel.Dock="Right" Style="{StaticResource Icon}" Text="&#xE73E;" FontSize="11"
+                                                   Foreground="{DynamicResource B.Accent}" VerticalAlignment="Center" Margin="6,0,0,0" Visibility="Collapsed" />
+                                        <v:FlagView DockPanel.Dock="Left" Width="26" Height="26" CountryCode="{Binding FlagCode}" Margin="0,0,10,0" />
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding SubscriptionName}" Style="{StaticResource Text.Caption}" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                    </DockPanel>
+                                </Border>
+                            </Button>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                    <Setter TargetName="Row" Property="Background" Value="{DynamicResource B.AccentSoft}" />
+                                    <Setter TargetName="Check" Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+        </Grid>
+    </Grid>
+</Window>

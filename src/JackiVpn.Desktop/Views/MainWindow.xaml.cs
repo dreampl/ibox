@@ -274,4 +274,21 @@ public partial class MainWindow : Window
 
         base.OnClosing(e);
     }
+
+    /// <summary>Closed for good (exit, or the switch to the Mini view): let go of the shared view models and pages.</summary>
+    protected override void OnClosed(EventArgs e)
+    {
+        _vm.PropertyChanged -= OnVmChanged;
+        _release?.Stop();
+        foreach (var presenter in _pages.Values)
+        {
+            presenter.Content = null;
+        }
+
+        PageHost.Children.Clear();
+        _pages.Clear();
+        _recent.Clear();
+        DataContext = null;
+        base.OnClosed(e);
+    }
 }

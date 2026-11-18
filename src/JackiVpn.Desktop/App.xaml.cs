@@ -33,6 +33,8 @@ public partial class App : System.Windows.Application
     private AppServices? _services;
     private TrayService? _tray;
     private MainWindow? _window;
+    private MiniWindow? _mini;
+    private bool _switching;
     private MainViewModel? _vm;
     private ActivityDetector? _activity;
     private int _exiting;
@@ -113,7 +115,7 @@ public partial class App : System.Windows.Application
 
     private async Task StartAsync(bool launchedMinimized)
     {
-        _tray = new TrayService(() => _window is { IsVisible: true, IsActive: true } && _window.WindowState != WindowState.Minimized);
+        _tray = new TrayService(() => CurrentWindow is { IsVisible: true, IsActive: true } w && w.WindowState != WindowState.Minimized);
         _services = new AppServices(_tray);
         await _services.Settings.LoadAsync(CancellationToken.None);
         await _services.Accounts.InitializeAsync(CancellationToken.None);
@@ -172,10 +174,25 @@ public partial class App : System.Windows.Application
         PerfProbe.StartIfAsked(_services.Logger);
 #endif
         _vm = new MainViewModel(_services, new DialogService());
-        _window = new MainWindow(_vm) { CloseToTray = () => _services.Settings.Current.Ui.CloseToTray };
-        MainWindow = _window;
-        _window.Closed += (_, _) => _ = ExitAsync();
-        _window.OnScreenChanged += (_, shown) => OnMainWindowOnScreen(shown);
+        if (settings.Ui.MiniView)
+        {
+            _mini = CreateMiniWindow();
+        }
+        else
+        {
+            _window = CreateMainWindow();
+        }
+
+        MainWindow = CurrentWindow;
+        _vm.ViewModeRequested += (_, mini) => _ = SwitchViewAsync(mini);
+        _vm.PropertyChanged += (_, e) =>
+        {
+            // Something navigated to a page (notch "Customize", the TUN service hint, the tour): that needs the full window.
+            if (e.PropertyName == nameof(MainViewModel.Selected) && _mini is not null && !_switching)
+            {
+                _ = SwitchViewAsync(false);
+            }
+        };
         ThemeManager.Changed += (_, _) => _vm?.RefreshTheme();
         _services.Orchestrator.StatusChanged += (_, _) => Dispatcher.BeginInvoke(UpdateEfficiencyMode);
         OnMainWindowOnScreen(false); // until the window is shown (it may start in the tray)
@@ -197,12 +214,12 @@ public partial class App : System.Windows.Application
 
         if (!(launchedMinimized || settings.Startup.StartMinimized))
         {
-            _window.Show();
+            CurrentWindow!.Show();
         }
 
         await _vm.InitializeAsync();
         _services.StartBackground();
-        if (_window.IsVisible && Application.Onboarding.Tour.ShouldShow(_services.Settings.Current.Ui.TourSeen, (await _services.Profiles.GetAllAsync(_services.Lifetime)).Count))
+        if (_window is { IsVisible: true } && Application.Onboarding.Tour.ShouldShow(_services.Settings.Current.Ui.TourSeen, (await _services.Profiles.GetAllAsync(_services.Lifetime)).Count))
         {
             // A fresh install: the short tour, once the window has settled (not blocking the rest of the start).
             _ = Dispatcher.BeginInvoke(async () =>
@@ -440,20 +457,125 @@ public partial class App : System.Windows.Application
         return false;
     }
 
-    private void ShowWindow()
+    /// <summary>The window in use: the Mini view or the full (Pro) window. Only one exists outside a switch.</summary>
+    private Window? CurrentWindow => (Window?)_mini ?? _window;
+
+    private MainWindow CreateMainWindow()
     {
-        if (_window is null)
+        var w = new MainWindow(_vm!) { CloseToTray = () => _services!.Settings.Current.Ui.CloseToTray };
+        w.Closed += OnWindowClosed;
+        w.OnScreenChanged += OnWindowOnScreen;
+        return w;
+    }
+
+    private MiniWindow CreateMiniWindow()
+    {
+        var services = _services!;
+        var ui = services.Settings.Current.Ui;
+        var w = new MiniWindow(_vm!, ui.MiniBounds, ui.MiniOnTop) { CloseToTray = () => services.Settings.Current.Ui.CloseToTray };
+        w.Closed += OnWindowClosed;
+        w.OnScreenChanged += OnWindowOnScreen;
+        w.PinnedChanged += (_, on) => services.Settings.Update(s => s with { Ui = s.Ui with { MiniOnTop = on } });
+        w.BoundsCommitted += (_, b) => SaveMiniBounds(b);
+        return w;
+    }
+
+    private void SaveMiniBounds(WindowBounds b)
+    {
+        if (Volatile.Read(ref _exiting) == 0 && _services is { } services && services.Settings.Current.Ui.MiniBounds != b)
+        {
+            services.Settings.Update(s => s with { Ui = s.Ui with { MiniBounds = b } });
+        }
+    }
+
+    /// <summary>The window in use was closed by the user (not hidden to the tray, not a view switch): the app exits.</summary>
+    private void OnWindowClosed(object? sender, EventArgs e) => _ = ExitAsync();
+
+    /// <summary>Either window came on or left the screen: the app counts as shown while any of them is.</summary>
+    private void OnWindowOnScreen(object? sender, bool shown) => ApplyOnScreen();
+
+    private void ApplyOnScreen()
+    {
+        var any = _window is { OnScreen: true } || _mini is { OnScreen: true };
+        Motion.SetMainWindowShown(any); // the main window also sets it for itself; this is the app-wide answer
+        OnMainWindowOnScreen(any);
+    }
+
+    /// <summary>
+    /// Mini view ⇄ Pro view: the new window is shown first, then the old one fades and is closed for good (its pages,
+    /// timers and animations go with it). The connection is not touched; both windows use the same view models.
+    /// </summary>
+    private async Task SwitchViewAsync(bool mini)
+    {
+        if (_switching || _vm is null || _services is null || Volatile.Read(ref _exiting) != 0)
         {
             return;
         }
 
-        _window.Show();
-        if (_window.WindowState == WindowState.Minimized)
+        if (mini == _mini is not null)
         {
-            _window.WindowState = WindowState.Normal;
+            ShowWindow();
+            return;
         }
 
-        _window.Activate();
+        _switching = true;
+        try
+        {
+            var old = CurrentWindow;
+            Window next = mini ? _mini = CreateMiniWindow() : _window = CreateMainWindow();
+            MainWindow = next;
+            _services.Settings.Update(s => s with { Ui = s.Ui with { MiniView = mini } });
+            next.Show();
+            next.Activate();
+
+            if (old is not null)
+            {
+                if (!Motion.Reduced && old.IsVisible && old.Content is UIElement content)
+                {
+                    content.BeginAnimation(UIElement.OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, TimeSpan.FromMilliseconds(140)));
+                    await Task.Delay(150);
+                }
+
+                old.Closed -= OnWindowClosed;
+                switch (old)
+                {
+                    case MainWindow m:
+                        m.OnScreenChanged -= OnWindowOnScreen;
+                        m.AllowClose = true;
+                        _window = null;
+                        break;
+                    case MiniWindow m:
+                        m.OnScreenChanged -= OnWindowOnScreen;
+                        m.AllowClose = true;
+                        _mini = null;
+                        break;
+                }
+
+                old.Close();
+            }
+
+            ApplyOnScreen();
+        }
+        finally
+        {
+            _switching = false;
+        }
+    }
+
+    private void ShowWindow()
+    {
+        if (CurrentWindow is not { } window)
+        {
+            return;
+        }
+
+        window.Show();
+        if (window.WindowState == WindowState.Minimized)
+        {
+            window.WindowState = WindowState.Normal;
+        }
+
+        window.Activate();
     }
 
     private void OnPowerModeChanged(object? sender, PowerModeChangedEventArgs e)
@@ -511,6 +633,11 @@ public partial class App : System.Windows.Application
 
     private async Task ExitAsync()
     {
+        if (_mini is not null)
+        {
+            SaveMiniBounds(_mini.Bounds); // before the settings store goes away with the services
+        }
+
         if (Interlocked.Exchange(ref _exiting, 1) != 0)
         {
             return;
@@ -524,6 +651,12 @@ public partial class App : System.Windows.Application
         {
             _window.AllowClose = true;
             _window.Hide();
+        }
+
+        if (_mini is not null)
+        {
+            _mini.AllowClose = true;
+            _mini.Hide();
         }
 
         try
@@ -541,6 +674,7 @@ public partial class App : System.Windows.Application
 
         _tray?.Dispose();
         _window?.Close();
+        _mini?.Close();
         _activate?.Set();
         _activate?.Dispose();
         _singleInstance?.ReleaseMutex();
