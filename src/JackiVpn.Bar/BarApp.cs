@@ -44,6 +44,8 @@ public static partial class BarApp
     private static MediaSessionSource _media = null!;
     private static readonly BluetoothBatterySource Batteries = new();
     private static readonly LowBatteryWarnings BatteryWarnings = new();
+    private static readonly HashSet<string> NewsSeen = new(StringComparer.Ordinal);
+    private const string NewsChip = "ibox-news";
     private static TrayIcon? _tray;
     private static ControlPanel? _panel;
     private static ChatWindow? _chat;
@@ -187,12 +189,14 @@ public static partial class BarApp
             notch.HideRequested += (_, _) => _settings.Update(s => s with { HiddenMonitors = [.. s.HiddenMonitors, m.Key] });
             notch.MediaCommand += (_, c) => _ = c switch { < 0 => _media.PreviousAsync(), > 0 => _media.NextAsync(), _ => _media.PlayPauseAsync() };
             notch.PluginAction += (_, a) => RunAction(a.Plugin, a.Action);
+            notch.NewsRead += (_, id) => _ = ReadNewsAsync(id);
             notch.MenuExtras = MenuItems;
             notch.MouseEnter += (_, _) => ArmTrim();
             Notches[m.Key] = notch;
             notch.Apply(NotchSettingsFrom(_settings.Current));
             notch.SetNowPlaying(_media.Current);
             notch.SetBatteries(_settings.Current.BluetoothBattery ? Batteries.Current : []);
+            notch.SetNews(_ibox.Current?.News ?? []);
             Mirror(notch, _ibox.Current);
             notch.Show();
             notch.SetGlass(_settings.Current.Glass, _settings.Current.GlassStrength);
@@ -284,6 +288,47 @@ public static partial class BarApp
         }
     }
 
+    /// <summary>The provider's news: on every island, a chip with the unread count, and an alert when one arrives.</summary>
+    private static void OnNews(IReadOnlyList<AgentNews> unread)
+    {
+        foreach (var n in Notches.Values)
+        {
+            n.SetNews(unread);
+        }
+
+        var had = Chips.ContainsKey(NewsChip);
+        if (unread.Count > 0)
+        {
+            Chips[NewsChip] = (Color.FromRgb(0x5E, 0xB8, 0xFF), unread.Count > 9 ? "9+" : unread.Count.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
+        else
+        {
+            Chips.Remove(NewsChip);
+        }
+
+        if (had || unread.Count > 0)
+        {
+            foreach (var n in Notches.Values)
+            {
+                n.SetChips(Chips.Values.ToList());
+            }
+        }
+
+        foreach (var item in unread.Where(i => NewsSeen.Add(i.Id)).Take(2))
+        {
+            Active()?.ShowAlert(new AiAlert("plugin", "IBOX", item.Title ?? "News · خبر", NotchBridge.Clean(item.Text, 220, lines: 3), null, null));
+        }
+    }
+
+    /// <summary>"Mark as read": IBOX tells the provider; the next eco.status no longer has the message.</summary>
+    private static async Task ReadNewsAsync(string id)
+    {
+        if (await _ibox.CallAsync(AgentMethods.NewsRead, new { ids = new[] { id } }).ConfigureAwait(false) is { } problem)
+        {
+            Debug.WriteLine("news.read: " + problem);
+        }
+    }
+
     private static void Wire()
     {
         var ui = System.Windows.Application.Current.Dispatcher;
@@ -347,6 +392,8 @@ public static partial class BarApp
             {
                 Mirror(n, eco);
             }
+
+            OnNews(eco?.News ?? []);
 
             ArmTrim();
         });

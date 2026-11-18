@@ -32,6 +32,9 @@ public sealed record AgentDependencies
     public Func<string, string?>? SetTraffic { get; init; }
 
     public Func<bool, CancellationToken, Task<string?>>? SetDualVpn { get; init; }
+
+    /// <summary>news.read: marks these news ids read at the provider.</summary>
+    public Func<IReadOnlyList<string>, CancellationToken, Task>? ReadNews { get; init; }
     public required ILogger Logger { get; init; }
 }
 
@@ -63,6 +66,7 @@ public sealed class AgentController(AgentDependencies d)
                 AgentMethods.EcoStatus or AgentMethods.Watch or AgentMethods.NotchYield => Eco(),
                 AgentMethods.SetTraffic => (d.SetTraffic ?? throw new AgentException("Not available here."))(Param<string>(request, "mode") ?? "normal") is { } problem ? throw new AgentException(problem) : Eco(),
                 AgentMethods.SetDualVpn => await (d.SetDualVpn ?? throw new AgentException("Not available here."))(Param<bool>(request, "on"), ct).ConfigureAwait(false) is { } dualProblem ? throw new AgentException(dualProblem) : Eco(),
+                AgentMethods.NewsRead => await ReadNewsAsync(request, ct).ConfigureAwait(false),
                 _ => throw new AgentException("Unknown method."),
             };
             return new AgentResponse(request.Id, true, JsonSerializer.SerializeToElement(result, AgentProtocol.Json));
@@ -78,6 +82,16 @@ public sealed class AgentController(AgentDependencies d)
     }
 
     /// <summary>The status plus the platform's extras (IBAR shows them all).</summary>
+    private async Task<AgentEco> ReadNewsAsync(AgentRequest request, CancellationToken ct)
+    {
+        var read = d.ReadNews ?? throw new AgentException("Not available here.");
+        var ids = request.Params is { ValueKind: JsonValueKind.Object } p && p.TryGetProperty("ids", out var list) && list.ValueKind == JsonValueKind.Array
+            ? list.EnumerateArray().Where(e => e.ValueKind == JsonValueKind.String).Select(e => e.GetString()!).Take(100).ToList()
+            : throw new AgentException("news.read needs ids.");
+        await read(ids, ct).ConfigureAwait(false);
+        return Eco();
+    }
+
     public AgentEco Eco() => d.Eco?.Invoke() is { } eco ? eco with { Status = Status() } : new AgentEco { Status = Status() };
 
     private AgentStatus Status()
