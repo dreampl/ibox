@@ -115,6 +115,17 @@
                         </StackPanel>
                         <Button Grid.Column="1" Content="Install IBAR" Command="{Binding InstallIbarCommand}" Padding="14,6" VerticalAlignment="Center" Margin="12,0,0,0" />
                     </Grid>
+                    <Grid Style="{StaticResource Row}" Margin="0,14,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="Automations" Style="{StaticResource Text.Label}" />
+                            <TextBlock Text="Switch away from a bad server, trusted Wi-Fi, nightly refresh and a quota watcher. Each one is off until you turn it on." Style="{StaticResource Text.Hint}" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="Automations…" Command="{Binding OpenAutomationsCommand}" Padding="14,6" VerticalAlignment="Center" Margin="12,0,0,0" />
+                    </Grid>
                 </StackPanel>
             </v:ClaySurface>
 

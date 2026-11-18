@@ -215,6 +215,16 @@ public sealed partial class SettingsViewModel : ObservableObject
         _ => "Set_RouteCustom",
     });
 
+    public string RulesValue => S.Routing.Rules.Count(r => r.Enabled).ToString(System.Globalization.CultureInfo.CurrentCulture);
+
+    public string AutomationsValue => S.Automations.Enabled.Count.ToString(System.Globalization.CultureInfo.CurrentCulture);
+
+    [RelayCommand]
+    private static Task OpenRulesAsync() => Shell.Current.GoToAsync("rules");
+
+    [RelayCommand]
+    private static Task OpenAutomationsAsync() => Shell.Current.GoToAsync("automations");
+
     [RelayCommand]
     private async Task ChooseRoutingAsync()
     {

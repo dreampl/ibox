@@ -236,7 +236,7 @@ public sealed class Shell : Window, INotificationSink
         Subscriptions = new SubscriptionsPage(this);
         return
         [
-            Dashboard, Servers, Subscriptions, new UsagePage(this), new RoutingPage(this), new DnsPage(this),
+            Dashboard, Servers, Subscriptions, new UsagePage(this), new RoutingPage(this), new AutomationsPage(this), new DnsPage(this),
             new NetworkPage(this), new AdvancedPage(this), new LogsPage(this), new SettingsPage(this), new AboutPage(this),
         ];
     }

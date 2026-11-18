@@ -44,6 +44,8 @@
 
             <controls:SettingGroup Header="{loc:T Set_Connection}">
                 <controls:SettingRow Icon="route" Tint="{StaticResource Teal}" Title="{loc:T Set_Routing}" Value="{Binding RoutingValue}" Command="{Binding ChooseRoutingCommand}" />
+                <controls:SettingRow Icon="route" Tint="{StaticResource Teal}" Title="{loc:T Set_Rules}" Value="{Binding RulesValue}" Command="{Binding OpenRulesCommand}" />
+                <controls:SettingRow Icon="route" Tint="{StaticResource Teal}" Title="{loc:T Set_Automations}" Value="{Binding AutomationsValue}" Command="{Binding OpenAutomationsCommand}" />
                 <controls:SettingRow Icon="search" Tint="{StaticResource Primary2}" Title="{loc:T Dns_Title}" Subtitle="{loc:T Dns_Hint}" Value="{Binding DnsValue}" Command="{Binding FindDnsCommand}" />
                 <controls:SettingRow Icon="globe" Tint="{StaticResource Primary2}" Title="{loc:T Dns_Auto}" Subtitle="{loc:T Dns_AutoHint}">
                     <controls:SettingRow.Trailing>
