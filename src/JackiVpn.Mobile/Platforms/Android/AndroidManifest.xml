@@ -34,6 +34,8 @@
 	<!-- Optional game detection (usage access is granted by the user in Android settings). -->
 	<!-- Per-app VPN: list launchable apps only (no QUERY_ALL_PACKAGES). -->
 	<queries>
+		<!-- AmneziaVPN: import its vpn:// key, open it, and notice when it is connected. -->
+		<package android:name="org.amnezia.vpn" />
 		<intent>
 			<action android:name="android.intent.action.MAIN" />
 			<category android:name="android.intent.category.LAUNCHER" />

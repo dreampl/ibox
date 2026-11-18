@@ -3,6 +3,8 @@ using System.Diagnostics;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using JackiVpn.Application.Amnezia;
+using JackiVpn.Desktop.Services;
 using JackiVpn.Desktop.ViewModels;
 
 namespace JackiVpn.Desktop.Views;
@@ -59,11 +61,15 @@ public partial class SubscriptionsView : UserControl
                 MaxHeight = 320,
                 Margin = new Thickness(0, 10, 0, 10),
             };
-            var copy = new Button { Content = "Copy key", HorizontalAlignment = HorizontalAlignment.Right };
+            var open = new Button { Content = "Open in AmneziaVPN", IsDefault = true, Margin = new Thickness(8, 0, 0, 0) };
+            var copy = new Button { Content = "Copy key" };
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            buttons.Children.Add(copy);
+            buttons.Children.Add(open);
             var content = new StackPanel { Margin = new Thickness(18) };
-            content.Children.Add(new TextBlock { Text = "Select a configuration, then import the copied key in AmneziaVPN.", TextWrapping = TextWrapping.Wrap });
+            content.Children.Add(new TextBlock { Text = "Select a configuration. IBOX opens AmneziaVPN and imports it; then click Connect there.", TextWrapping = TextWrapping.Wrap });
             content.Children.Add(options);
-            content.Children.Add(copy);
+            content.Children.Add(buttons);
             var dialog = new Window
             {
                 Title = "Nex · AmneziaWG",
@@ -73,11 +79,50 @@ public partial class SubscriptionsView : UserControl
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 Content = content,
             };
+            var launch = false;
+            open.Click += (_, _) => { launch = true; dialog.DialogResult = options.SelectedIndex >= 0; };
             copy.Click += (_, _) => dialog.DialogResult = options.SelectedIndex >= 0;
-            if (dialog.ShowDialog() == true && options.SelectedIndex >= 0)
+            if (dialog.ShowDialog() != true || options.SelectedIndex < 0)
             {
-                Clipboard.SetText(configs[options.SelectedIndex].Key!);
+                return;
+            }
+
+            var raw = configs[options.SelectedIndex].Key!;
+            if (!AmneziaShareKey.TryParse(raw, out var key) || key is null)
+            {
+                Clipboard.SetText(raw);
                 vm.Message = "AmneziaVPN key copied.";
+                return;
+            }
+
+            vm.RememberAmneziaKey(key);
+            if (!launch)
+            {
+                Clipboard.SetText(key.Key);
+                vm.Message = "AmneziaVPN key copied.";
+                return;
+            }
+
+            switch (AmneziaWindows.Open(key, Clipboard.SetText))
+            {
+                case AmneziaOpenResult.Imported:
+                    vm.Message = "Sent to AmneziaVPN. Click Connect there.";
+                    break;
+                case AmneziaOpenResult.Opened:
+                    vm.Message = "AmneziaVPN opened and the key is copied: Add server → paste the key, then Connect.";
+                    break;
+                case AmneziaOpenResult.Missing:
+                    Clipboard.SetText(key.Key);
+                    if (MessageBox.Show(Window.GetWindow(this), "AmneziaVPN is not installed. Open the official download page? The key is copied for later.", "AmneziaVPN", MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
+                    {
+                        AmneziaWindows.OpenDownloadPage();
+                    }
+
+                    vm.Message = "AmneziaVPN key copied.";
+                    break;
+                default:
+                    vm.Message = "Could not open AmneziaVPN. The key is copied: import it there.";
+                    break;
             }
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)

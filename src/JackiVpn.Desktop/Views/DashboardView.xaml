@@ -223,6 +223,17 @@
                                     </Border>
                                 </Button>
 
+                                <!-- AmneziaVPN is connected (to one of our servers, or elsewhere) while IBOX is idle: one click switches. -->
+                                <Button Style="{StaticResource Button.Bare}" HorizontalAlignment="Left" Margin="0,0,0,8" Command="{Binding SwitchFromAmneziaCommand}"
+                                        Visibility="{Binding AmneziaShown, Converter={StaticResource Bool2Vis}}" ToolTip="{Binding AmneziaTip}" AutomationProperties.Name="Switch from AmneziaVPN to IBOX">
+                                    <Border Style="{StaticResource Chip}" Margin="0">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse Width="8" Height="8" Margin="0,0,7,0" Fill="{DynamicResource B.Success}" />
+                                            <TextBlock Text="{Binding AmneziaText}" Style="{StaticResource ChipText}" />
+                                        </StackPanel>
+                                    </Border>
+                                </Button>
+
                                 <WrapPanel Visibility="{Binding IsConnected, Converter={StaticResource Bool2Vis}}">
                                     <Border Style="{StaticResource Chip}" ToolTip="{Binding LatencyTip}">
                                         <StackPanel Orientation="Horizontal">

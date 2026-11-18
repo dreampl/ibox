@@ -58,6 +58,16 @@
             </Grid>
         </Border>
 
+        <!-- AmneziaVPN is connected while IBOX is idle: one tap connects IBOX (Android then turns Amnezia's VPN off). -->
+        <Border Grid.Row="2" IsVisible="{Binding AmneziaShown}" BackgroundColor="{StaticResource TealSoft}" Stroke="#6622C55E"
+                StrokeShape="RoundRectangle 18" Padding="14,8" Margin="0,0,0,10">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                <Ellipse WidthRequest="8" HeightRequest="8" Fill="{StaticResource Teal}" VerticalOptions="Center" />
+                <Label Grid.Column="1" Text="{Binding AmneziaText}" FontSize="12.5" LineBreakMode="WordWrap" MaxLines="2" VerticalOptions="Center" />
+                <Button Grid.Column="2" Style="{StaticResource Pill}" Text="{loc:T Amz_Switch}" Command="{Binding SwitchFromAmneziaCommand}" VerticalOptions="Center" />
+            </Grid>
+        </Border>
+
         <!-- Location + live numbers (one glance, no scrolling) -->
         <Border x:Name="InfoCard" Grid.Row="3" BackgroundColor="{StaticResource Surface}" Stroke="{StaticResource Stroke}" StrokeShape="RoundRectangle 24"
                 Padding="16,14" Margin="0,0,0,104">

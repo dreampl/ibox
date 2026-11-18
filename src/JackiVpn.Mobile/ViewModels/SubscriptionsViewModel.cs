@@ -348,9 +348,44 @@ public sealed partial class SubscriptionsViewModel : ObservableObject
             var labels = configs.Select((config, index) => $"{index + 1}. {config.Location} {config.Label}".Trim()).ToArray();
             var choice = await Shell.Current.DisplayActionSheetAsync("AmneziaWG", L.Get("Cancel"), null, labels);
             var selected = Array.IndexOf(labels, choice);
-            if (selected >= 0 && await Shell.Current.DisplayAlertAsync("AmneziaWG", L.Get("Sub_NexCopyHint"), L.Get("Sub_NexCopy"), L.Get("Cancel")))
+            if (selected < 0)
             {
-                await Clipboard.Default.SetTextAsync(configs[selected].Key!);
+                return;
+            }
+
+            var raw = configs[selected].Key!;
+            if (!Application.Amnezia.AmneziaShareKey.TryParse(raw, out var key) || key is null)
+            {
+                await Clipboard.Default.SetTextAsync(raw);
+                Message = L.Get("Sub_NexCopied");
+                return;
+            }
+
+            _s.Amnezia.Remember(key);
+            var context = Platform.CurrentActivity ?? global::Android.App.Application.Context;
+            if (!Platforms.Android.AmneziaAndroid.IsInstalled(context))
+            {
+                await Clipboard.Default.SetTextAsync(key.Key);
+                if (await Shell.Current.DisplayAlertAsync("AmneziaVPN", L.Get("Amz_Missing"), L.Get("Amz_Download"), L.Get("Cancel")))
+                {
+                    await Browser.Default.OpenAsync(new Uri(Platforms.Android.AmneziaAndroid.DownloadUrl), BrowserLaunchMode.External);
+                }
+
+                Message = L.Get("Sub_NexCopied");
+                return;
+            }
+
+            var open = L.Get("Amz_Open");
+            var copy = L.Get("Sub_NexCopy");
+            var how = await Shell.Current.DisplayActionSheetAsync(L.Get("Amz_OpenHint"), L.Get("Cancel"), null, open, copy);
+            if (how == open)
+            {
+                await Clipboard.Default.SetTextAsync(key.Key);
+                Message = L.Get(Platforms.Android.AmneziaAndroid.Import(context, key) ? "Amz_Sent" : "Sub_NexCopied");
+            }
+            else if (how == copy)
+            {
+                await Clipboard.Default.SetTextAsync(key.Key);
                 Message = L.Get("Sub_NexCopied");
             }
         }
