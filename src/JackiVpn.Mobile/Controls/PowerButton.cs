@@ -154,11 +154,12 @@ public sealed class PowerButton : ContentView
             {
                 // Cross-fade the core into the new activity colour.
                 _faceNext.Fill = Brush(accentGradientKey);
+                _crossFading = true;
                 _ = CrossFadeAsync(++_fade, accentGradientKey);
             }
             else
             {
-                _faceOn.Fill = Brush(accentGradientKey);
+                PaintFaceOn(accentGradientKey);
             }
         }
         else if (visual != PowerVisual.Connected)
@@ -173,10 +174,20 @@ public sealed class PowerButton : ContentView
     }
 
     private int _fade;
+    private string? _faceOnKey;
+    private bool _crossFading;
+
+    /// <summary>Paints the connected face, remembering which colour it actually shows.</summary>
+    private void PaintFaceOn(string key)
+    {
+        _faceOnKey = key;
+        _faceOn.Fill = Brush(key);
+    }
 
     private void CancelCrossFade()
     {
         _fade++;
+        _crossFading = false;
         _faceNext.CancelAnimations();
         _faceNext.Opacity = 0;
     }
@@ -189,7 +200,8 @@ public sealed class PowerButton : ContentView
             return;
         }
 
-        _faceOn.Fill = Brush(key);
+        _crossFading = false;
+        PaintFaceOn(key);
         _faceNext.Opacity = 0;
         _ = Motion.StretchAsync(_core);
     }
@@ -200,7 +212,13 @@ public sealed class PowerButton : ContentView
         var on = _visual == PowerVisual.Connected;
         var busy = _visual == PowerVisual.Busy;
         var tint = on ? _accent : Color.FromArgb("#5B6CFF");
-        _faceOn.Fill ??= Brush(_accentKey);
+        // A cancelled cross-fade leaves the face on the colour it started from; repaint when it no longer matches
+        // (a stale gaming pink would otherwise show on the next plain connect).
+        if (_faceOnKey != _accentKey && !_crossFading)
+        {
+            PaintFaceOn(_accentKey);
+        }
+
         _ = _faceOn.FadeToAsync(on ? 1 : 0, d, Easing.CubicInOut);
         _ = _faceIdle.FadeToAsync(on ? 0 : 1, d, Easing.CubicInOut);
         _glow.Fill = new RadialGradientBrush(new GradientStopCollection
