@@ -131,8 +131,51 @@ public sealed class PowerButton : ContentView
             Tapped?.Invoke(this, EventArgs.Empty);
         };
         _core.GestureRecognizers.Add(tap);
-        Loaded += (_, _) => Apply(animate: false);
-        Unloaded += (_, _) => this.AbortAnimation(Loop);
+        Loaded += (_, _) =>
+        {
+            AppVisibleChanged += OnAppVisibleChanged;
+            Apply(animate: false);
+        };
+        Unloaded += (_, _) =>
+        {
+            AppVisibleChanged -= OnAppVisibleChanged;
+            this.AbortAnimation(Loop);
+        };
+    }
+
+    private static bool _appVisible = true;
+
+    private static event EventHandler? AppVisibleChanged;
+
+    /// <summary>
+    /// False while the app is in the background or the screen is off: the breathing loop (30 fps, forever) stops
+    /// instead of waking the CPU for frames nobody sees, and starts again when the app comes back.
+    /// </summary>
+    public static bool AppVisible
+    {
+        get => _appVisible;
+        set
+        {
+            if (_appVisible == value)
+            {
+                return;
+            }
+
+            _appVisible = value;
+            AppVisibleChanged?.Invoke(null, EventArgs.Empty);
+        }
+    }
+
+    private void OnAppVisibleChanged(object? sender, EventArgs e)
+    {
+        if (AppVisible)
+        {
+            StartLoop();
+        }
+        else
+        {
+            this.AbortAnimation(Loop);
+        }
     }
 
     public event EventHandler? Tapped;
@@ -287,7 +330,7 @@ public sealed class PowerButton : ContentView
             r.Scale = 1;
         }
 
-        if (Motion.Reduced)
+        if (Motion.Reduced || !AppVisible)
         {
             _arc.Rotation = 0;
             return;
@@ -307,7 +350,7 @@ public sealed class PowerButton : ContentView
                 }, 0, 1, Easing.CubicOut));
             }
 
-            parent.Commit(this, Loop, 16, 1600, Easing.Linear, repeat: () => _visual == PowerVisual.Busy && IsLoaded);
+            parent.Commit(this, Loop, 16, 1600, Easing.Linear, repeat: () => _visual == PowerVisual.Busy && IsLoaded && AppVisible);
             return;
         }
 
@@ -322,7 +365,7 @@ public sealed class PowerButton : ContentView
 
             _glow.Scale = 1 + amplitude * s;
             _glow.Opacity = 0.85 + 0.15 * s;
-        }, 0, 1).Commit(this, Loop, 33, _visual == PowerVisual.Connected ? 3600u : 5200u, Easing.Linear, repeat: () => _visual != PowerVisual.Busy && IsLoaded);
+        }, 0, 1).Commit(this, Loop, 33, _visual == PowerVisual.Connected ? 3600u : 5200u, Easing.Linear, repeat: () => _visual != PowerVisual.Busy && IsLoaded && AppVisible);
     }
 
     private static Brush Brush(string key) => (Brush)Microsoft.Maui.Controls.Application.Current!.Resources[key];

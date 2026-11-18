@@ -43,7 +43,8 @@ public static class Ui
 
     public static IBrush B(Color c) => new SolidColorBrush(c);
 
-    public static IBrush B(Color c, double alpha) => new SolidColorBrush(Color.FromArgb((byte)(alpha * 255), c.R, c.G, c.B));
+    /// <summary>The colour at <paramref name="alpha"/> of its own opacity (a transparent colour stays transparent).</summary>
+    public static IBrush B(Color c, double alpha) => new SolidColorBrush(Color.FromArgb((byte)Math.Clamp(alpha * c.A, 0, 255), c.R, c.G, c.B));
 
     public static LinearGradientBrush Gradient(Color a, Color b) => new()
     {

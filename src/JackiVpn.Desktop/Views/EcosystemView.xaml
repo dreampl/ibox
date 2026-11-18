@@ -4,7 +4,7 @@
              xmlns:vm="clr-namespace:JackiVpn.Desktop.ViewModels">
     <UserControl.Resources>
         <!-- Radar: three rings expanding from the device mark while a scan runs. -->
-        <Storyboard x:Key="Radar" RepeatBehavior="Forever">
+        <Storyboard x:Key="Radar" RepeatBehavior="Forever" Timeline.DesiredFrameRate="30">
             <DoubleAnimation Storyboard.TargetName="R1" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)" From="0.3" To="1" Duration="0:0:1.8" />
             <DoubleAnimation Storyboard.TargetName="R1" Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)" From="0.3" To="1" Duration="0:0:1.8" />
             <DoubleAnimation Storyboard.TargetName="R1" Storyboard.TargetProperty="Opacity" From="0.8" To="0" Duration="0:0:1.8" />
