@@ -207,6 +207,11 @@ public sealed class ControlPanel : Window
         var general = Card("IBAR", null);
         general.Children.Add(Check(T.S("Start with Windows"), s.StartWithWindows, v => _settings.Update(x => x with { StartWithWindows = v })));
         general.Children.Add(Check(T.S("Hide while a full-screen app is in front"), s.HideInFullScreen, v => _settings.Update(x => x with { HideInFullScreen = v })));
+        general.Children.Add(Check(T.S("Floating island instead of the notch"), s.Island, v => _settings.Update(x => x with { Island = v })));
+        general.Children.Add(Check(T.S("Let clicks through (hold Ctrl over it; a faded notch steps aside)"), s.PeekThrough, v => _settings.Update(x => x with { PeekThrough = v })));
+        general.Children.Add(Check(T.S("Thin line while a maximised window is in front"), s.LineWhenMaximized, v => _settings.Update(x => x with { LineWhenMaximized = v })));
+        general.Children.Add(Check(T.S("Focus timer in the open notch"), s.FocusTimer, v => _settings.Update(x => x with { FocusTimer = v })));
+        general.Children.Add(Check(T.S("CPU, memory and battery in the open notch"), s.Vitals, v => _settings.Update(x => x with { Vitals = v })));
         general.Children.Add(Check(T.S("Light panel"), s.LightPanel, v =>
         {
             _settings.Update(x => x with { LightPanel = v });

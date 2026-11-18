@@ -121,7 +121,7 @@ public sealed partial class NotchWindow
 
     private void PlaceBoards(double expansion)
     {
-        Canvas.SetTop(_boards, DetailsArea + (ShowsShelf ? ShelfRowHeight : 0) - 4);
+        Canvas.SetTop(_boards, ContentArea + (ShowsShelf ? ShelfRowHeight : 0) - 4);
         var p = Math.Clamp((expansion - 0.6) / 0.4, 0, 1);
         _boards.Opacity = p * p * (3 - (2 * p));
         _boards.IsHitTestVisible = p > 0.5;

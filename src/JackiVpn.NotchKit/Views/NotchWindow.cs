@@ -170,6 +170,8 @@ public sealed partial class NotchWindow : Window
         // While connecting, a large high-detail thinking orb takes the eye's place.
         _orb.RenderTransform = _orbScale;
         _main.Children.Add(_orb);
+        BuildMedia();
+        BuildTools();
         BuildShelf();
         _surface.Children.Add(_main);
         BuildPanels();
@@ -199,6 +201,7 @@ public sealed partial class NotchWindow : Window
         _height = new Spring(CollapsedHeight, 225, 0.78, _ => ApplySize());
         _lateral = new Spring(0, 260, 0.32, v => _body.Lateral = v);
         _expand = new Spring(0, 165, 0.9, ApplyExpansion);
+        _mediaMix = new Spring(0, 190, 0.88, _ => ApplyExpansion(_expand.Value));
         // Width of the eye+text group, on the same spring as the island: the group re-centres smoothly.
         _group = new Spring(120, 230, 0.8, _ => ApplyExpansion(_expand.Value));
         _statusWidth = new Spring(80, 230, 0.8, _ => ApplyExpansion(_expand.Value));
@@ -231,6 +234,7 @@ public sealed partial class NotchWindow : Window
         _pill.MouseLeftButtonDown += OnPress;
         _pill.MouseMove += OnDrag;
         _pill.MouseLeftButtonUp += OnRelease;
+        InitIsland();
 
         // Anything dragged over the notch (files, folders, apps, text, links, pictures) can be dropped on its shelf.
         AllowDrop = true;
@@ -288,6 +292,7 @@ public sealed partial class NotchWindow : Window
             _dropLeave.Stop();
             _alertTimer.Stop();
             StopAnimating();
+            StopTools();
             DropAllRequests();
         };
     }
@@ -325,10 +330,10 @@ public sealed partial class NotchWindow : Window
     private bool ShowsMusic => _settings.ShowNowPlaying && _nowPlaying is not null;
 
     /// <summary>The eye and the detail rows: one row more while something is playing.</summary>
-    private double DetailsArea => ExpandedHeight + (ShowsMusic ? 28 : 0);
+    private double DetailsArea => _mediaFirst ? MediaCardHeight : ExpandedHeight + (ShowsMusic ? 28 : 0);
 
     /// <summary>Expanded height: the details, and the shelf below them when it holds something.</summary>
-    private double ExpandedHeightNow => DetailsArea + (ShowsShelf ? ShelfRowHeight : 0) + PluginRowHeight;
+    private double ExpandedHeightNow => ContentArea + (ShowsShelf ? ShelfRowHeight : 0) + PluginRowHeight;
 
     private Button MediaButton(TextBlock glyph, int command, string tip)
     {
@@ -383,6 +388,9 @@ public sealed partial class NotchWindow : Window
             DropAllRequests();
         }
 
+        ApplyStyle();
+        CheckFullScreen();
+        SyncTools();
         RenderShelf();
         Render();
     }
@@ -617,7 +625,13 @@ public sealed partial class NotchWindow : Window
 
         if (ShowsMusic && _nowPlaying is { IsPlaying: true } playing)
         {
-            Part("♪ " + playing.Line(26), Color.FromRgb(0xC7, 0xD2, 0xFE));
+            // The equaliser and the cover close the line (see RenderMedia).
+            Part(playing.Line(24), Color.FromRgb(0xC7, 0xD2, 0xFE));
+        }
+
+        if (FocusPart() is { } focus)
+        {
+            Part(focus, Color.FromRgb(0xFB, 0xBF, 0x24));
         }
 
         if (!showStatus && _line.Inlines.Count == 0 && ConnectionVisible)
@@ -684,6 +698,7 @@ public sealed partial class NotchWindow : Window
 
         _speed.Text = ConnectionVisible && connected && st.Traffic is { } tr ? $"↓ {Format.Speed(tr.DownloadBytesPerSecond)}    ↑ {Format.Speed(tr.UploadBytesPerSecond)}" : string.Empty;
 
+        RenderMedia();
         _line.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         _statusText.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         _details.Measure(new Size(_details.Width, double.PositiveInfinity));
@@ -698,7 +713,7 @@ public sealed partial class NotchWindow : Window
 
     private double LineWidth() => _line.Inlines.Count > 0 ? _line.DesiredSize.Width : 0;
 
-    private double GroupWidth() => EyeSmall + EyeGap + StatusWidth() + LineWidth() + ShelfMarkWidth();
+    private double GroupWidth() => EyeSmall + EyeGap + StatusWidth() + LineWidth() + MusicMarkWidth() + ShelfMarkWidth();
     private const double EyeSmall = 20;
     private const double EyeGap = 14;
     private const double SidePadding = 30;
@@ -718,13 +733,17 @@ public sealed partial class NotchWindow : Window
         var width = double.IsNaN(_pill.Width) ? CollapsedWidth() : _pill.Width;
         var height = double.IsNaN(_pill.Height) ? CollapsedHeight : _pill.Height;
         var group = _group?.Value ?? GroupWidth();
+        var m = Math.Clamp(_mediaMix?.Value ?? 0, 0, 1);
         var groupLeft = Math.Max(SidePadding * 0.6, (width - group) / 2);
 
         // The eye: centred in the island's current height (above the shelf) at every moment of the morph.
-        var eyeSize = EyeSmall + ((EyeBig - EyeSmall) * e);
+        // Music first: open, the eye stays small in the top-right corner beside the ping.
+        var eyeOpen = EyeBig + ((18 - EyeBig) * m);
+        var eyeSize = EyeSmall + ((eyeOpen - EyeSmall) * e);
         _eyeScale.ScaleX = _eyeScale.ScaleY = eyeSize / 36;
-        var eyeLeft = groupLeft + ((26 - groupLeft) * k);
+        var eyeLeft = groupLeft + ((26 + ((width - 22 - 18 - 26) * m) - groupLeft) * k);
         var eyeTop = (Math.Min(height, DetailsArea) - eyeSize) / 2;
+        eyeTop += (20 - eyeTop) * m * k;
         Canvas.SetLeft(_eye, eyeLeft);
         Canvas.SetTop(_eye, eyeTop);
         _badgeScale.ScaleX = _badgeScale.ScaleY = eyeSize / 36;
@@ -749,8 +768,11 @@ public sealed partial class NotchWindow : Window
         Canvas.SetTop(_lineHost, lineTop);
 
         // The shelf's mark (something is waiting on it) closes the collapsed group.
+        _musicMark.Opacity = lineOpacity;
+        Canvas.SetLeft(_musicMark, statusLeft + statusWidth + LineWidth() + MusicMarkGap);
+        Canvas.SetTop(_musicMark, (height - 18) / 2);
         _shelfMark.Opacity = lineOpacity;
-        Canvas.SetLeft(_shelfMark, statusLeft + statusWidth + LineWidth() + ShelfMarkGap);
+        Canvas.SetLeft(_shelfMark, statusLeft + statusWidth + LineWidth() + MusicMarkWidth() + ShelfMarkGap);
         Canvas.SetTop(_shelfMark, (height - 18) / 2);
 
         // Details: vertically centred above the shelf, rows rising in one after another (staggered).
@@ -761,9 +783,13 @@ public sealed partial class NotchWindow : Window
             var start = 0.28 + (0.11 * i++);
             var p = Math.Clamp((e - start) / 0.5, 0, 1);
             var eased = p * p * (3 - (2 * p));
-            row.Opacity = eased;
+            row.Opacity = eased * (1 - m);
             ((TranslateTransform)row.RenderTransform).Y = 9 * (1 - eased);
         }
+
+        _details.IsHitTestVisible = m < 0.5;
+        PlaceMedia(k, m, width);
+        PlaceTools(e);
 
         // The shelf row rises in last.
         var s = Math.Clamp((e - 0.55) / 0.45, 0, 1);
@@ -771,7 +797,7 @@ public sealed partial class NotchWindow : Window
         _shelfRow.Opacity = shelfEased;
         _shelfRow.IsHitTestVisible = shelfEased > 0.5;
         _shelfRowShift.Y = 12 * (1 - shelfEased);
-        Canvas.SetTop(_shelfRow, DetailsArea - 6);
+        Canvas.SetTop(_shelfRow, ContentArea - 6);
         PlaceBoards(e);
     }
 
@@ -811,6 +837,12 @@ public sealed partial class NotchWindow : Window
 
     private void OnHover(bool inside)
     {
+        // See-through (Ctrl, or a faded island stepping aside): the window gets no pointer while it lasts.
+        if (_seeThrough != SeeThrough.None || (inside && InLine))
+        {
+            return;
+        }
+
         if (_dragging || _pullItem is not null || (inside && HoverOnActivity()))
         {
             return;
@@ -839,7 +871,12 @@ public sealed partial class NotchWindow : Window
             _fadeTimer.Stop();
             if (_faded)
             {
-                // Faded: the pointer resting on it for a moment brings it back (a passing pointer only lightens it).
+                // Faded: a passing pointer makes it step aside (clicks go through); resting on it brings it back.
+                if (TryDodge())
+                {
+                    return;
+                }
+
                 _holdTimer.Start();
                 FadeTo(0.7, 160);
                 return;
@@ -874,6 +911,13 @@ public sealed partial class NotchWindow : Window
         _expanded = expanded;
         _expand.To(expanded ? 1 : 0);
         SyncGlassCapture();
+        UpdateMediaFirst();
+        SyncTools();
+        SyncMediaClocks();
+        if (expanded)
+        {
+            UpdateProgress();
+        }
 
         // A gentle "pop": the island grows past its size a little and settles.
         Resize(expanded ? 190 : 0, expanded ? 130 : 0);
@@ -887,6 +931,7 @@ public sealed partial class NotchWindow : Window
             NotchPanel.Drop => (DropWidth, DropHeight),
             NotchPanel.Alert => (ExpandedWidth, AlertHeight),
             NotchPanel.Ask => (AskWidth, _askHeight),
+            _ when InLine => (ThinLineWidth, ThinLineHeight),
             _ => _expanded ? (ExpandedWidth, ExpandedHeightNow) : (CollapsedWidth(), CollapsedHeight),
         };
         _width.To(w, widthKick);
@@ -897,7 +942,7 @@ public sealed partial class NotchWindow : Window
     private void ApplySize()
     {
         var w = Math.Max(40, _width.Value);
-        var h = Math.Max(20, _height?.Value ?? CollapsedHeight);
+        var h = Math.Max(4, _height?.Value ?? CollapsedHeight);
         _pill.Width = w;
         _pill.Height = h;
         _body.SetSize(w, h, CornerRadiusFor(h));
@@ -926,6 +971,8 @@ public sealed partial class NotchWindow : Window
         {
             _eye.Wake();
         }
+
+        SyncMediaClocks();
     }
 
     private void FadeTo(double opacity, int ms)
@@ -1093,12 +1140,14 @@ public sealed partial class NotchWindow : Window
             _group.Snap();
             _statusWidth?.Snap();
             _lateral.Snap();
+            _mediaMix.Snap();
             if (!_body.Membrane.Pulling)
             {
                 _body.Membrane.Reset();
             }
 
             _body.Refresh();
+            UpdateHitRegion(atRest: true);
             return;
         }
 
@@ -1107,6 +1156,7 @@ public sealed partial class NotchWindow : Window
             _animating = true;
             _lastFrame = Clock.Elapsed.TotalSeconds;
             CompositionTarget.Rendering += OnFrame;
+            UpdateHitRegion(atRest: false);
         }
     }
 
@@ -1124,7 +1174,7 @@ public sealed partial class NotchWindow : Window
         var now = Clock.Elapsed.TotalSeconds;
         var dt = Math.Clamp(now - _lastFrame, 0, 0.034);
         _lastFrame = now;
-        var moving = _width.Step(dt) | _height.Step(dt) | _expand.Step(dt) | _group.Step(dt) | (_statusWidth?.Step(dt) ?? false) | (_pingCount?.Step(dt) ?? false);
+        var moving = _width.Step(dt) | _height.Step(dt) | _expand.Step(dt) | _mediaMix.Step(dt) | _group.Step(dt) | (_statusWidth?.Step(dt) ?? false) | (_pingCount?.Step(dt) ?? false);
         if (_body.Membrane.Step(dt) | _lateral.Step(dt))
         {
             moving = true;
@@ -1141,6 +1191,7 @@ public sealed partial class NotchWindow : Window
         if (!moving)
         {
             StopAnimating();
+            UpdateHitRegion(atRest: true);
         }
     }
 
@@ -1245,26 +1296,6 @@ public sealed partial class NotchWindow : Window
         menu.Items.Add(new Separator());
         menu.Items.Add(Item("Hide notch", () => HideRequested?.Invoke(this, EventArgs.Empty)));
         _pill.ContextMenu = menu;
-    }
-
-    /// <summary>
-    /// Hidden while a full-screen game, video or presentation covers this notch's monitor. Driven by window events
-    /// (<see cref="FullScreenWatcher"/>), not a timer; each monitor decides for itself.
-    /// </summary>
-    private void CheckFullScreen()
-    {
-        var hide = _settings.HideInFullScreen && IsLoaded && FullScreenWatcher.Covers(new WindowInteropHelper(this).Handle);
-
-        if (hide != _hiddenForFullScreen)
-        {
-            _hiddenForFullScreen = hide;
-            Visibility = hide ? Visibility.Hidden : Visibility.Visible;
-            if (!hide)
-            {
-                Topmost = false;
-                Topmost = true;
-            }
-        }
     }
 
     private const int GwlExStyle = -20;

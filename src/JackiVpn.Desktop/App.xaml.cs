@@ -348,6 +348,7 @@ public partial class App : System.Windows.Application
                     > 0 => _media!.NextAsync(),
                     _ => _media!.PlayPauseAsync(),
                 };
+                _notch.SeekRequested += (_, t) => _ = _media!.SeekAsync(t);
                 _notch.SetNowPlaying(_media.Current);
                 _notch.AttachShelf(_shelf);
                 _notch.Apply(n);

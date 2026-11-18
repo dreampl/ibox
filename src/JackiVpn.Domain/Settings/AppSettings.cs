@@ -494,6 +494,35 @@ public sealed record NotchSettings
 
     /// <summary>Claude and ChatGPT notifications, and Claude Code / Codex permission requests, on the notch.</summary>
     public bool AiAssistants { get; init; } = true;
+
+    /// <summary>Classic notch hanging from the top edge, or a floating island (Dynamic Island style).</summary>
+    public NotchStyle Style { get; init; } = NotchStyle.Classic;
+
+    /// <summary>
+    /// Clicks reach what is under the notch: hold Ctrl over it to see and click through, and a faded notch steps
+    /// aside when the pointer only passes over it.
+    /// </summary>
+    public bool PeekThrough { get; init; } = true;
+
+    /// <summary>Shrinks to a thin line while a maximised window is in front (its title bar and tabs stay free).</summary>
+    public bool LineWhenMaximized { get; init; } = true;
+
+    /// <summary>The focus timer (25 min work, 5 min break) in the open notch.</summary>
+    public bool FocusTimer { get; init; } = true;
+
+    /// <summary>CPU, memory and battery in the open notch (read only while it is open).</summary>
+    public bool Vitals { get; init; } = true;
+}
+
+/// <summary>How the notch sits on the screen.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<NotchStyle>))]
+public enum NotchStyle
+{
+    /// <summary>Hangs from the top edge with curved "ears" into it.</summary>
+    Classic = 0,
+
+    /// <summary>A capsule floating just below the top edge that morphs as it opens.</summary>
+    Island,
 }
 
 public sealed record LoggingSettings
