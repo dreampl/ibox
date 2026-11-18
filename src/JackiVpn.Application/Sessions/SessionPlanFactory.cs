@@ -165,6 +165,7 @@ public sealed class SessionPlanFactory(CoreBinaryCatalog catalog)
                 MuxEnabled = request.MuxEnabled,
                 DebugLogging = request.DebugLogging,
                 InboundAuth = hopAuth,
+                Routing = request.Routing,
             };
             chain = new ChainBackendEndpoint(backendPort, catalog.PathOf(CoreKind.Xray), hopAuth);
             directProcesses.Add(chain.BackendExecutablePath);

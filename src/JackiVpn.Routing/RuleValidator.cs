@@ -96,6 +96,19 @@ public static partial class RuleValidator
             r.Warn($"{prefix}.NetworkType", "Network type matching is not supported by the Windows cores; the rule will never match.");
         }
 
+        if (rule.Conditions.Any(c => c.Type == RuleConditionType.AppPackage))
+        {
+            if (rule.Conditions.Any(c => c.Type != RuleConditionType.AppPackage))
+            {
+                r.Error($"{prefix}.AppPackage", "An app rule can only list apps: put domain or IP conditions in a separate rule.");
+            }
+
+            if (rule.Action.Type is not (RuleActionType.Direct or RuleActionType.Proxy) || rule.Invert)
+            {
+                r.Error($"{prefix}.AppPackage", "App rules can only send an app Direct or through the VPN (Android decides per app, it cannot block one).");
+            }
+        }
+
         return r;
     }
 
@@ -145,6 +158,8 @@ public static partial class RuleValidator
                 return v is "tcp" or "udp" ? null : "network must be tcp or udp";
             case RuleConditionType.PrivateIp:
                 return v is "true" or "false" ? null : "use true/false";
+            case RuleConditionType.AppPackage:
+                return PackageRegex().IsMatch(v) ? null : "not an Android package name (like org.telegram.messenger)";
             case RuleConditionType.NetworkType:
                 return v is "wifi" or "ethernet" or "cellular" or "other" ? null : "unknown network type";
             default:
@@ -169,4 +184,8 @@ public static partial class RuleValidator
 
     [GeneratedRegex("^!?[A-Za-z0-9_\\-@!]{1,64}$")]
     private static partial Regex GeoCodeRegex();
+
+    /// <summary>Android applicationId: two or more dot-separated segments, each starting with a letter.</summary>
+    [GeneratedRegex("^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+$")]
+    public static partial Regex PackageRegex();
 }

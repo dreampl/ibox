@@ -169,7 +169,7 @@ internal sealed class RuleEditor
 
         root.Children.Add(Label("Conditions — values separated by commas. Destination conditions (domain, suffix, keyword, regex, ip, geoip, geosite, rule-set, private ip) match if any matches; others must all match."));
         var list = new ItemsControl { ItemsSource = _rows };
-        var types = Enum.GetValues<RuleConditionType>().Where(t => t != RuleConditionType.NetworkType).ToArray();
+        var types = Enum.GetValues<RuleConditionType>().Where(t => t is not (RuleConditionType.NetworkType or RuleConditionType.AppPackage)).ToArray();
         list.ItemTemplate = BuildRowTemplate(types);
         root.Children.Add(list);
         var add = new Button { Content = "Add condition", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 6, 0, 0) };
