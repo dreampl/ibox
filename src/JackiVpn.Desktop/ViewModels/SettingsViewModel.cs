@@ -196,6 +196,16 @@ public sealed partial class SettingsViewModel : SettingsPageViewModel
 
     public bool NotchHideInFullScreen { get => S.Ui.Notch.HideInFullScreen; set => SetNotch(n => n with { HideInFullScreen = value }); }
 
+    public bool NotchIsland { get => S.Ui.Notch.Style == NotchStyle.Island; set => SetNotch(n => n with { Style = value ? NotchStyle.Island : NotchStyle.Classic }); }
+
+    public bool NotchPeekThrough { get => S.Ui.Notch.PeekThrough; set => SetNotch(n => n with { PeekThrough = value }); }
+
+    public bool NotchLineWhenMaximized { get => S.Ui.Notch.LineWhenMaximized; set => SetNotch(n => n with { LineWhenMaximized = value }); }
+
+    public bool NotchFocusTimer { get => S.Ui.Notch.FocusTimer; set => SetNotch(n => n with { FocusTimer = value }); }
+
+    public bool NotchVitals { get => S.Ui.Notch.Vitals; set => SetNotch(n => n with { Vitals = value }); }
+
     public bool NotchSound
     {
         get => S.Ui.Notch.Sound;

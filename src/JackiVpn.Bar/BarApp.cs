@@ -182,6 +182,7 @@ public static partial class BarApp
             notch.CustomizeRequested += (_, _) => ShowPanel();
             notch.HideRequested += (_, _) => _settings.Update(s => s with { HiddenMonitors = [.. s.HiddenMonitors, m.Key] });
             notch.MediaCommand += (_, c) => _ = c switch { < 0 => _media.PreviousAsync(), > 0 => _media.NextAsync(), _ => _media.PlayPauseAsync() };
+            notch.SeekRequested += (_, t) => _ = _media.SeekAsync(t);
             notch.PluginAction += (_, a) => RunAction(a.Plugin, a.Action);
             notch.MenuExtras = MenuItems;
             notch.MouseEnter += (_, _) => ArmTrim();
@@ -207,6 +208,11 @@ public static partial class BarApp
         HideInFullScreen = s.HideInFullScreen,
         ShowNowPlaying = s.ShowNowPlaying,
         Sound = false,
+        Style = s.Island ? NotchStyle.Island : NotchStyle.Classic,
+        PeekThrough = s.PeekThrough,
+        LineWhenMaximized = s.LineWhenMaximized,
+        FocusTimer = s.FocusTimer,
+        Vitals = s.Vitals,
     };
 
     private static void Apply(BarSettings s)

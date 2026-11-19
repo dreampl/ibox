@@ -43,9 +43,6 @@ public sealed partial class NotchWindow
 
     private double ScreenScale() => PresentationSource.FromVisual(this)?.CompositionTarget?.TransformToDevice.M11 ?? 1;
 
-    /// <summary>Lower corners: ~14 px small, growing to ~32 px when the island is large.</summary>
-    private static double CornerRadiusFor(double height) => Math.Min(height / 2, Math.Clamp(14 + ((height - CollapsedHeight) * 18 / 120), 14, 32));
-
     private void PlaceOnMonitor()
     {
         if (Monitor is not { } m)

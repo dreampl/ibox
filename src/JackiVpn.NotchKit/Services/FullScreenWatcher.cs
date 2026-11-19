@@ -66,6 +66,26 @@ public static partial class FullScreenWatcher
             && r.Left <= info.Monitor.Left && r.Top <= info.Monitor.Top && r.Right >= info.Monitor.Right && r.Bottom >= info.Monitor.Bottom;
     }
 
+    /// <summary>
+    /// What is in front on the monitor <paramref name="notch"/> is on: a full-screen window, a maximised one (its
+    /// title bar and tabs are right under the notch), or anything else.
+    /// </summary>
+    public static Domain.Visuals.FrontWindow Front(nint notch)
+    {
+        if (Covers(notch))
+        {
+            return Domain.Visuals.FrontWindow.FullScreen;
+        }
+
+        var front = GetForegroundWindow();
+        if (front == 0 || notch == 0 || IsShell(front) || !IsZoomed(front) || MonitorFromWindow(front, 2) != MonitorFromWindow(notch, 2))
+        {
+            return Domain.Visuals.FrontWindow.Normal;
+        }
+
+        return Domain.Visuals.FrontWindow.Maximized;
+    }
+
     private static bool IsShell(nint hwnd)
     {
         var name = new StringBuilder(64);
@@ -146,6 +166,10 @@ public static partial class FullScreenWatcher
 
     [LibraryImport("user32.dll")]
     private static partial nint GetForegroundWindow();
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool IsZoomed(nint hwnd);
 
     [LibraryImport("user32.dll")]
     private static partial uint GetWindowThreadProcessId(nint hwnd, out uint pid);
