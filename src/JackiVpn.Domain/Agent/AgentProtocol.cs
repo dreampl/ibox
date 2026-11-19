@@ -52,10 +52,13 @@ public static class AgentMethods
     /// <summary>IBAR shows the notch: IBOX hides its own while this connection is open.</summary>
     public const string NotchYield = "notch.yield";
 
-    /// <summary>Methods that change something (need "allow changes").</summary>
-    public static readonly IReadOnlySet<string> Changing = new HashSet<string>(StringComparer.Ordinal) { Connect, Disconnect, SetMode, AddRule, RemoveRule, SetDns, SetTraffic, SetDualVpn };
+    /// <summary>The owner's news: mark these ids read (params: ids; IBAR's "mark as read").</summary>
+    public const string NewsRead = "news.read";
 
-    public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal) { Status, ListServers, Connect, Disconnect, SetMode, ListRules, AddRule, RemoveRule, GetDns, SetDns, SpeedTest, EcoStatus, SetTraffic, SetDualVpn, Watch, NotchYield };
+    /// <summary>Methods that change something (need "allow changes").</summary>
+    public static readonly IReadOnlySet<string> Changing = new HashSet<string>(StringComparer.Ordinal) { Connect, Disconnect, SetMode, AddRule, RemoveRule, SetDns, SetTraffic, SetDualVpn, NewsRead };
+
+    public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal) { Status, ListServers, Connect, Disconnect, SetMode, ListRules, AddRule, RemoveRule, GetDns, SetDns, SpeedTest, EcoStatus, SetTraffic, SetDualVpn, Watch, NotchYield, NewsRead };
 }
 
 public sealed record AgentRequest(int Id, string Method, JsonElement? Params = null);
@@ -109,4 +112,10 @@ public sealed record AgentEco
 
     /// <summary>The network IBOX recognised (Wi-Fi name, company domain…).</summary>
     public string? Network { get; init; }
+
+    /// <summary>Unread news from the provider's owner, newest first (never the subscription it came through).</summary>
+    public IReadOnlyList<AgentNews>? News { get; init; }
 }
+
+/// <summary>One unread message from the provider: <see cref="Id"/> is unique across subscriptions.</summary>
+public sealed record AgentNews(string Id, string? Title, string Text, DateTimeOffset AtUtc, string Level = "info");

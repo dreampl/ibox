@@ -73,8 +73,8 @@ public static class NotchBridge
                     Source = source,
                     Tool = Clean(tool, 80),
                     Title = AskTitle(tool),
-                    Detail = Clean(Detail(tool, toolInput), 600, lines: 6),
-                    Note = Clean(Text(toolInput, "description"), 160),
+                    Detail = Clean(Detail(tool, toolInput), 1200, lines: 12),
+                    Note = Clean(Text(toolInput, "description"), 240, lines: 2),
                     Project = project,
                 };
             }
@@ -171,9 +171,20 @@ public static class NotchBridge
             }
         }
 
-        var json = toolInput.ToJsonString();
-        return json.Length > 2 ? json : null;
+        // Readable "key: value" lines (ToJsonString would escape non-ASCII text and quotes).
+        var lines = toolInput.Select(kv => kv.Key + ": " + (kv.Value is JsonValue v && v.GetValueKind() == JsonValueKind.String
+            ? v.GetValue<string>()
+            : kv.Value?.ToJsonString(RelaxedJson) ?? "null"));
+        var text = string.Join('\n', lines);
+        return text.Length > 0 ? text : null;
     }
+
+    private static readonly JsonSerializerOptions RelaxedJson = new() { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
+
+    /// <summary>Joiners and direction marks Persian and emoji text needs (kept); bidi overrides and isolates are dropped.</summary>
+    private static bool KeepFormat(char c) => c is '\u200C' or '\u200D' or '\u200E' or '\u200F' or '\u061C';
+
+    private static bool BidiControl(char c) => c is (>= '\u202A' and <= '\u202E') or (>= '\u2066' and <= '\u2069');
 
     private static string? Project(string? cwd)
     {
@@ -189,6 +200,25 @@ public static class NotchBridge
 
     private static string? Text(JsonObject? o, string key) =>
         o?[key] is JsonValue v && v.GetValueKind() == JsonValueKind.String ? v.GetValue<string>() : null;
+
+    /// <summary>Whether text reads right to left: its first strong letter is Arabic-script or Hebrew (like dir="auto").</summary>
+    public static bool IsRtl(string? text)
+    {
+        foreach (var c in text ?? string.Empty)
+        {
+            if (c is (>= '\u0590' and <= '\u08FF') or (>= '\uFB1D' and <= '\uFDFF') or (>= '\uFE70' and <= '\uFEFF'))
+            {
+                return true;
+            }
+
+            if (char.IsLetter(c))
+            {
+                return false;
+            }
+        }
+
+        return false;
+    }
 
     /// <summary>Printable text only (no terminal escapes or control characters), shortened to fit the notch.</summary>
     public static string? Clean(string? text, int max, int lines = 1)
@@ -222,7 +252,49 @@ public static class NotchBridge
                 continue;
             }
 
-            if (c == '\n' && lines > 1 && lineCount < lines)
+            if (c == '\r' && i + 1 < text.Length && text[i + 1] == '\n')
+            {
+                continue;
+            }
+
+            if (BidiControl(c))
+            {
+                // Overrides could make a command read differently from what runs: show the real order.
+                if (sb.Length > 0 && sb[^1] != ' ')
+                {
+                    sb.Append(' ');
+                }
+
+                continue;
+            }
+
+            if (char.IsHighSurrogate(c))
+            {
+                if (i + 1 < text.Length && char.IsLowSurrogate(text[i + 1]))
+                {
+                    if (sb.Length + 2 > max)
+                    {
+                        truncated = true;
+                        break;
+                    }
+
+                    sb.Append(c).Append(text[i + 1]);
+                    i++;
+                }
+
+                continue;
+            }
+
+            if (char.IsLowSurrogate(c))
+            {
+                continue;
+            }
+
+            if (KeepFormat(c))
+            {
+                sb.Append(c);
+            }
+            else if (c == '\n' && lines > 1 && lineCount < lines)
             {
                 lineCount++;
                 sb.Append('\n');

@@ -46,6 +46,9 @@ public sealed record BarSettings
 
     public bool Vitals { get; init; } = true;
 
+    /// <summary>Batteries of connected Bluetooth devices in the open island (and a warning when one runs low).</summary>
+    public bool BluetoothBattery { get; init; } = true;
+
     /// <summary>The fixed folder chat works in.</summary>
     public string? ChatFolder { get; init; }
 
@@ -186,6 +189,8 @@ public static class T
         ["Not found on this computer"] = "روی این کامپیوتر پیدا نشد",
         ["Real glass bends what is behind the open notch, on the GPU, only when it changes."] = "شیشهٔ واقعی پشتِ ناچِ باز را با GPU خم می‌کند، فقط وقتی تصویر عوض شود.",
         ["Tasks on the notch"] = "کارها روی ناچ",
+        ["Bluetooth batteries of headphones, mice, keyboards and controllers on the notch"] = "باتری هدفون، ماوس، کیبورد و دسته‌های بلوتوثی روی ناچ",
+        ["Battery low"] = "باتری کم است",
         ["One circle beside the notch shows how far a task is; click it for the others."] = "یک دایره کنار ناچ نشان می‌دهد کار چقدر پیش رفته؛ با کلیک، بقیه می‌آیند.",
         ["Browser downloads and download managers"] = "دانلودهای مرورگر و دانلود منیجرها",
         ["Copying and moving files (Explorer)"] = "کپی و انتقال فایل (اکسپلورر)",

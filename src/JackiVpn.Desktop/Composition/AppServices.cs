@@ -197,6 +197,10 @@ public sealed class AppServices : IAsyncDisposable
         Automations.Apply(Settings.Current.Automations);
         Settings.Changed += (_, s) => Automations.Apply(s.Automations);
         RoutingEditor = new Application.Routing.RoutingEditorServer(Settings, LoggerFactory.CreateLogger("JackiVpn.RoutingEditor"));
+        // The owner's news for official subscriptions (shown on IBAR; a few bytes every five minutes when nothing is new).
+        News = new Application.News.NewsService(Subscriptions,
+            new Application.News.BroadcastClient(new System.Net.Http.HttpClient(new System.Net.Http.SocketsHttpHandler { ConnectTimeout = TimeSpan.FromSeconds(10) }) { Timeout = TimeSpan.FromSeconds(20) }),
+            LoggerFactory.CreateLogger("JackiVpn.News"));
         Agent = new Application.Agent.AgentPipeServer(
             new Application.Agent.AgentController(new Application.Agent.AgentDependencies
             {
@@ -211,6 +215,7 @@ public sealed class AppServices : IAsyncDisposable
                 Eco = () => Services.Ecosystem.Extras(this),
                 SetTraffic = mode => Services.Ecosystem.SetTraffic(this, mode),
                 SetDualVpn = (on, ct) => DualVpn.SetEnabledAsync(on, ct),
+                ReadNews = (ids, ct) => News.ReadAsync(ids, ct),
             }),
             () => Settings.Current.Agent,
             LoggerFactory.CreateLogger("JackiVpn.Agent"),
@@ -324,6 +329,8 @@ public sealed class AppServices : IAsyncDisposable
     /// <summary>Control by the command line and AI agents (MCP), when the user turns it on.</summary>
     public Application.Agent.AgentPipeServer Agent { get; }
 
+    public Application.News.NewsService News { get; }
+
     public Services.ProxyPortKeeper PortKeeper { get; }
 
     public AppPaths Paths { get; }
@@ -416,6 +423,8 @@ public sealed class AppServices : IAsyncDisposable
         _ = Task.Run(Workplace.Refresh);
         _ = Task.Delay(TimeSpan.FromSeconds(4)).ContinueWith(_ => SearchDnsIfNeeded(), TaskScheduler.Default);
         Usage.Start();
+        News.Changed += (_, _) => Agent.NotifyChanged();
+        _ = Task.Run(() => News.RunAsync(_lifetime.Token));
 
         _ = Task.Run(() => Updates.RunAsync(_lifetime.Token));
         _ = Task.Run(async () =>

@@ -143,6 +143,12 @@ public sealed partial class NotchWindow
         _presence = presence;
         _lineOpen = false;
         _hiddenForFullScreen = presence == NotchPresence.GhostLine;
+        if (_hiddenForFullScreen)
+        {
+            // Nobody can answer a hidden request: it goes back to the assistant at once instead of waiting out its time unseen.
+            DropAllRequests();
+        }
+
         if (wasNormal && presence != NotchPresence.Normal)
         {
             EndSeeThrough();
