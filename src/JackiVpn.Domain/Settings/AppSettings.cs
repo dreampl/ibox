@@ -427,7 +427,19 @@ public sealed record UiSettings
     public NotchSettings Notch { get; init; } = new();
 
     public IslandSettings Island { get; init; } = new();
+
+    /// <summary>Windows: the compact Mini view is shown instead of the full (Pro) window.</summary>
+    public bool MiniView { get; init; }
+
+    /// <summary>Windows: where the Mini view was last placed (null = near the tray).</summary>
+    public WindowBounds? MiniBounds { get; init; }
+
+    /// <summary>Windows: the Mini view stays on top of other windows.</summary>
+    public bool MiniOnTop { get; init; }
 }
+
+/// <summary>A window's last position and size, in device-independent pixels.</summary>
+public sealed record WindowBounds(double Left, double Top, double Width, double Height);
 
 /// <summary>
 /// Android: a floating "dynamic island" over other apps (needs "Display over other apps") with the IBOX eye, the

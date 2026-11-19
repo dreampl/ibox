@@ -156,6 +156,8 @@
                     </Grid>
                     <Button Style="{StaticResource Button.Round}" Content="{Binding ThemeGlyph}" Command="{Binding ToggleThemeCommand}"
                             ToolTip="Light / dark" AutomationProperties.Name="Light or dark theme" />
+                    <Button Style="{StaticResource Button.Round}" Content="&#xE73F;" Command="{Binding ShowMiniCommand}" Margin="12,0,0,0"
+                            ToolTip="Mini view" AutomationProperties.Name="Mini view" />
                 </StackPanel>
                 <StackPanel Margin="12,0,0,0">
                     <TextBlock Text="{Binding Selected.Title}" FontSize="30" FontWeight="SemiBold" k:Motion.FadeOnChange="True" />
