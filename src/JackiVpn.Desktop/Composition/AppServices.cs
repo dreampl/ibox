@@ -184,6 +184,11 @@ public sealed class AppServices : IAsyncDisposable
         DualVpn.Changed += (_, _) => _ = Traffic.SettingsChangedAsync();
         Traffic.DetectDual = DualVpn.Detect;
         DualVpn.Attach(Orchestrator);
+        Amnezia = new Application.Amnezia.AmneziaWatcher(
+            _ => Task.FromResult(Services.AmneziaWindows.TunnelUp()),
+            () => !Domain.Connection.ConnectionStateRules.IsIdle(Orchestrator.State),
+            async ct => (await Profiles.GetAllAsync(ct).ConfigureAwait(false)).Select(p => p.Server),
+            ct => Application.Amnezia.AmneziaWatcher.TraceEgressAsync(Settings.Current.Probe, ct));
         RoutingWatcher = new Application.Routing.RoutingWatcher(Settings, Orchestrator, LoggerFactory.CreateLogger("JackiVpn.Routing"));
         RoutingEditor = new Application.Routing.RoutingEditorServer(Settings, LoggerFactory.CreateLogger("JackiVpn.RoutingEditor"));
         Agent = new Application.Agent.AgentPipeServer(
@@ -280,6 +285,9 @@ public sealed class AppServices : IAsyncDisposable
     /// <summary>The standalone second VPN (Dual VPN).</summary>
     public Application.Workplace.SecondVpnService DualVpn { get; }
 
+    /// <summary>Notices AmneziaVPN connected to one of our servers while IBOX is idle.</summary>
+    public Application.Amnezia.AmneziaWatcher Amnezia { get; }
+
     /// <summary>Account export/import (.ibox) between Windows, Linux and Android.</summary>
     public Application.Accounts.AccountTransfer AccountTransfer { get; }
     public Application.Connectivity.EndpointRescue Rescue { get; }
@@ -374,6 +382,16 @@ public sealed class AppServices : IAsyncDisposable
         Usage.Start();
 
         _ = Task.Run(() => Updates.RunAsync(_lifetime.Token));
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Amnezia.RunAsync(TimeSpan.FromSeconds(10), _lifetime.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        });
         _ = Task.Run(async () =>
         {
             try

@@ -192,6 +192,9 @@ public sealed partial class SubscriptionsViewModel : ObservableObject
     public Task<IReadOnlyList<NexAmneziaConfig>> NexAmneziaConfigsAsync(SubscriptionItem item) =>
         _s.SubscriptionService.GetNexAmneziaConfigsAsync(item.Id, _s.Lifetime);
 
+    /// <summary>Counts the key's server as ours when AmneziaVPN later connects to it.</summary>
+    public void RememberAmneziaKey(Application.Amnezia.AmneziaShareKey key) => _s.Amnezia.Remember(key);
+
     public ObservableCollection<SubscriptionItem> Items { get; } = [];
 
     public IReadOnlyList<AutoUpdateInterval> Intervals { get; } = Choices.Of<AutoUpdateInterval>();

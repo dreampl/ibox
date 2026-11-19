@@ -76,6 +76,8 @@ public sealed partial class HomeViewModel : ObservableObject
         _ = RefreshSelectionAsync();
         _ = RefreshNexServiceAsync();
         services.Traffic.Changed += (_, _) => Fmt.OnUi(Refresh);
+        services.Amnezia.Changed += (_, _) => Fmt.OnUi(RefreshAmnezia);
+        RefreshAmnezia();
         services.Usage.Updated += (_, _) =>
         {
             if (!services.IsBackground)
@@ -207,11 +209,34 @@ public sealed partial class HomeViewModel : ObservableObject
 
     public bool HasError => !string.IsNullOrEmpty(LastError);
 
+    [ObservableProperty] private bool _amneziaUp;
+    [ObservableProperty] private string _amneziaText = string.Empty;
+
+    /// <summary>AmneziaVPN is connected while IBOX is idle (the error card wins the same row).</summary>
+    public bool AmneziaShown => AmneziaUp && !HasError && ConnectionStateRules.IsIdle(State);
+
+    partial void OnAmneziaUpChanged(bool value) => OnPropertyChanged(nameof(AmneziaShown));
+
+    private void RefreshAmnezia()
+    {
+        var state = _s.Amnezia.State;
+        AmneziaText = L.Get(state == Application.Amnezia.AmneziaLinkState.OnOurServer ? "Amz_OnOurs" : "Amz_Other");
+        AmneziaUp = state != Application.Amnezia.AmneziaLinkState.None;
+    }
+
+    /// <summary>Starting IBOX's VPN makes Android revoke AmneziaVPN's (after the system's one-time consent).</summary>
+    [RelayCommand]
+    private Task SwitchFromAmneziaAsync() => ConnectionStateRules.IsIdle(_s.Orchestrator.State) ? ToggleAsync() : Task.CompletedTask;
+
     public bool HasSelectionReason => !string.IsNullOrEmpty(SelectionReason);
 
     public string SpeedButtonText => L.Get(IsSpeedTesting ? "Speed_Stop" : "Speed_Start");
 
-    partial void OnLastErrorChanged(string? value) => OnPropertyChanged(nameof(HasError));
+    partial void OnLastErrorChanged(string? value)
+    {
+        OnPropertyChanged(nameof(HasError));
+        OnPropertyChanged(nameof(AmneziaShown));
+    }
 
     partial void OnActivityChanged(ActivityProfile value) => Refresh();
 
@@ -230,6 +255,7 @@ public sealed partial class HomeViewModel : ObservableObject
     partial void OnStateChanged(ConnectionState value)
     {
         OnPropertyChanged(nameof(IsConnected));
+        OnPropertyChanged(nameof(AmneziaShown));
         OnPropertyChanged(nameof(IsBusy));
         Refresh();
     }

@@ -156,6 +156,12 @@ public sealed class MobileServices : IAsyncDisposable
         Usage = usage;
         // No per-app process names on Android (one VPN process carries every app): domain and class rules only.
         Traffic = new Application.Traffic.TrafficController(Orchestrator, settings, Workplace, Usage, LoggerFactory.CreateLogger("JackiVpn.Traffic")) { ProcessAware = false };
+        // Only while the app is on screen: the banner is the only consumer.
+        Amnezia = new Application.Amnezia.AmneziaWatcher(
+            _ => Task.FromResult(!IsBackground && Platforms.Android.AmneziaAndroid.TunnelUp(Context)),
+            () => !Domain.Connection.ConnectionStateRules.IsIdle(Orchestrator.State),
+            async ct => (await Profiles.GetAllAsync(ct).ConfigureAwait(false)).Select(p => p.Server),
+            ct => Application.Amnezia.AmneziaWatcher.TraceEgressAsync(Settings.Current.Probe, ct));
         DualVpn.Changed += (_, _) => _ = Traffic.SettingsChangedAsync();
         Traffic.DetectDual = DualVpn.Detect;
         DualVpn.Attach(Orchestrator);
@@ -213,6 +219,9 @@ public sealed class MobileServices : IAsyncDisposable
     public Application.Usage.UsageBook UsageBook { get; }
     public Application.Usage.UsageMonitor Usage { get; }
     public Application.Traffic.TrafficController Traffic { get; }
+
+    /// <summary>Notices AmneziaVPN connected (to one of our servers) while IBOX is idle.</summary>
+    public Application.Amnezia.AmneziaWatcher Amnezia { get; }
 
     /// <summary>Applies routing changes to the running connection.</summary>
     public Application.Routing.RoutingWatcher RoutingWatcher { get; }
@@ -311,6 +320,16 @@ public sealed class MobileServices : IAsyncDisposable
         _ = Task.Run(Workplace.Refresh);
         Usage.Start();
         SearchDnsIfNeeded();
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Amnezia.RunAsync(TimeSpan.FromSeconds(10), Lifetime).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        });
         _ = Task.Run(async () =>
         {
             try

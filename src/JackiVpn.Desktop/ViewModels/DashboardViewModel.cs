@@ -152,6 +152,73 @@ public sealed partial class DashboardViewModel : ObservableObject
         DualVpnTip = d.KindLabel + ": " + _s.DualVpn.Describe(_s.Orchestrator.State) + ". Click to manage it on the Servers page.";
     }
 
+    [ObservableProperty]
+    private bool _amneziaShown;
+
+    [ObservableProperty]
+    private string _amneziaText = string.Empty;
+
+    [ObservableProperty]
+    private string _amneziaTip = string.Empty;
+
+    private bool _amneziaSwitching;
+
+    private void RefreshAmnezia()
+    {
+        var state = _s.Amnezia.State;
+        AmneziaShown = state != Application.Amnezia.AmneziaLinkState.None;
+        AmneziaText = _amneziaSwitching
+            ? "AmneziaVPN · disconnect it there, IBOX connects next"
+            : state == Application.Amnezia.AmneziaLinkState.OnOurServer
+                ? "Connected via AmneziaVPN to our server · switch to IBOX"
+                : "AmneziaVPN is connected · switch to IBOX";
+        AmneziaTip = "AmneziaVPN cannot be turned off by other apps. IBOX opens it: click Disconnect there, and IBOX connects as soon as the Amnezia tunnel is down.";
+    }
+
+    /// <summary>
+    /// AmneziaVPN exposes no way for another app to disconnect it, so: open it, wait (up to two minutes) for its tunnel
+    /// to go down, then connect IBOX.
+    /// </summary>
+    [RelayCommand]
+    private async Task SwitchFromAmneziaAsync()
+    {
+        if (_amneziaSwitching)
+        {
+            return;
+        }
+
+        _amneziaSwitching = true;
+        RefreshAmnezia();
+        try
+        {
+            Services.AmneziaWindows.Show();
+            var deadline = DateTimeOffset.UtcNow.AddMinutes(2);
+            while (Services.AmneziaWindows.TunnelUp())
+            {
+                if (DateTimeOffset.UtcNow > deadline)
+                {
+                    return;
+                }
+
+                await Task.Delay(TimeSpan.FromSeconds(1), _s.Lifetime);
+            }
+
+            await _s.Amnezia.CheckAsync(_s.Lifetime);
+            if (ConnectionStateRules.IsIdle(_s.Orchestrator.State))
+            {
+                await ToggleAsync();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            _amneziaSwitching = false;
+            RefreshAmnezia();
+        }
+    }
+
     /// <summary>Server card and location button follow the connection or the selection.</summary>
     private void RefreshServerCard()
     {
@@ -225,6 +292,8 @@ public sealed partial class DashboardViewModel : ObservableObject
         });
         services.DualVpn.Changed += (_, _) => Ui.Post(RefreshDualVpn);
         RefreshDualVpn();
+        services.Amnezia.Changed += (_, _) => Ui.Post(RefreshAmnezia);
+        RefreshAmnezia();
         services.Traffic.Changed += (_, _) => Ui.Post(() =>
         {
             if (IsConnected)
