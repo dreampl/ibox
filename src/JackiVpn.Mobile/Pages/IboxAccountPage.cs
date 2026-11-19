@@ -19,9 +19,15 @@ public sealed class IboxAccountPage : ContentPage
     private bool _music;
     private IDispatcherTimer? _timer;
 
-    public IboxAccountPage(MobileServices services)
+    private readonly bool _firstRun;
+    private Grid? _tabs;
+
+    /// <summary>Signed out, the page is only the (optional) Telegram sign-in: music and the subscription manager need it.</summary>
+    public IboxAccountPage(MobileServices services, bool music = false, bool firstRun = false)
     {
         _s = services;
+        _music = music;
+        _firstRun = firstRun;
         Title = Tx("IBOX account", "حساب IBOX");
         FlowDirection = L.Flow;
         _subTab.Text = Tx("Subscription", "اشتراک");
@@ -31,6 +37,7 @@ public sealed class IboxAccountPage : ContentPage
         var tabs = new Grid { ColumnDefinitions = { new(GridLength.Star), new(GridLength.Star) }, ColumnSpacing = 8, Margin = new Thickness(16, 12, 16, 0) };
         tabs.Add(_subTab, 0);
         tabs.Add(_musicTab, 1);
+        _tabs = tabs;
         var root = new Grid { RowDefinitions = { new(GridLength.Auto), new(GridLength.Star) } };
         root.Add(tabs, 0, 0);
         root.Add(_body, 0, 1);
@@ -63,7 +70,7 @@ public sealed class IboxAccountPage : ContentPage
     {
         base.OnAppearing();
         _s.Ibox.Watcher.Updated += OnUpdated;
-        _s.Ibox.Account.SignedOut += OnSignedOut;
+        _s.Ibox.SignInChanged += OnSignedOut;
         if (_s.Ibox.Account.SignedIn)
         {
             _s.Ibox.Watcher.Start();
@@ -75,7 +82,12 @@ public sealed class IboxAccountPage : ContentPage
     protected override void OnDisappearing()
     {
         _s.Ibox.Watcher.Updated -= OnUpdated;
-        _s.Ibox.Account.SignedOut -= OnSignedOut;
+        _s.Ibox.SignInChanged -= OnSignedOut;
+        if (_firstRun)
+        {
+            _s.Ibox.MarkSignInOffered();
+        }
+
         _s.Ibox.Watcher.Stop();            // no polling in the background; music keeps playing
         _timer?.Stop();
         base.OnDisappearing();
@@ -88,12 +100,44 @@ public sealed class IboxAccountPage : ContentPage
     private void Render()
     {
         _timer?.Stop();
+        if (!_s.Ibox.SignedIn)
+        {
+            _tabs!.IsVisible = false;
+            _body.Content = new ScrollView { Content = SignInOnly() };
+            return;
+        }
+
+        _tabs!.IsVisible = true;
         _subTab.Opacity = _music ? 0.6 : 1;
         _musicTab.Opacity = _music ? 1 : 0.6;
         _body.Content = _music ? MusicView() : new ScrollView { Content = SubscriptionView() };
     }
 
     // ------------------------------------------------------------------ sign-in
+    private View SignInOnly()
+    {
+        View? extra = null;
+        if (_firstRun)
+        {
+            var col = new VerticalStackLayout { Spacing = 8, Margin = new Thickness(0, 8, 0, 0) };
+            col.Add(Btn(Tx("Not now", "فعلاً نه"), async () =>
+            {
+                _s.Ibox.MarkSignInOffered();
+                await Navigation.PopAsync();
+            }));
+            col.Add(Hint(Tx("Optional. Without it IBOX works as usual with any subscription you add. You can sign in or out later in Settings.",
+                            "اختیاری است. بدون آن IBOX مثل همیشه با هر اشتراکی که اضافه کنی کار می‌کند. بعداً از تنظیمات می‌توانی وارد یا خارج شوی.")));
+            extra = col;
+        }
+
+        return SignIn(_s.Ibox.Account.Login, Tx("Signing in adds your IBOX music library and lets you manage your subscription inside IBOX: usage, expiry, servers and renewals.",
+                                                "با ورود، کتابخانهٔ موزیک IBOX و مدیریت اشتراک داخل خود IBOX (مصرف، انقضا، سرورها و تمدید) فعال می‌شود."), r =>
+        {
+            _s.Ibox.SignIn(r);
+            Render();
+        }, extra);
+    }
+
     private View SignIn(TelegramLogin login, string why, Action<LoginResult> done, View? extra)
     {
         var state = Hint(string.Empty);
@@ -148,8 +192,7 @@ public sealed class IboxAccountPage : ContentPage
             return SignIn(acc.Login, Tx("Sign in with Telegram to see and manage your subscription here: usage, expiry, servers and renewals.",
                                        "با تلگرام وارد شو تا اشتراکت را همین‌جا ببینی و مدیریت کنی: مصرف، انقضا، سرورها و تمدید."), r =>
             {
-                acc.Accept(r);
-                _s.Ibox.Watcher.Start();
+                _s.Ibox.SignIn(r);
                 Render();
             }, null);
         }
@@ -292,8 +335,7 @@ public sealed class IboxAccountPage : ContentPage
         col.Add(Hint(Tx("Updates by itself when the server changes (renewal approved, volume added).", "با هر تغییر روی سرور (تایید تمدید، افزایش حجم) خودش به‌روز می‌شود.")));
         col.Add(Btn(Tx("Sign out", "خروج"), async () =>
         {
-            _s.Ibox.Watcher.Stop();
-            await _s.Ibox.Account.SignOutAsync();
+            await _s.Ibox.SignOutAsync();
             Render();
         }));
         return col;

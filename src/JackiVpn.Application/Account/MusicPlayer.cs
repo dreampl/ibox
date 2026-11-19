@@ -191,5 +191,19 @@ public sealed class MusicPlayer : INowPlayingSource
 
     private void Publish() => Changed?.Invoke(this, Current);
 
+    /// <summary>Stops playback and forgets the queue (used when the account signs out).</summary>
+    public void Stop()
+    {
+        if (_out.IsPlaying)
+        {
+            _out.Pause();
+            Save(force: true);
+        }
+
+        _queue = [];
+        Index = -1;
+        Publish();
+    }
+
     public void Dispose() => _out.Dispose();
 }

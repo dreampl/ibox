@@ -109,6 +109,8 @@ public abstract class Page(Shell shell) : UserControl
 public sealed class Shell : Window, INotificationSink
 {
     private readonly Dictionary<Page, Border> _nav = [];
+    private Control _accountRail = new Panel();
+    private bool _accountWatch;
     private readonly ContentControl _host = new();
     private readonly StackPanel _toasts = new() { Spacing = 8, Width = 350, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 22, 22) };
     private readonly List<(string Title, string Message, bool Warning, DateTime At)> _notices = [];
@@ -280,9 +282,48 @@ public sealed class Shell : Window, INotificationSink
         };
         ToolTip.SetTip(profile, Services.Accounts.Active is { } who ? "Profile: " + who.Name : "Profile");
         profile.Click += (_, _) => ProfilesUi.ShowPicker(this, profile);
+        // The IBOX account: one click to the subscription and to music.
+        Button AccountButton(string icon, string tip, int tab)
+        {
+            var b = new Button
+            {
+                Background = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Padding = new Thickness(8),
+                Content = Icon(icon, 20, Text2),
+            };
+            ToolTip.SetTip(b, tip);
+            Avalonia.Automation.AutomationProperties.SetName(b, tip);
+            b.Click += (_, _) => AccountWindow.Open(this, Services.Ibox, tab);
+            return b;
+        }
+
+        var account = new StackPanel
+        {
+            IsVisible = Services.Ibox.SignedIn,
+            Spacing = 4,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 8, 0, 4),
+            Children =
+            {
+                AccountButton(Icons.User, "My subscription", AccountWindow.SubscriptionTab),
+                AccountButton(Icons.Music, "Music", AccountWindow.MusicTab),
+            },
+        };
+        _accountRail = account;
+        if (!_accountWatch)
+        {
+            // Only signed in with Telegram: music and the subscription manager.
+            _accountWatch = true;
+            Services.Ibox.SignInChanged += (_, _) => Dispatcher.UIThread.Post(() => _accountRail.IsVisible = Services.Ibox.SignedIn);
+        }
+
         var railDock = new DockPanel();
         DockPanel.SetDock(profile, Dock.Bottom);
         railDock.Children.Add(profile);
+        DockPanel.SetDock(account, Dock.Bottom);
+        railDock.Children.Add(account);
         railDock.Children.Add(new ScrollViewer { VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Hidden, Content = navList });
         var rail = Clay(railDock, new Thickness(0, 18, 0, 12), 28);
         rail.Margin = new Thickness(16, 0, 16, 18);
@@ -454,6 +495,19 @@ public sealed class Shell : Window, INotificationSink
     }
 
     /// <summary>The first-start tour (also from About); ending it with nothing set up opens Subscriptions.</summary>
+    private async Task FirstRunAsync(bool tour)
+    {
+        if (tour)
+        {
+            await ShowTourAsync();
+        }
+
+        if (Services.Ibox.ShouldOfferSignIn)
+        {
+            AccountWindow.ShowSignIn(this, Services.Ibox, firstRun: true);
+        }
+    }
+
     public async Task ShowTourAsync()
     {
         var servers = (await Services.ServersAsync(Lifetime.Token)).Count;
@@ -651,10 +705,11 @@ public sealed class Shell : Window, INotificationSink
             Services.Orchestrator.StatusChanged += (_, st) => Dispatcher.UIThread.Post(() => _notch?.Update(st));
             Services.NowPlaying.Changed += (_, item) => Dispatcher.UIThread.Post(() => _notch?.SetNowPlaying(item));
             SyncNotch(Services.Settings.Current.Ui.Notch);
-            if (Application.Onboarding.Tour.ShouldShow(Services.Settings.Current.Ui.TourSeen, (await Services.ServersAsync(Lifetime.Token)).Count))
+            var tour = Application.Onboarding.Tour.ShouldShow(Services.Settings.Current.Ui.TourSeen, (await Services.ServersAsync(Lifetime.Token)).Count);
+            if (tour || Services.Ibox.ShouldOfferSignIn)
             {
-                // A fresh install: the short tour, once the window has settled.
-                DispatcherTimer.RunOnce(() => _ = ShowTourAsync(), TimeSpan.FromMilliseconds(700));
+                // A fresh install: the short tour, then the optional Telegram sign-in, once the window has settled.
+                DispatcherTimer.RunOnce(() => _ = FirstRunAsync(tour), TimeSpan.FromMilliseconds(700));
             }
             if (Services.Settings.Current.Startup.AutoConnect)
             {

@@ -44,6 +44,8 @@ internal static class Strings
         // Home
         ["Home_Smart"] = ("Smart", "هوشمند"),
         ["Home_Change"] = ("Change", "تغییر"),
+        ["Home_MySub"] = ("My subscription", "اشتراک من"),
+        ["Home_Music"] = ("Music", "موزیک"),
         ["Home_Download"] = ("Download", "دانلود"),
         ["Home_Upload"] = ("Upload", "آپلود"),
         ["Home_Ping"] = ("Ping", "پینگ"),

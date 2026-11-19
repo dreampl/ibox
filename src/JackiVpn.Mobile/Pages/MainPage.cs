@@ -94,6 +94,12 @@ public sealed class MainPage : ContentPage
                 return;
             }
 
+            if (app.Ibox.ShouldOfferSignIn)
+            {
+                // Installed before the Telegram account existed: offered once, optional.
+                await Shell.Current.Navigation.PushAsync(new IboxAccountPage(app, firstRun: true));
+            }
+
             var crash = MainApplication.CrashFile;
             if (File.Exists(crash))
             {

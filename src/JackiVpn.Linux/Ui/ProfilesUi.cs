@@ -97,6 +97,12 @@ internal static class ProfilesUi
         }
     }
 
+    private static async Task SignOutAsync(Shell shell, JackiVpn.Application.Account.IboxServices ibox)
+    {
+        await ibox.SignOutAsync(shell.Lifetime.Token);
+        shell.Toast("Telegram", "Signed out. Music and the subscription manager are off.");
+    }
+
     public static void ShowPicker(Shell shell, Control anchor)
     {
         var accounts = shell.Services.Accounts;
@@ -182,6 +188,26 @@ internal static class ProfilesUi
         transfer.Children.Add(export);
         transfer.Children.Add(import);
         list.Children.Add(transfer);
+
+        // Telegram: optional. Signed in adds music and the in-app subscription manager.
+        var ibox = shell.Services.Ibox;
+        var telegram = Ghost(ibox.SignedIn ? "Sign out of Telegram" : "Sign in with Telegram", () =>
+        {
+            flyout?.Hide();
+            if (ibox.SignedIn)
+            {
+                _ = SignOutAsync(shell, ibox);
+            }
+            else
+            {
+                AccountWindow.ShowSignIn(shell, ibox, firstRun: false);
+            }
+        });
+        ToolTip.SetTip(telegram, "Optional: signed in adds your music library and subscription management inside IBOX");
+        telegram.HorizontalAlignment = HorizontalAlignment.Stretch;
+        telegram.HorizontalContentAlignment = HorizontalAlignment.Center;
+        telegram.Margin = new Thickness(0, 4, 0, 0);
+        list.Children.Add(telegram);
         var hint = Hint("Each profile has its own settings (routing, DNS, modes, theme…), stored encrypted. Servers are shared. An exported account opens on Windows, Linux and Android.");
         hint.TextWrapping = TextWrapping.Wrap;
         list.Children.Add(hint);

@@ -59,6 +59,7 @@ public sealed partial class HomeViewModel : ObservableObject
     public HomeViewModel(MobileServices services)
     {
         _s = services;
+        services.Ibox.SignInChanged += (_, _) => MainThread.BeginInvokeOnMainThread(() => OnPropertyChanged(nameof(IboxSignedIn)));
         _clock = Microsoft.Maui.Controls.Application.Current!.Dispatcher.CreateTimer();
         _clock.Interval = TimeSpan.FromSeconds(1);
         _clock.Tick += (_, _) =>
@@ -108,6 +109,15 @@ public sealed partial class HomeViewModel : ObservableObject
 
     [RelayCommand]
     private static Task OpenUsageAsync() => Shell.Current.GoToAsync("usage");
+
+    /// <summary>Signed in with Telegram: only then the music and subscription buttons show.</summary>
+    public bool IboxSignedIn => _s.Ibox.SignedIn;
+
+    [RelayCommand]
+    private Task OpenSubscriptionAsync() => Shell.Current.Navigation.PushAsync(new Pages.IboxAccountPage(_s));
+
+    [RelayCommand]
+    private Task OpenMusicAsync() => Shell.Current.Navigation.PushAsync(new Pages.IboxAccountPage(_s, music: true));
 
     public bool IsConnected => State == ConnectionState.Connected;
 

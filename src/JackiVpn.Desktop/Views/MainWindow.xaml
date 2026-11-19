@@ -156,6 +156,10 @@
                     </Grid>
                     <Button Style="{StaticResource Button.Round}" Content="{Binding ThemeGlyph}" Command="{Binding ToggleThemeCommand}"
                             ToolTip="Light / dark" AutomationProperties.Name="Light or dark theme" />
+                    <Button Style="{StaticResource Button.Round}" Content="&#xE8C7;" Command="{Binding OpenSubscriptionCommand}" Margin="12,0,0,0" Visibility="{Binding IboxSignedIn, Converter={StaticResource Bool2Vis}}"
+                            ToolTip="My subscription (Telegram account)" AutomationProperties.Name="My subscription" />
+                    <Button Style="{StaticResource Button.Round}" Content="&#xE8D6;" Command="{Binding OpenMusicCommand}" Margin="12,0,0,0" Visibility="{Binding IboxSignedIn, Converter={StaticResource Bool2Vis}}"
+                            ToolTip="Music" AutomationProperties.Name="Music" />
                     <Button Style="{StaticResource Button.Round}" Content="&#xE73F;" Command="{Binding ShowMiniCommand}" Margin="12,0,0,0"
                             ToolTip="Mini view" AutomationProperties.Name="Mini view" />
                 </StackPanel>

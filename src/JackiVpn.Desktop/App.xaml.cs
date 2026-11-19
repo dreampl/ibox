@@ -223,13 +223,23 @@ public partial class App : System.Windows.Application
 
         await _vm.InitializeAsync();
         _services.StartBackground();
-        if (_window is { IsVisible: true } && Application.Onboarding.Tour.ShouldShow(_services.Settings.Current.Ui.TourSeen, (await _services.Profiles.GetAllAsync(_services.Lifetime)).Count))
+        var tour = Application.Onboarding.Tour.ShouldShow(_services.Settings.Current.Ui.TourSeen, (await _services.Profiles.GetAllAsync(_services.Lifetime)).Count);
+        if (_window is { IsVisible: true } && (tour || _services.Ibox.ShouldOfferSignIn))
         {
-            // A fresh install: the short tour, once the window has settled (not blocking the rest of the start).
+            // A fresh install: the short tour, then the optional Telegram sign-in, once the window has settled
+            // (not blocking the rest of the start).
             _ = Dispatcher.BeginInvoke(async () =>
             {
                 await Task.Delay(600);
-                await _vm.ShowTourAsync();
+                if (tour)
+                {
+                    await _vm.ShowTourAsync();
+                }
+
+                if (_services.Ibox.ShouldOfferSignIn)
+                {
+                    Views.AccountWindow.ShowSignIn(_services.Ibox, firstRun: true);
+                }
             }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         }
         SetupNotch();

@@ -16,12 +16,24 @@ namespace JackiVpn.Linux.Ui;
 /// </summary>
 internal static class AccountWindow
 {
-    private static Window? _open;
+    public const int SubscriptionTab = 0;
+    public const int MusicTab = 1;
 
-    public static void Open(Window owner, IboxServices ibox)
+    private static Window? _open;
+    private static TabControl? _tabs;
+
+    /// <summary>Music and the subscription manager are for signed-in users only: signed out, this asks to sign in first.</summary>
+    public static void Open(Window owner, IboxServices ibox, int tab = SubscriptionTab)
     {
+        if (!ibox.SignedIn)
+        {
+            ShowSignIn(owner, ibox, firstRun: false, then: () => Open(owner, ibox, tab));
+            return;
+        }
+
         if (_open is not null)
         {
+            _tabs!.SelectedIndex = tab;
             _open.Activate();
             return;
         }
@@ -29,7 +41,7 @@ internal static class AccountWindow
         var w = new Window { Title = "IBOX account", Width = 620, Height = 720, Background = B(CardBg), WindowStartupLocation = WindowStartupLocation.CenterOwner };
         var sub = new ContentControl();
         var music = new ContentControl();
-        w.Content = new TabControl
+        _tabs = new TabControl
         {
             Margin = new Thickness(12),
             Items =
@@ -37,27 +49,30 @@ internal static class AccountWindow
                 new TabItem { Header = "Subscription", Content = new ScrollViewer { Content = sub } },
                 new TabItem { Header = "Music", Content = music },
             },
+            SelectedIndex = tab,
         };
+        w.Content = _tabs;
 
         void RenderSub() => sub.Content = ibox.Account.SignedIn ? Subscription(w, ibox, RenderSub)
             : SignIn(ibox.Account.Login, "Sign in with Telegram to see and manage your subscription here: usage, expiry, servers and renewals.", r =>
             {
-                ibox.Account.Accept(r);
-                ibox.Watcher.Start();
+                ibox.SignIn(r);
                 RenderSub();
             }, null);
 
         void RenderMusic() => music.Content = MusicPage(w, ibox, RenderMusic);
 
         EventHandler<AccountView> updated = (_, _) => Dispatcher.UIThread.Post(RenderSub);
-        EventHandler signedOut = (_, _) => Dispatcher.UIThread.Post(RenderSub);
+        // Signed out (here, in Profiles, or by the server): music and the subscription manager close.
+        EventHandler signedOut = (_, _) => Dispatcher.UIThread.Post(() => { if (!ibox.SignedIn) { w.Close(); } });
         ibox.Watcher.Updated += updated;
-        ibox.Account.SignedOut += signedOut;
+        ibox.SignInChanged += signedOut;
         w.Closed += (_, _) =>
         {
             ibox.Watcher.Updated -= updated;
-            ibox.Account.SignedOut -= signedOut;
+            ibox.SignInChanged -= signedOut;
             _open = null;
+            _tabs = null;
         };
         if (ibox.Account.SignedIn)
         {
@@ -81,6 +96,43 @@ internal static class AccountWindow
         var s = new StackPanel { Spacing = 6, Margin = new Thickness(16) };
         s.Children.AddRange(c);
         return s;
+    }
+
+    private static Window? _signIn;
+
+    /// <summary>
+    /// The optional Telegram sign-in. On first run it says what signing in adds; "Not now" keeps IBOX fully usable
+    /// with subscriptions added the normal way. <paramref name="then"/> runs after a successful sign-in.
+    /// </summary>
+    public static void ShowSignIn(Window owner, IboxServices ibox, bool firstRun, Action? then = null)
+    {
+        if (_signIn is not null)
+        {
+            _signIn.Activate();
+            return;
+        }
+
+        var w = new Window { Title = "Sign in with Telegram", Width = 520, SizeToContent = SizeToContent.Height, Background = B(CardBg), WindowStartupLocation = WindowStartupLocation.CenterOwner };
+        var extra = new StackPanel { Spacing = 8, Margin = new Thickness(0, 10, 0, 0) };
+        extra.Children.Add(Ghost(firstRun ? "Not now" : "Cancel", w.Close));
+        if (firstRun)
+        {
+            extra.Children.Add(W(Hint("Optional. Without it IBOX works as usual with any subscription you add. You can sign in or out later from your profile.")));
+        }
+
+        w.Content = SignIn(ibox.Account.Login, "Signing in adds your IBOX music library and lets you manage your subscription inside IBOX: usage, expiry, servers and renewals.", r =>
+        {
+            ibox.SignIn(r);
+            w.Close();
+            then?.Invoke();
+        }, extra);
+        w.Closed += (_, _) =>
+        {
+            ibox.MarkSignInOffered();
+            _signIn = null;
+        };
+        _signIn = w;
+        w.Show(owner);
     }
 
     private static Control SignIn(TelegramLogin login, string why, Action<LoginResult> done, Control? extra)

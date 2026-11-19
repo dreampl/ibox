@@ -19,13 +19,25 @@ namespace JackiVpn.Desktop.Views;
 /// </summary>
 internal static class AccountWindow
 {
-    private static Window? _open;
+    public const int SubscriptionTab = 0;
+    public const int MusicTab = 1;
 
-    public static void Open(IboxServices ibox)
+    private static Window? _open;
+    private static TabControl? _tabs;
+
+    /// <summary>Music and the subscription manager are for signed-in users only: signed out, this asks to sign in first.</summary>
+    public static void Open(IboxServices ibox, int tab = SubscriptionTab)
     {
         ArgumentNullException.ThrowIfNull(ibox);
+        if (!ibox.SignedIn)
+        {
+            ShowSignIn(ibox, firstRun: false, then: () => Open(ibox, tab));
+            return;
+        }
+
         if (_open is { IsLoaded: true })
         {
+            _tabs!.SelectedIndex = tab;
             _open.Activate();
             return;
         }
@@ -40,26 +52,29 @@ internal static class AccountWindow
         var music = new ContentControl();
         tabs.Items.Add(new TabItem { Header = "Subscription", Content = new ScrollViewer { Content = sub, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } });
         tabs.Items.Add(new TabItem { Header = "Music", Content = music });
+        tabs.SelectedIndex = tab;
+        _tabs = tabs;
         w.Content = tabs;
 
         void RenderSub() => sub.Content = ibox.Account.SignedIn ? Subscription(ibox, RenderSub) : SignIn(ibox.Account.Login, "Sign in with Telegram to see and manage your subscription here: usage, expiry, servers and renewals.", r =>
         {
-            ibox.Account.Accept(r);
-            ibox.Watcher.Start();
+            ibox.SignIn(r);
             RenderSub();
         }, null);
 
         void RenderMusic() => music.Content = MusicPage(ibox, RenderMusic);
 
         EventHandler<AccountView> updated = (_, _) => w.Dispatcher.BeginInvoke(RenderSub);
-        EventHandler signedOut = (_, _) => w.Dispatcher.BeginInvoke(RenderSub);
+        // Signed out (here, in Profiles, or by the server): music and the subscription manager close.
+        EventHandler signedOut = (_, _) => w.Dispatcher.BeginInvoke(() => { if (!ibox.SignedIn) { w.Close(); } });
         ibox.Watcher.Updated += updated;
-        ibox.Account.SignedOut += signedOut;
+        ibox.SignInChanged += signedOut;
         w.Closed += (_, _) =>
         {
             ibox.Watcher.Updated -= updated;
-            ibox.Account.SignedOut -= signedOut;
+            ibox.SignInChanged -= signedOut;
             _open = null;
+            _tabs = null;
         };
         if (ibox.Account.SignedIn)
         {
@@ -73,6 +88,48 @@ internal static class AccountWindow
     }
 
     // ------------------------------------------------------------------ sign-in
+    private static Window? _signIn;
+
+    /// <summary>
+    /// The optional Telegram sign-in. On first run it says what signing in adds; "Not now" keeps IBOX fully usable
+    /// with subscriptions added the normal way. <paramref name="then"/> runs after a successful sign-in.
+    /// </summary>
+    public static void ShowSignIn(IboxServices ibox, bool firstRun, Action? then = null)
+    {
+        ArgumentNullException.ThrowIfNull(ibox);
+        if (_signIn is { IsLoaded: true })
+        {
+            _signIn.Activate();
+            return;
+        }
+
+        var w = DialogService.CreateWindow("Sign in with Telegram", 520);
+        w.ShowInTaskbar = true;
+        var later = DialogService.Styled(new Button { Content = firstRun ? "Not now" : "Cancel", Padding = new Thickness(16, 8, 16, 8), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 10, 0, 0) }, "Button.Ghost");
+        later.Click += (_, _) => w.Close();
+        var extra = new StackPanel();
+        extra.Children.Add(later);
+        if (firstRun)
+        {
+            extra.Children.Add(Hint("Optional. Without it IBOX works as usual with any subscription you add. You can sign in or out later under Profiles."));
+        }
+
+        var why = "Signing in adds your IBOX music library and lets you manage your subscription inside IBOX: usage, expiry, servers and renewals.";
+        w.Content = SignIn(ibox.Account.Login, why, r =>
+        {
+            ibox.SignIn(r);
+            w.Close();
+            then?.Invoke();
+        }, extra);
+        w.Closed += (_, _) =>
+        {
+            ibox.MarkSignInOffered();
+            _signIn = null;
+        };
+        _signIn = w;
+        w.Show();
+    }
+
     private static FrameworkElement SignIn(TelegramLogin login, string why, Action<LoginResult> done, FrameworkElement? extra)
     {
         var root = new StackPanel { Margin = new Thickness(16) };

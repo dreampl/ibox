@@ -134,6 +134,10 @@
                     <Label Grid.Column="1" Text="{Binding UsageLine}" Style="{StaticResource Caption}" FontSize="12" LineBreakMode="TailTruncation" VerticalOptions="Center" />
                     <controls:Icon Grid.Column="2" Name="chevron" Size="14" Color="{StaticResource Text3}" VerticalOptions="Center" />
                 </Grid>
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="8" IsVisible="{Binding IboxSignedIn}">
+                    <Button Style="{StaticResource Pill}" Text="{loc:T Home_MySub}" Command="{Binding OpenSubscriptionCommand}" SemanticProperties.Description="{loc:T Home_MySub}" />
+                    <Button Grid.Column="1" Style="{StaticResource Pill}" Text="{loc:T Home_Music}" Command="{Binding OpenMusicCommand}" SemanticProperties.Description="{loc:T Home_Music}" />
+                </Grid>
             </VerticalStackLayout>
         </Border>
     </Grid>

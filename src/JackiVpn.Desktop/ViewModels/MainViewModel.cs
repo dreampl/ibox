@@ -46,6 +46,7 @@ public sealed partial class MainViewModel : ObservableObject
             OnPropertyChanged(nameof(ActivePicture));
             OnPropertyChanged(nameof(ProfileTip));
         });
+        services.Ibox.SignInChanged += (_, _) => Ui.Post(() => OnPropertyChanged(nameof(IboxSignedIn)));
         Dashboard = new DashboardViewModel(services, dialogs, this);
         Servers = new ServersViewModel(services, dialogs);
         Subscriptions = new SubscriptionsViewModel(services, dialogs);
@@ -272,4 +273,13 @@ public sealed partial class MainViewModel : ObservableObject
 
     [CommunityToolkit.Mvvm.Input.RelayCommand]
     private void ShowPro() => ViewModeRequested?.Invoke(this, false);
+
+    /// <summary>Signed in with Telegram: only then the music and subscription buttons show.</summary>
+    public bool IboxSignedIn => _services.Ibox.SignedIn;
+
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    private void OpenSubscription() => Views.AccountWindow.Open(_services.Ibox, Views.AccountWindow.SubscriptionTab);
+
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    private void OpenMusic() => Views.AccountWindow.Open(_services.Ibox, Views.AccountWindow.MusicTab);
 }

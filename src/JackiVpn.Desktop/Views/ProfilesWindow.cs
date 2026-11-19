@@ -160,6 +160,43 @@ internal sealed class ProfilesWindow
         transfer.Children.Add(import);
         root.Children.Add(transfer);
         root.Children.Add(DialogService.Styled(new TextBlock { Text = "The file works on Windows, Linux and Android; IBOX adapts it to the device it is opened on.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) }, "Text.Hint"));
+
+        // Telegram: optional. Signed in adds music and the in-app subscription manager.
+        root.Children.Add(new TextBlock { Text = "Telegram", FontSize = 15, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 18, 0, 4) });
+        var tgState = DialogService.Styled(new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) }, "Text.Hint");
+        var tgButton = DialogService.Styled(new Button { HorizontalAlignment = HorizontalAlignment.Stretch, Padding = new Thickness(0, 9, 0, 9) }, "Button.Outline");
+        void RenderTelegram()
+        {
+            tgState.Text = _s.Ibox.SignedIn
+                ? "Signed in. Music and your subscription are in the top bar."
+                : "Not signed in. Sign in to get your music library and manage your subscription inside IBOX.";
+            tgButton.Content = _s.Ibox.SignedIn ? "Sign out of Telegram" : "Sign in with Telegram";
+        }
+
+        tgButton.Click += async (_, _) =>
+        {
+            if (!_s.Ibox.SignedIn)
+            {
+                AccountWindow.ShowSignIn(_s.Ibox, firstRun: false);
+                return;
+            }
+
+            tgButton.IsEnabled = false;
+            try
+            {
+                await _s.Ibox.SignOutAsync(_s.Lifetime);
+            }
+            finally
+            {
+                tgButton.IsEnabled = true;
+            }
+        };
+        EventHandler tgChanged = (_, _) => _window?.Dispatcher.BeginInvoke(RenderTelegram);
+        _s.Ibox.SignInChanged += tgChanged;
+        _window.Closed += (_, _) => _s.Ibox.SignInChanged -= tgChanged;
+        RenderTelegram();
+        root.Children.Add(tgState);
+        root.Children.Add(tgButton);
         var close = new Button { Content = "Close", IsCancel = true, MinWidth = 90, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
         close.Click += (_, _) => _window.Close();
         root.Children.Add(close);
