@@ -195,21 +195,6 @@ public sealed partial class NotchWindow
         }
     }
 
-    /// <summary>
-    /// A faded island under a pointer that is only passing: it steps aside (almost invisible, clicks go through)
-    /// instead of catching the click meant for what is below. Returns false when this does not apply.
-    /// </summary>
-    private bool TryDodge()
-    {
-        if (!_settings.PeekThrough || !_faded || _panel != NotchPanel.None || _seeThrough != SeeThrough.None || InLine)
-        {
-            return false;
-        }
-
-        BeginSeeThrough(SeeThrough.Dodge);
-        return true;
-    }
-
     private void BeginSeeThrough(SeeThrough kind)
     {
         _seeThrough = kind;

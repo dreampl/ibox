@@ -1,0 +1,10 @@
+IBOX 2.3.1
+
+IBOX account (Telegram)
+- Signing in is offered on first launch and is optional. Without it IBOX works as before with any subscription you add.
+- Music and the in-app subscription manager need the sign-in. Sign in or out any time from Profiles.
+- After you sign in, the subscriptions on your Telegram account are added to IBOX automatically. One you delete is not added again.
+- New buttons for My subscription and Music on the home screen.
+
+IBAR
+- A faded notch opens again when you rest the pointer on it. It still shrinks to a thin line at the top over maximised windows.

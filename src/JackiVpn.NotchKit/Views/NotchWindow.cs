@@ -876,12 +876,8 @@ public sealed partial class NotchWindow : Window
             _fadeTimer.Stop();
             if (_faded)
             {
-                // Faded: a passing pointer makes it step aside (clicks go through); resting on it brings it back.
-                if (TryDodge())
-                {
-                    return;
-                }
-
+                // Faded: a short rest of the pointer opens it (a pointer that only passes does nothing).
+                // Clicking through to what is below is Ctrl's job, never the pointer's alone.
                 _holdTimer.Start();
                 FadeTo(0.7, 160);
                 return;

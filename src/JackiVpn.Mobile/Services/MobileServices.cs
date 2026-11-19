@@ -226,6 +226,9 @@ public sealed class MobileServices : IAsyncDisposable
 
     /// <summary>IBOX account (Telegram): subscription management and music (its player is also an INowPlayingSource).</summary>
     public Application.Account.IboxServices Ibox { get; }
+
+    /// <summary>Adds the Telegram account's subscriptions after sign-in.</summary>
+    public Application.Account.AccountSubscriptionImport AccountImport { get; private set; } = null!;
     public Application.Connectivity.EndpointRescue Rescue { get; }
     public Application.Connectivity.DnsFinder DnsFinder { get; }
 
@@ -373,6 +376,8 @@ public sealed class MobileServices : IAsyncDisposable
             {
             }
         });
+        AccountImport = new Application.Account.AccountSubscriptionImport(Ibox, SubscriptionService, Subscriptions, DataDir, LoggerFactory.CreateLogger("JackiVpn.Account"));
+        AccountImport.Attach(Lifetime);
         _ = Task.Run(async () =>
         {
             try

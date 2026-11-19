@@ -230,6 +230,9 @@ public sealed class LinuxServices : IAsyncDisposable
     /// <summary>IBOX account (Telegram): subscription management and music (its player is also an INowPlayingSource).</summary>
     public Application.Account.IboxServices Ibox { get; }
 
+    /// <summary>Adds the Telegram account's subscriptions after sign-in.</summary>
+    public Application.Account.AccountSubscriptionImport AccountImport { get; private set; } = null!;
+
     /// <summary>What IBOX learned per server (last exit country, working fixes).</summary>
     public InsightStore Insights { get; }
 
@@ -266,6 +269,8 @@ public sealed class LinuxServices : IAsyncDisposable
         }
 
         await Health.LoadAsync(ct).ConfigureAwait(false);
+        AccountImport = new Application.Account.AccountSubscriptionImport(Ibox, SubscriptionService, Subscriptions, DataDir, _loggerFactory.CreateLogger("JackiVpn.Account"));
+        AccountImport.Attach(CancellationToken.None);
         GnomeProxy.RecoverStale(Logger);
         _ = Task.Run(Workplace.Refresh, CancellationToken.None);
         System.Net.NetworkInformation.NetworkChange.NetworkAddressChanged += (_, _) => _ = Task.Run(Workplace.Refresh, CancellationToken.None);
