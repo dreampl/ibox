@@ -29,3 +29,7 @@ Blocked on:
 Unverified xtool details: the per-extension entitlements (`PacketTunnel.entitlements` isn't referenced from `xtool.yml` yet), the extension bundle id xtool derives, and `NSExtensionPrincipalClass` = `PacketTunnel.PacketTunnelProvider`.
 
 Not ported yet: sing-box/Xray JSON and Clash YAML subscriptions, dnstt, Xray-only transports (xhttp, kcp: shown with a warning), routing rules, latency test.
+
+## WSL setup (after `wsl --install -d Ubuntu-24.04` + reboot + creating the Ubuntu user)
+`scripts/wsl-setup.sh` has four steps, run from Windows (see the header of the script for exact commands):
+`deps` (apt, as root) → `tools` (Swift 6.2 via swiftly + xtool AppImage) → `test` (`swift test` on IBOXCore, built in `~/ibox-ios` inside WSL) → `ipa` (only after you ran `xtool setup` with your Apple ID and Xcode.xip).
