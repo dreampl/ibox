@@ -131,8 +131,51 @@ public sealed class PowerButton : ContentView
             Tapped?.Invoke(this, EventArgs.Empty);
         };
         _core.GestureRecognizers.Add(tap);
-        Loaded += (_, _) => Apply(animate: false);
-        Unloaded += (_, _) => this.AbortAnimation(Loop);
+        Loaded += (_, _) =>
+        {
+            AppVisibleChanged += OnAppVisibleChanged;
+            Apply(animate: false);
+        };
+        Unloaded += (_, _) =>
+        {
+            AppVisibleChanged -= OnAppVisibleChanged;
+            this.AbortAnimation(Loop);
+        };
+    }
+
+    private static bool _appVisible = true;
+
+    private static event EventHandler? AppVisibleChanged;
+
+    /// <summary>
+    /// False while the app is in the background or the screen is off: the breathing loop (30 fps, forever) stops
+    /// instead of waking the CPU for frames nobody sees, and starts again when the app comes back.
+    /// </summary>
+    public static bool AppVisible
+    {
+        get => _appVisible;
+        set
+        {
+            if (_appVisible == value)
+            {
+                return;
+            }
+
+            _appVisible = value;
+            AppVisibleChanged?.Invoke(null, EventArgs.Empty);
+        }
+    }
+
+    private void OnAppVisibleChanged(object? sender, EventArgs e)
+    {
+        if (AppVisible)
+        {
+            StartLoop();
+        }
+        else
+        {
+            this.AbortAnimation(Loop);
+        }
     }
 
     public event EventHandler? Tapped;
@@ -147,17 +190,24 @@ public sealed class PowerButton : ContentView
         {
             _accentKey = accentGradientKey;
             _accent = accent;
+            // Any cross-fade still running belongs to an older colour: drop it, or it would finish later and paint
+            // that colour (e.g. gaming pink) onto the core after the state moved on.
+            CancelCrossFade();
             if (animate && visual == PowerVisual.Connected && !Motion.Reduced)
             {
                 // Cross-fade the core into the new activity colour.
                 _faceNext.Fill = Brush(accentGradientKey);
-                _faceNext.Opacity = 0;
-                _ = CrossFadeAsync();
+                _crossFading = true;
+                _ = CrossFadeAsync(++_fade, accentGradientKey);
             }
             else
             {
-                _faceOn.Fill = Brush(accentGradientKey);
+                PaintFaceOn(accentGradientKey);
             }
+        }
+        else if (visual != PowerVisual.Connected)
+        {
+            CancelCrossFade();
         }
 
         if (changed)
@@ -166,10 +216,35 @@ public sealed class PowerButton : ContentView
         }
     }
 
-    private async Task CrossFadeAsync()
+    private int _fade;
+    private string? _faceOnKey;
+    private bool _crossFading;
+
+    /// <summary>Paints the connected face, remembering which colour it actually shows.</summary>
+    private void PaintFaceOn(string key)
+    {
+        _faceOnKey = key;
+        _faceOn.Fill = Brush(key);
+    }
+
+    private void CancelCrossFade()
+    {
+        _fade++;
+        _crossFading = false;
+        _faceNext.CancelAnimations();
+        _faceNext.Opacity = 0;
+    }
+
+    private async Task CrossFadeAsync(int fade, string key)
     {
         await _faceNext.FadeToAsync(1, 450, Easing.CubicInOut);
-        _faceOn.Fill = _faceNext.Fill;
+        if (fade != _fade || key != _accentKey)
+        {
+            return;
+        }
+
+        _crossFading = false;
+        PaintFaceOn(key);
         _faceNext.Opacity = 0;
         _ = Motion.StretchAsync(_core);
     }
@@ -180,7 +255,13 @@ public sealed class PowerButton : ContentView
         var on = _visual == PowerVisual.Connected;
         var busy = _visual == PowerVisual.Busy;
         var tint = on ? _accent : Color.FromArgb("#5B6CFF");
-        _faceOn.Fill ??= Brush(_accentKey);
+        // A cancelled cross-fade leaves the face on the colour it started from; repaint when it no longer matches
+        // (a stale gaming pink would otherwise show on the next plain connect).
+        if (_faceOnKey != _accentKey && !_crossFading)
+        {
+            PaintFaceOn(_accentKey);
+        }
+
         _ = _faceOn.FadeToAsync(on ? 1 : 0, d, Easing.CubicInOut);
         _ = _faceIdle.FadeToAsync(on ? 0 : 1, d, Easing.CubicInOut);
         _glow.Fill = new RadialGradientBrush(new GradientStopCollection
@@ -249,7 +330,7 @@ public sealed class PowerButton : ContentView
             r.Scale = 1;
         }
 
-        if (Motion.Reduced)
+        if (Motion.Reduced || !AppVisible)
         {
             _arc.Rotation = 0;
             return;
@@ -269,7 +350,7 @@ public sealed class PowerButton : ContentView
                 }, 0, 1, Easing.CubicOut));
             }
 
-            parent.Commit(this, Loop, 16, 1600, Easing.Linear, repeat: () => _visual == PowerVisual.Busy && IsLoaded);
+            parent.Commit(this, Loop, 16, 1600, Easing.Linear, repeat: () => _visual == PowerVisual.Busy && IsLoaded && AppVisible);
             return;
         }
 
@@ -284,7 +365,7 @@ public sealed class PowerButton : ContentView
 
             _glow.Scale = 1 + amplitude * s;
             _glow.Opacity = 0.85 + 0.15 * s;
-        }, 0, 1).Commit(this, Loop, 33, _visual == PowerVisual.Connected ? 3600u : 5200u, Easing.Linear, repeat: () => _visual != PowerVisual.Busy && IsLoaded);
+        }, 0, 1).Commit(this, Loop, 33, _visual == PowerVisual.Connected ? 3600u : 5200u, Easing.Linear, repeat: () => _visual != PowerVisual.Busy && IsLoaded && AppVisible);
     }
 
     private static Brush Brush(string key) => (Brush)Microsoft.Maui.Controls.Application.Current!.Resources[key];

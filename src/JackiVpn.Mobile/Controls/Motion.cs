@@ -19,15 +19,31 @@ public static class Motion
     {
         get
         {
-            try
+            // Read on every animation call; the system setting is a JNI round trip, so keep it for 2 s.
+            var now = Environment.TickCount64;
+            if (now - _reducedAt < 2000)
             {
-                var resolver = global::Android.App.Application.Context.ContentResolver;
-                return global::Android.Provider.Settings.Global.GetFloat(resolver, global::Android.Provider.Settings.Global.AnimatorDurationScale, 1f) == 0f;
+                return _reduced;
             }
-            catch (global::Android.Provider.Settings.SettingNotFoundException)
-            {
-                return false;
-            }
+
+            _reducedAt = now;
+            return _reduced = ReadReduced();
+        }
+    }
+
+    private static long _reducedAt = long.MinValue / 2;
+    private static bool _reduced;
+
+    private static bool ReadReduced()
+    {
+        try
+        {
+            var resolver = global::Android.App.Application.Context.ContentResolver;
+            return global::Android.Provider.Settings.Global.GetFloat(resolver, global::Android.Provider.Settings.Global.AnimatorDurationScale, 1f) == 0f;
+        }
+        catch (global::Android.Provider.Settings.SettingNotFoundException)
+        {
+            return false;
         }
     }
 

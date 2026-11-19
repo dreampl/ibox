@@ -245,7 +245,7 @@
                                 <Setter TargetName="Testing" Property="Visibility" Value="Visible" />
                                 <DataTrigger.EnterActions>
                                     <BeginStoryboard x:Name="Pulse">
-                                        <Storyboard>
+                                        <Storyboard Timeline.DesiredFrameRate="20">
                                             <DoubleAnimation Storyboard.TargetName="LatencyPill" Storyboard.TargetProperty="Opacity" From="1" To="0.35" Duration="0:0:0.6"
                                                              AutoReverse="True" RepeatBehavior="Forever" />
                                         </Storyboard>

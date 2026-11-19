@@ -243,6 +243,7 @@ public sealed class MobileServices : IAsyncDisposable
         // Battery: usage is sampled every 15 s and orbs stop drawing while nobody looks.
         Usage.Interval = TimeSpan.FromSeconds(foreground ? 3 : 15);
         Controls.OrbView.AppVisible = foreground;
+        Controls.PowerButton.AppVisible = foreground;
     }
 
     /// <summary>The services, also from components Android starts on its own (widget, tile, always-on VPN).</summary>
