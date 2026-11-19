@@ -125,7 +125,14 @@ public sealed partial class SubscriptionsViewModel : ObservableObject
         _s = services;
         services.SubscriptionService.Updated += (_, r) => Fmt.OnUi(() => _ = ReloadOneAsync(r.SubscriptionId));
         services.SubscriptionService.AccountChecked += (_, id) => Fmt.OnUi(() => _ = ReloadOneAsync(id));
+        services.Ibox.SignInChanged += (_, _) => Fmt.OnUi(() => OnPropertyChanged(nameof(IboxSignedIn)));
     }
+
+    /// <summary>Signed in with Telegram: the subscriptions bought with that account can be picked and added.</summary>
+    public bool IboxSignedIn => _s.Ibox.SignedIn;
+
+    [RelayCommand]
+    private Task FromAccountAsync() => Shell.Current.Navigation.PushAsync(new Pages.AccountSubscriptionsPage(_s));
 
     public ObservableCollection<SubscriptionItem> Items { get; } = [];
 

@@ -13,6 +13,66 @@ public partial class SubscriptionsView : UserControl
 {
     public SubscriptionsView() => InitializeComponent();
 
+    /// <summary>The subscriptions bought with the signed-in Telegram account: each one added here with one click.</summary>
+    private async void OnFromAccountClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not SubscriptionsViewModel vm)
+        {
+            return;
+        }
+
+        var w = DialogService.CreateWindow("From my Telegram account", 520);
+        var list = new StackPanel { Margin = new Thickness(16) };
+        list.Children.Add(DialogService.Styled(new TextBlock { Text = "Loading your subscriptions…", TextWrapping = TextWrapping.Wrap }, "Text.Hint"));
+        w.Content = new ScrollViewer { Content = list, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = 560 };
+        w.Show();
+        try
+        {
+            var links = await vm.AccountLinksAsync();
+            list.Children.Clear();
+            list.Children.Add(DialogService.Styled(new TextBlock { Text = links.Count == 0
+                ? "No subscriptions with a link on this Telegram account yet."
+                : "The subscriptions you bought with Telegram. Add the ones you want in IBOX.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10) }, "Text.Hint"));
+            foreach (var l in links)
+            {
+                list.Children.Add(Row(vm, l));
+            }
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or JackiVpn.Application.Account.ServiceUnreachableException)
+        {
+            list.Children.Clear();
+            list.Children.Add(DialogService.Styled(new TextBlock { Text = ex.Message, TextWrapping = TextWrapping.Wrap }, "Text.Hint"));
+        }
+    }
+
+    private static FrameworkElement Row(SubscriptionsViewModel vm, JackiVpn.Application.Account.AccountLink l)
+    {
+        var c = l.Card;
+        var row = new DockPanel { Margin = new Thickness(0, 0, 0, 10) };
+        var add = DialogService.Styled(new Button { Content = l.Added ? "Added" : "Add", MinWidth = 80, Padding = new Thickness(12, 6, 12, 6), IsEnabled = !l.Added }, l.Added ? null : "Button.Primary");
+        DockPanel.SetDock(add, Dock.Right);
+        var used = c.Unlimited ? "unlimited" : $"{c.UsedBytes / 1073741824.0:0.#} / {c.LimitBytes / 1073741824.0:0.#} GB";
+        var left = c.Left(DateTimeOffset.Now) is { } t ? (t.TotalDays >= 1 ? $" · {Math.Floor(t.TotalDays)} days left" : " · ends today") : string.Empty;
+        var text = new StackPanel();
+        text.Children.Add(new TextBlock { Text = string.IsNullOrWhiteSpace(c.Username) ? "Subscription" : c.Username, FontWeight = FontWeights.SemiBold });
+        text.Children.Add(DialogService.Styled(new TextBlock { Text = $"{c.Server} · {c.Status} · {used}{left}", TextWrapping = TextWrapping.Wrap }, "Text.Hint"));
+        add.Click += async (_, _) =>
+        {
+            add.IsEnabled = false;
+            add.Content = "Adding…";
+            var ok = await vm.AddFromAccountAsync(c);
+            add.Content = ok ? "Added" : "Add";
+            add.IsEnabled = !ok;
+            if (!ok)
+            {
+                text.Children.Add(DialogService.Styled(new TextBlock { Text = vm.Message, TextWrapping = TextWrapping.Wrap }, "Text.Hint"));
+            }
+        };
+        row.Children.Add(add);
+        row.Children.Add(text);
+        return row;
+    }
+
     private async void OnNexManagementClick(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { DataContext: SubscriptionItem item } || DataContext is not SubscriptionsViewModel vm)

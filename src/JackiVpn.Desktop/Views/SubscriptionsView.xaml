@@ -40,6 +40,10 @@
                                 IsEnabled="{Binding IsBusy, Converter={StaticResource InvBool}}" MinWidth="80" />
                     </Grid>
                     <TextBlock Text="Paste the subscription link from your panel (https). Name is optional." Style="{StaticResource Text.Hint}" />
+                    <Button Content="From my Telegram account…" HorizontalAlignment="Left" Margin="0,10,0,0" Padding="14,6" Click="OnFromAccountClick"
+                            IsEnabled="{Binding IsBusy, Converter={StaticResource InvBool}}"
+                            Visibility="{Binding IboxSignedIn, Converter={StaticResource Bool2Vis}}"
+                            ToolTip="Pick from the subscriptions you bought with your Telegram account" />
                     <TextBlock Text="{Binding Message}" Style="{StaticResource Text.Hint}" Foreground="{DynamicResource B.TextSecondary}" Margin="0,8,0,0"
                                Visibility="{Binding Message, Converter={StaticResource Null2Vis}}" />
                 </StackPanel>

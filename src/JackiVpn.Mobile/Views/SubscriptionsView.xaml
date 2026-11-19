@@ -49,6 +49,7 @@
                         </Border>
                     </Grid>
                 </Border>
+                <Button Style="{StaticResource Pill}" Text="{loc:T Subs_FromAccount}" Command="{Binding FromAccountCommand}" IsVisible="{Binding IboxSignedIn}" HorizontalOptions="Start" />
                 <Label Text="{Binding Message}" Style="{StaticResource Hint}" Margin="4,0" />
 
                 <VerticalStackLayout x:Name="Cards" BindableLayout.ItemsSource="{Binding Items}" Spacing="12">

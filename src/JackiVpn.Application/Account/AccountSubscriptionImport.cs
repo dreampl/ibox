@@ -6,6 +6,9 @@ using Microsoft.Extensions.Logging;
 
 namespace JackiVpn.Application.Account;
 
+/// <summary>One subscription of the Telegram account, and whether IBOX already has it.</summary>
+public sealed record AccountLink(SubscriptionCard Card, bool Added);
+
 /// <summary>
 /// After a Telegram sign-in, adds the account's subscription links (the ones the bot knows for this user) to
 /// IBOX's own subscriptions, so the user does not copy them by hand. Each link is imported once: one the user
@@ -99,14 +102,7 @@ public sealed class AccountSubscriptionImport
             }
 
             var seen = ReadSeen();
-            var existing = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var sub in await _repository.GetAllAsync(ct).ConfigureAwait(false))
-            {
-                if (await _repository.GetSourceUrlAsync(sub.Id, ct).ConfigureAwait(false) is { } url)
-                {
-                    existing.Add(Normalize(url));
-                }
-            }
+            var existing = await ExistingAsync(ct).ConfigureAwait(false);
 
             var added = 0;
             foreach (var card in links)
@@ -145,6 +141,59 @@ public sealed class AccountSubscriptionImport
         {
             _gate.Release();
         }
+    }
+
+    /// <summary>The account's subscriptions that have a link, each with whether IBOX already has it.</summary>
+    public async Task<IReadOnlyList<AccountLink>> ListAsync(CancellationToken ct)
+    {
+        if (!_ibox.SignedIn)
+        {
+            return [];
+        }
+
+        var view = _ibox.Watcher.Current;
+        if (view is null)
+        {
+            (_, view) = await _ibox.Account.GetAsync(null, 0, ct).ConfigureAwait(false);
+        }
+
+        if (view is null)
+        {
+            throw new InvalidOperationException("Your Telegram account did not answer; try again in a moment.");
+        }
+
+        var existing = await ExistingAsync(ct).ConfigureAwait(false);
+        return view.Subscriptions
+            .Where(c => c.Link is not null)
+            .GroupBy(c => Normalize(c.Link!.AbsoluteUri))
+            .Select(g => new AccountLink(g.First(), existing.Contains(g.Key)))
+            .ToList();
+    }
+
+    /// <summary>Adds one the person picked (even one deleted earlier). Returns the new subscription.</summary>
+    public async Task<Domain.Subscriptions.Subscription> AddChosenAsync(SubscriptionCard card, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(card);
+        var link = card.Link ?? throw new SubscriptionException("This subscription has no link yet.");
+        var sub = await _service.AddAsync(link.AbsoluteUri, Name(card), null, ct).ConfigureAwait(false);
+        var seen = ReadSeen();
+        seen.Add(Hash(Normalize(link.AbsoluteUri)));
+        WriteSeen(seen);
+        return sub;
+    }
+
+    private async Task<HashSet<string>> ExistingAsync(CancellationToken ct)
+    {
+        var existing = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var sub in await _repository.GetAllAsync(ct).ConfigureAwait(false))
+        {
+            if (await _repository.GetSourceUrlAsync(sub.Id, ct).ConfigureAwait(false) is { } url)
+            {
+                existing.Add(Normalize(url));
+            }
+        }
+
+        return existing;
     }
 
     private static string Name(SubscriptionCard card) =>

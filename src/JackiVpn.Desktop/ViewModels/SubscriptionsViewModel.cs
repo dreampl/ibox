@@ -184,6 +184,37 @@ public sealed partial class SubscriptionsViewModel : ObservableObject
         _dialogs = dialogs;
         services.SubscriptionService.Updated += (_, r) => Ui.Post(() => _ = ReloadOneAsync(r.SubscriptionId));
         services.SubscriptionService.AccountChecked += (_, id) => Ui.Post(() => _ = ReloadOneAsync(id));
+        services.Ibox.SignInChanged += (_, _) => Ui.Post(() => OnPropertyChanged(nameof(IboxSignedIn)));
+    }
+
+    /// <summary>Signed in with Telegram: the subscriptions bought with that account can be picked and added.</summary>
+    public bool IboxSignedIn => _s.Ibox.SignedIn;
+
+    public Task<IReadOnlyList<Application.Account.AccountLink>> AccountLinksAsync() => _s.AccountImport.ListAsync(_s.Lifetime);
+
+    /// <summary>Adds one subscription picked from the Telegram account; the result goes to <see cref="Message"/>.</summary>
+    public async Task<bool> AddFromAccountAsync(Application.Account.SubscriptionCard card)
+    {
+        IsBusy = true;
+        Message = "Adding subscription…";
+        try
+        {
+            var sub = await _s.AccountImport.AddChosenAsync(card, _s.Lifetime);
+            await ReloadOneAsync(sub.Id);
+            Message = sub.LastError is null
+                ? $"Added \"{sub.Name}\" with {sub.ProfileCount} server(s)."
+                : $"Added \"{sub.Name}\", but the first update failed: {sub.LastError}";
+            return true;
+        }
+        catch (Exception ex) when (ex is SubscriptionException or Subscriptions.Fetching.FetchException or InvalidOperationException)
+        {
+            Message = "Could not add: " + SecretRedactor.Redact(ex.Message);
+            return false;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
     public Task<Uri?> NexManagementUriAsync(SubscriptionItem item) =>

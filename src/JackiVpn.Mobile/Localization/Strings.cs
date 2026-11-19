@@ -104,6 +104,7 @@ internal static class Strings
         ["Subs_Subtitle"] = ("Usage, expiry and devices", "مصرف، انقضا و دستگاه‌ها"),
         ["Subs_Sync"] = ("Sync device", "همگام‌سازی دستگاه"),
         ["Subs_Placeholder"] = ("Subscription link", "لینک اشتراک"),
+        ["Subs_FromAccount"] = ("From my Telegram account", "از حساب تلگرامم"),
         ["Subs_Empty"] = ("No subscriptions", "اشتراکی ندارید"),
         ["Subs_EmptyHint"] = ("Paste the link from your provider above. Servers, usage and expiry update automatically.", "لینک ارائه‌دهنده را بالا وارد کنید. سرورها، مصرف و انقضا خودکار به‌روز می‌شوند."),
         ["Sub_UsedOf"] = ("{0} of {1}", "{0} از {1}"),
