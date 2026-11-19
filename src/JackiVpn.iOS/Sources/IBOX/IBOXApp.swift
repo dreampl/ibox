@@ -1,22 +1,17 @@
+#if os(iOS)
 import SwiftUI
+import IBOXCore
 
 @main
 struct IBOXApp: App {
-    var body: some Scene {
-        WindowGroup { ContentView() }
-    }
-}
+    @StateObject private var model = AppModel()
 
-struct ContentView: View {
-    @State private var connected = false
-    var body: some View {
-        VStack(spacing: 24) {
-            Text("IBOX").font(.largeTitle.bold())
-            Button(connected ? "Disconnect / قطع اتصال" : "Connect / اتصال") {
-                connected.toggle() // TODO: NETunnelProviderManager + libbox packet tunnel
-            }
-            .buttonStyle(.borderedProminent)
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+                .environmentObject(model)
+                .environment(\.layoutDirection, L10n.isPersian ? .rightToLeft : .leftToRight)
         }
-        .padding()
     }
 }
+#endif

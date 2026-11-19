@@ -1,3 +1,7 @@
 version: 1
 bundleID: app.ibox.ios
 product: IBOX
+entitlementsPath: IBOX.entitlements
+extensions:
+  - product: PacketTunnel
+    infoPath: PacketTunnel-Info.plist
