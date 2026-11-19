@@ -379,9 +379,27 @@ public sealed class IboxAccountPage : ContentPage
     }
 
     // ------------------------------------------------------------------ music
+    private static DateTime _musicTried = DateTime.MinValue;
+
     private View MusicView()
     {
         var m = _s.Ibox.Music;
+        var ibox = _s.Ibox;
+        Action rerender = Render;
+        if (!m.SignedIn && ibox.SignedIn && DateTime.UtcNow - _musicTried > TimeSpan.FromSeconds(30))
+        {
+            // Already signed in to IBOX: open music with the same account, no second sign-in.
+            _musicTried = DateTime.UtcNow;
+            _ = Connect();
+            return new VerticalStackLayout { Padding = new Thickness(16), Children = { Hint(Tx("Opening your music…", "در حال باز کردن موزیک…")) } };
+
+            async Task Connect()
+            {
+                await ibox.EnsureMusicAsync();
+                rerender();
+            }
+        }
+
         if (!m.SignedIn)
         {
             var user = new Entry { Placeholder = Tx("Telegram @username or numeric id", "@نام کاربری یا شناسه عددی تلگرام") };

@@ -354,9 +354,25 @@ internal static class AccountWindow
         new Window { Title = "Nex configs", Width = 560, Height = 640, Background = B(CardBg), Content = new ScrollViewer { Content = col } }.Show(owner);
     }
 
+    private static DateTime _musicTried = DateTime.MinValue;
+
     private static Control MusicPage(Window w, IboxServices ibox, Action rerender)
     {
         var m = ibox.Music;
+        if (!m.SignedIn && ibox.SignedIn && DateTime.UtcNow - _musicTried > TimeSpan.FromSeconds(30))
+        {
+            // Already signed in to IBOX: open music with the same account, no second sign-in.
+            _musicTried = DateTime.UtcNow;
+            _ = Connect();
+            return Col(Hint("Opening your music…"));
+
+            async Task Connect()
+            {
+                await ibox.EnsureMusicAsync();
+                rerender();
+            }
+        }
+
         if (!m.SignedIn)
         {
             var user = new TextBox { PlaceholderText = "Telegram @username or numeric id" };

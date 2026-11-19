@@ -63,6 +63,13 @@ public sealed class IboxAccount
         _tokens.Remove(TokenName);
     }
 
+    /// <summary>A 2-minute, one-use ticket the music server trades for a music session (no second Telegram sign-in).</summary>
+    public async Task<string?> MusicTicketAsync(CancellationToken ct = default)
+    {
+        var r = await CallAsync("music/ticket", null, null, ct).ConfigureAwait(false);
+        return r.Ok ? r.Body?["ticket"]?.GetValue<string>() : null;
+    }
+
     /// <summary>The mini-app view. With <paramref name="etag"/> and no change: NotModified. wait > 0 long-polls.</summary>
     public async Task<(ApiResult Result, AccountView? View)> GetAsync(string? etag = null, int waitSeconds = 0, CancellationToken ct = default)
     {

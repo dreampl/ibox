@@ -44,6 +44,21 @@ public sealed class MusicClient
         NeedsPassword = result.Body["pass_set"]?.GetValue<bool>() != true;
     }
 
+    /// <summary>Single sign-on with a panel ticket. The backup password stays optional for such a session.</summary>
+    public async Task<bool> TicketLoginAsync(string ticket, string deviceName, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(ticket);
+        var r = await _http.PostAsync("login/ticket", new { ticket, dev = deviceName }, ct: ct).ConfigureAwait(false);
+        if (!r.Ok || r.Body?["token"]?.GetValue<string>() is not { Length: > 0 } token)
+        {
+            return false;
+        }
+
+        _tokens.Set(TokenName, token);
+        NeedsPassword = false;
+        return true;
+    }
+
     /// <summary>Backup sign-in: Telegram id or @username plus the password the person set in IBOX.</summary>
     public async Task<TelegramUser> PasswordLoginAsync(string user, string password, string deviceName, CancellationToken ct = default)
     {

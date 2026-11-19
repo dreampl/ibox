@@ -372,9 +372,25 @@ internal static class AccountWindow
     }
 
     // ------------------------------------------------------------------ music
+    private static DateTime _musicTried = DateTime.MinValue;
+
     private static FrameworkElement MusicPage(IboxServices ibox, Action rerender)
     {
         var m = ibox.Music;
+        if (!m.SignedIn && ibox.SignedIn && DateTime.UtcNow - _musicTried > TimeSpan.FromSeconds(30))
+        {
+            // Already signed in to IBOX: open music with the same account, no second sign-in.
+            _musicTried = DateTime.UtcNow;
+            _ = Connect();
+            return new StackPanel { Margin = new Thickness(16), Children = { Hint("Opening your music…") } };
+
+            async Task Connect()
+            {
+                await ibox.EnsureMusicAsync();
+                rerender();
+            }
+        }
+
         if (!m.SignedIn)
         {
             var pw = new StackPanel { Margin = new Thickness(0, 18, 0, 0) };

@@ -189,6 +189,27 @@ public sealed class IboxAccountTests
     }
 
     [Fact]
+    public async Task Music_opens_with_a_ticket_from_the_account_without_a_second_sign_in()
+    {
+        var (account, panel, tokens) = Panel();
+        tokens.Set(IboxAccount.TokenName, "ibx1.panel");
+        panel.Answer = (p, _) => p == "/sub/_jp/api/ibox/music/ticket" ? Json(HttpStatusCode.OK, """{"ticket":"body.mac","ttl":120}""") : Json(HttpStatusCode.NotFound, "{}");
+        var ticket = await account.MusicTicketAsync();
+        ticket.Should().Be("body.mac");
+        panel.Seen[0].Auth.Should().Be("ibx1.panel");
+
+        var server = new FakeServer();
+        var music = new MusicClient(new IboxHttp(new HttpClient(server), IboxEndpoints.Music), tokens);
+        server.Answer = (p, b) => p == "/m/api/ibox/login/ticket" && b["ticket"]!.GetValue<string>() == "body.mac"
+            ? Json(HttpStatusCode.OK, """{"token":"ibm1.t","user":{"id":7,"first_name":"A"},"pass_set":false,"pass_optional":true}""")
+            : Json(HttpStatusCode.Forbidden, """{"error":"no"}""");
+        (await music.TicketLoginAsync(ticket!, "pc")).Should().BeTrue();
+        music.SignedIn.Should().BeTrue();
+        music.NeedsPassword.Should().BeFalse("the backup password is optional after single sign-on");
+        (await new MusicClient(new IboxHttp(new HttpClient(server), IboxEndpoints.Music), new MemoryTokenStore()).TicketLoginAsync("forged", "pc")).Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Music_password_flow_and_library_links()
     {
         var server = new FakeServer();

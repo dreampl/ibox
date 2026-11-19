@@ -56,7 +56,35 @@ public sealed class IboxServices : IDisposable
         Account.Accept(result);
         MarkSignInOffered();
         Watcher.Start();
+        _ = EnsureMusicAsync();
         SignInChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Signed in to the account but not to music (music runs on another server with its own session): opens the music
+    /// session with a one-use ticket from the account, so the person never signs in twice. False when that is not possible.
+    /// </summary>
+    public async Task<bool> EnsureMusicAsync(CancellationToken ct = default)
+    {
+        if (Music.SignedIn)
+        {
+            return true;
+        }
+
+        if (!SignedIn)
+        {
+            return false;
+        }
+
+        try
+        {
+            return await Account.MusicTicketAsync(ct).ConfigureAwait(false) is { } ticket
+                && await Music.TicketLoginAsync(ticket, DeviceName(OperatingSystem.IsAndroid() ? "Android" : OperatingSystem.IsLinux() ? "Linux" : "Windows"), ct).ConfigureAwait(false);
+        }
+        catch (Exception e) when (e is ServiceUnreachableException or InvalidOperationException or HttpRequestException)
+        {
+            return false;
+        }
     }
 
     /// <summary>Signs out of the account and of music, and stops playback.</summary>
