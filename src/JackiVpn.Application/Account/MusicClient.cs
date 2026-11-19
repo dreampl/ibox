@@ -32,6 +32,9 @@ public sealed class MusicClient
 
     public TelegramLogin Login { get; }
 
+    /// <summary>The music API address that answers now (US, or the Iranian relay when the US one is blocked).</summary>
+    public Uri ApiBase => _http.Base;
+
     public bool SignedIn => _tokens.Get(TokenName) is { Length: > 0 };
 
     /// <summary>After a Telegram sign-in: true when a backup password still has to be chosen.</summary>

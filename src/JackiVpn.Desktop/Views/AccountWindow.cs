@@ -35,6 +35,16 @@ internal static class AccountWindow
             return;
         }
 
+        // The server's own mini apps when WebView2 is there; IBOX's own screens otherwise.
+        if (!MiniAppWindow.TryOpen(ibox, tab))
+        {
+            OpenNative(ibox, tab);
+        }
+    }
+
+    /// <summary>IBOX's own account screens (no WebView2, or music could not open with the account).</summary>
+    public static void OpenNative(IboxServices ibox, int tab)
+    {
         if (_open is { IsLoaded: true })
         {
             _tabs!.SelectedIndex = tab;

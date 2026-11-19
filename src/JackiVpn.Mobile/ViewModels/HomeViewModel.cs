@@ -114,10 +114,10 @@ public sealed partial class HomeViewModel : ObservableObject
     public bool IboxSignedIn => _s.Ibox.SignedIn;
 
     [RelayCommand]
-    private Task OpenSubscriptionAsync() => Shell.Current.Navigation.PushAsync(new Pages.IboxAccountPage(_s));
+    private Task OpenSubscriptionAsync() => Pages.MiniAppPage.OpenAsync(_s, music: false);
 
     [RelayCommand]
-    private Task OpenMusicAsync() => Shell.Current.Navigation.PushAsync(new Pages.IboxAccountPage(_s, music: true));
+    private Task OpenMusicAsync() => Pages.MiniAppPage.OpenAsync(_s, music: true);
 
     public bool IsConnected => State == ConnectionState.Connected;
 
