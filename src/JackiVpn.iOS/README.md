@@ -18,13 +18,13 @@ packet tunnel that embeds sing-box (libbox).
 IDs: app `app.ibox.ios`, extension `app.ibox.ios.PacketTunnel`, App Group `group.app.ibox.ios` (`AppShared.swift`).
 
 ## Status
-**Nothing here has been compiled yet.** This host has no Swift toolchain and no WSL.
+- `IBOXCore` builds with Swift 6.2 on Linux (WSL Ubuntu 24.04), and its 13 XCTest cases pass.
+- The `IBOX` app and `PacketTunnel` sources are `#if os(iOS)`. On Linux they compile as empty, so the SwiftUI/NetworkExtension code is **not compiled yet**: that needs the Darwin SDK from `xtool setup`.
 
 Blocked on:
-1. Toolchain. Either WSL + Swift 6 + xtool (the full iOS path), or Swift for Windows just to run `swift test` on `IBOXCore`.
-2. `xtool setup` needs an Xcode.xip (Apple ID download, about 3–4 GB, more once extracted; put it on C:).
-3. The packet-tunnel entitlement needs a **paid** Apple Developer account. A free team can build and install the app shell, but it can't sign a working VPN.
-4. Libbox.xcframework (sing-box `experimental/libbox`, gomobile). It is built on macOS, or taken from a sing-box Apple build. Then implement `LibboxPlatformInterface` in `PacketTunnelProvider` the way sing-box's own Apple client does.
+1. `xtool setup` needs an Xcode.xip (Apple ID download, about 3–4 GB, more once extracted; put it on C:).
+2. The packet-tunnel entitlement needs a **paid** Apple Developer account. A free team can build and install the app shell, but it can't sign a working VPN.
+3. Libbox.xcframework (sing-box `experimental/libbox`, gomobile). It is built on macOS, or taken from a sing-box Apple build. Then implement `LibboxPlatformInterface` in `PacketTunnelProvider` the way sing-box's own Apple client does.
 
 Unverified xtool details: the per-extension entitlements (`PacketTunnel.entitlements` isn't referenced from `xtool.yml` yet), the extension bundle id xtool derives, and `NSExtensionPrincipalClass` = `PacketTunnel.PacketTunnelProvider`.
 

@@ -13,6 +13,8 @@ set -euo pipefail
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORK="$HOME/ibox-ios"          # build in the Linux filesystem: faster than /mnt/h and keeps H: free
 SWIFT_VERSION="${SWIFT_VERSION:-6.2}"
+TOOLCHAIN="$HOME/.local/swift-$SWIFT_VERSION"
+swift_env() { export PATH="$TOOLCHAIN/usr/bin:$HOME/.local/bin:$PATH"; }
 
 case "${1:-}" in
 deps)
@@ -25,16 +27,18 @@ deps)
         curl ca-certificates libfuse2t64 usbmuxd rsync
     ;;
 tools)
-    if ! command -v swiftly >/dev/null 2>&1 && [ ! -x "$HOME/.local/share/swiftly/bin/swiftly" ]; then
-        tmp="$(mktemp -d)"
-        curl -fsSL -o "$tmp/swiftly.tar.gz" "https://download.swift.org/swiftly/linux/swiftly-$(uname -m).tar.gz"
-        tar -xzf "$tmp/swiftly.tar.gz" -C "$tmp"
-        "$tmp/swiftly" init --quiet-shell-followup --assume-yes --skip-install
-        rm -rf "$tmp"
+    # Direct, resumable toolchain download (swiftly's downloader timed out on this network).
+    if [ ! -x "$TOOLCHAIN/usr/bin/swift" ]; then
+        name="swift-${SWIFT_VERSION}-RELEASE"
+        url="https://download.swift.org/swift-${SWIFT_VERSION}-release/ubuntu2404/${name}/${name}-ubuntu24.04.tar.gz"
+        mkdir -p "$HOME/.cache/ibox-ios"
+        tarball="$HOME/.cache/ibox-ios/${name}.tar.gz"
+        curl -fL --retry 10 --retry-all-errors --retry-delay 5 -C - -o "$tarball" "$url"
+        mkdir -p "$TOOLCHAIN"
+        tar -xzf "$tarball" -C "$TOOLCHAIN" --strip-components=1
+        rm -f "$tarball"
     fi
-    # shellcheck disable=SC1091
-    . "${SWIFTLY_HOME_DIR:-$HOME/.local/share/swiftly}/env.sh"
-    swiftly install --use --assume-yes "$SWIFT_VERSION"
+    swift_env
     swift --version
 
     mkdir -p "$HOME/.local/bin"
@@ -47,8 +51,7 @@ tools)
     echo "Next (needs you): xtool setup  -> Apple ID sign-in + path to Xcode.xip"
     ;;
 test)
-    # shellcheck disable=SC1091
-    . "${SWIFTLY_HOME_DIR:-$HOME/.local/share/swiftly}/env.sh"
+    swift_env
     mkdir -p "$WORK"
     rsync -a --delete --exclude .build --exclude xtool "$SRC/" "$WORK/"
     cd "$WORK"
@@ -57,8 +60,7 @@ test)
     ;;
 ipa)
     # After `xtool setup` has installed the Darwin SDK.
-    # shellcheck disable=SC1091
-    . "${SWIFTLY_HOME_DIR:-$HOME/.local/share/swiftly}/env.sh"
+    swift_env
     mkdir -p "$WORK"
     rsync -a --delete --exclude .build --exclude xtool "$SRC/" "$WORK/"
     cd "$WORK"
