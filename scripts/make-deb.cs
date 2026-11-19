@@ -1,3 +1,4 @@
+#:property PublishAot=false
 // Builds a Debian package (and a .tar.gz) on Windows with correct Unix permissions.
 // dotnet run scripts/make-deb.cs -- <staging-root> <version> <out-dir>
 // <staging-root> holds the package tree (opt/jackivpn/...). Files without an extension are executables.
