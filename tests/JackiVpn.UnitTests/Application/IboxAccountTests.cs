@@ -81,6 +81,44 @@ public sealed class IboxAccountTests
     }
 
     [Fact]
+    public async Task Official_login_opens_oauth_telegram_org_then_collects_the_session_with_the_same_verifier()
+    {
+        var (account, server, _) = Panel();
+        server.Answer = (path, _) => path switch
+        {
+            "/sub/_jp/api/ibox/oidc/start" => Json(HttpStatusCode.OK, """{"nonce":"N123456789012345678901","ttl":600,"url":"https://oauth.telegram.org/auth?client_id=1&state=N1"}"""),
+            "/sub/_jp/api/ibox/login/poll" => Json(HttpStatusCode.OK, """{"token":"ibx1.secret","user":{"id":7,"first_name":"Ali"}}"""),
+            _ => Json(HttpStatusCode.NotFound, "{}"),
+        };
+
+        var c = await account.Login.StartOfficialAsync("Test PC");
+        c.Should().NotBeNull();
+        c!.Official.Should().BeTrue();
+        c.Link.Host.Should().Be("oauth.telegram.org");
+        server.Seen[0].Body["vh"]!.GetValue<string>().Should().Be(TelegramLogin.Hash(c.Verifier));
+        (await account.Login.WaitAsync(c)).Token.Should().Be("ibx1.secret");
+        server.Seen[^1].Body["v"]!.GetValue<string>().Should().Be(c.Verifier);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.ServiceUnavailable, """{"error":"not set up","fallback":true}""")]
+    [InlineData(HttpStatusCode.NotFound, "{}")]
+    public async Task Official_login_is_null_when_the_server_has_none_so_the_bot_is_used(HttpStatusCode code, string body)
+    {
+        var (account, server, _) = Panel();
+        server.Answer = (_, _) => Json(code, body);
+        (await account.Login.StartOfficialAsync("pc")).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Official_login_rejects_a_link_that_is_not_telegrams_own_page()
+    {
+        var (account, server, _) = Panel();
+        server.Answer = (_, _) => Json(HttpStatusCode.OK, """{"nonce":"N123456789012345678901","url":"https://oauth.telegram.org.evil.example/auth"}""");
+        await account.Invoking(a => a.Login.StartOfficialAsync("pc")).Should().ThrowAsync<LoginFailedException>();
+    }
+
+    [Fact]
     public async Task Login_rejects_a_non_telegram_link_and_reports_a_deny()
     {
         var (account, server, _) = Panel();

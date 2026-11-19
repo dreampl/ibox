@@ -5,8 +5,11 @@ using System.Text.Json.Nodes;
 
 namespace JackiVpn.Application.Account;
 
-/// <summary>What the person sees while signing in: open <see cref="Link"/> in Telegram and compare <see cref="Code"/>.</summary>
-public sealed record LoginChallenge(string Nonce, string Code, Uri Link, Uri? TelegramLink, TimeSpan ValidFor, string Verifier);
+/// <summary>
+/// What the person sees while signing in: open <see cref="Link"/> in Telegram and compare <see cref="Code"/>; or, when
+/// <see cref="Official"/>, open <see cref="Link"/> (Telegram's own oauth.telegram.org page) in the browser.
+/// </summary>
+public sealed record LoginChallenge(string Nonce, string Code, Uri Link, Uri? TelegramLink, TimeSpan ValidFor, string Verifier, bool Official = false);
 
 /// <summary>The Telegram user an app session belongs to.</summary>
 public sealed record TelegramUser(long Id, string FirstName, string? Username)
@@ -63,6 +66,35 @@ public sealed class TelegramLogin
         Uri.TryCreate(r.Body["tg"]?.GetValue<string>(), UriKind.Absolute, out var tg);
         return new LoginChallenge(r.Body["nonce"]!.GetValue<string>(), r.Body["code"]?.GetValue<string>() ?? string.Empty, url,
             tg is { Scheme: "tg" } ? tg : null, TimeSpan.FromSeconds(r.Body["ttl"]?.GetValue<int>() ?? 600), verifier);
+    }
+
+    /// <summary>
+    /// Telegram's official "Log In with Telegram" (OpenID Connect) in the browser. The server holds the client secret and
+    /// checks Telegram's signed id_token; the app keeps the same verifier and collects the session with
+    /// <see cref="WaitAsync"/>. Null when the server has no official login set up (then use <see cref="StartAsync"/>).
+    /// </summary>
+    public async Task<LoginChallenge?> StartOfficialAsync(string deviceName, CancellationToken ct = default)
+    {
+        var verifier = NewVerifier();
+        var r = await _http.PostAsync(_prefix + "oidc/start", new { vh = Hash(verifier), dev = deviceName }, ct: ct).ConfigureAwait(false);
+        if (r.Status is HttpStatusCode.NotFound || r.Body?["fallback"]?.GetValue<bool>() == true)
+        {
+            return null;
+        }
+
+        if (!r.Ok || r.Body is null)
+        {
+            throw new LoginFailedException(r.Error);
+        }
+
+        if (!Uri.TryCreate(r.Body["url"]?.GetValue<string>(), UriKind.Absolute, out var url) || url.Scheme != Uri.UriSchemeHttps
+            || url.Host != "oauth.telegram.org" || url.AbsolutePath != "/auth")
+        {
+            throw new LoginFailedException("The server sent an unexpected sign-in link.");
+        }
+
+        return new LoginChallenge(r.Body["nonce"]!.GetValue<string>(), string.Empty, url, null,
+            TimeSpan.FromSeconds(r.Body["ttl"]?.GetValue<int>() ?? 600), verifier, Official: true);
     }
 
     /// <summary>Long-polls until the person approves in Telegram; throws on deny, expiry or cancel.</summary>

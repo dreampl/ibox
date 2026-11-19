@@ -144,15 +144,21 @@ public sealed class IboxAccountPage : ContentPage
         var col = new VerticalStackLayout { Spacing = 8, Padding = new Thickness(16) };
         col.Add(Head(Tx("Sign in with Telegram", "ورود با تلگرام")));
         col.Add(Hint(why + Tx(" The first sign-in always goes through Telegram.", " اولین ورود همیشه با تلگرام است.")));
-        Button? button = null;
-        button = Btn(Tx("Sign in with Telegram", "ورود با تلگرام"), async () =>
+        Button? button = null, viaBot = null;
+
+        // Official first: Telegram's own sign-in page in the browser. Falls back to the bot when the server has none.
+        async Task Go(bool official)
         {
-            button!.IsEnabled = false;
+            button!.IsEnabled = viaBot!.IsEnabled = false;
             try
             {
-                var c = await login.StartAsync(IboxServices.DeviceName("Android"));
-                state.Text = Tx($"Telegram opens with the IBOX bot. Check that it shows the code {c.Code}, then press Approve there.",
-                               $"تلگرام با ربات IBOX باز می‌شود. ببین کد {c.Code} را نشان می‌دهد، بعد آنجا «تایید» را بزن.");
+                var device = IboxServices.DeviceName("Android");
+                var c = (official ? await login.StartOfficialAsync(device) : null) ?? await login.StartAsync(device);
+                state.Text = c.Official
+                    ? Tx("The browser opens Telegram's sign-in page. Sign in there, then come back to IBOX: it continues by itself.",
+                         "مرورگر صفحهٔ ورود رسمی تلگرام را باز می‌کند. آنجا وارد شو و به IBOX برگرد؛ خودش ادامه می‌دهد.")
+                    : Tx($"Telegram opens with the IBOX bot. Check that it shows the code {c.Code}, then press Approve there.",
+                         $"تلگرام با ربات IBOX باز می‌شود. ببین کد {c.Code} را نشان می‌دهد، بعد آنجا «تایید» را بزن.");
                 try
                 {
                     await Launcher.Default.OpenAsync(c.TelegramLink ?? c.Link);
@@ -170,10 +176,14 @@ public sealed class IboxAccountPage : ContentPage
             }
             finally
             {
-                button!.IsEnabled = true;
+                button!.IsEnabled = viaBot!.IsEnabled = true;
             }
-        }, primary: true);
+        }
+
+        button = Btn(Tx("Sign in with Telegram", "ورود با تلگرام"), () => Go(official: true), primary: true);
+        viaBot = Btn(Tx("Use the IBOX bot instead", "ورود از طریق ربات IBOX"), () => Go(official: false));
         col.Add(button);
+        col.Add(viaBot);
         col.Add(state);
         if (extra is not null)
         {

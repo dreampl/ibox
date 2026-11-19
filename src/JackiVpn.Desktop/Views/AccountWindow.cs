@@ -136,19 +136,31 @@ internal static class AccountWindow
         root.Children.Add(Title("Sign in with Telegram"));
         root.Children.Add(Hint(why + " The first sign-in always goes through Telegram."));
         var state = Hint(string.Empty);
-        var button = DialogService.Styled(new Button { Content = "Sign in with Telegram", Padding = new Thickness(16, 8, 16, 8), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 14, 0, 0) }, "Button.Primary");
+        var button = DialogService.Styled(new Button { Content = "Sign in with Telegram", Padding = new Thickness(16, 8, 16, 8) }, "Button.Primary");
+        var viaBot = new Button { Content = "Use the IBOX bot instead", Padding = new Thickness(12, 8, 12, 8), Margin = new Thickness(8, 0, 0, 0) };
         CancellationTokenSource? cts = null;
-        button.Click += async (_, _) =>
+
+        // Official first: Telegram's own sign-in page in the browser. Falls back to the bot when the server has none.
+        async Task Run(bool official)
         {
             cts?.Cancel();
             cts = new CancellationTokenSource();
-            button.IsEnabled = false;
+            button.IsEnabled = viaBot.IsEnabled = false;
             try
             {
-                var c = await login.StartAsync(IboxServices.DeviceName("Windows"), cts.Token);
-                state.Text = $"Telegram opens with the IBOX bot. Check that it shows the code {c.Code}, then press Approve there.\nIf Telegram did not open: {c.Link}";
+                var device = IboxServices.DeviceName("Windows");
+                var c = (official ? await login.StartOfficialAsync(device, cts.Token) : null) ?? await login.StartAsync(device, cts.Token);
+                state.Text = c.Official
+                    ? $"Your browser opens Telegram's sign-in page. Sign in there, then come back: IBOX continues by itself.\nIf the browser did not open: {c.Link}"
+                    : $"Telegram opens with the IBOX bot. Check that it shows the code {c.Code}, then press Approve there.\nIf Telegram did not open: {c.Link}";
                 OpenTelegram(c);
-                done(await login.WaitAsync(c, new Progress<string>(s => { if (s == "seen") { state.Text = $"Code {c.Code}: now press Approve in Telegram."; } }), cts.Token));
+                done(await login.WaitAsync(c, new Progress<string>(s =>
+                {
+                    if (s == "seen")
+                    {
+                        state.Text = c.Official ? "Checking your Telegram sign-in…" : $"Code {c.Code}: now press Approve in Telegram.";
+                    }
+                }), cts.Token));
             }
             catch (Exception e) when (e is LoginFailedException or ServiceUnreachableException or OperationCanceledException)
             {
@@ -156,10 +168,16 @@ internal static class AccountWindow
             }
             finally
             {
-                button.IsEnabled = true;
+                button.IsEnabled = viaBot.IsEnabled = true;
             }
-        };
-        root.Children.Add(button);
+        }
+
+        button.Click += async (_, _) => await Run(official: true);
+        viaBot.Click += async (_, _) => await Run(official: false);
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 14, 0, 0) };
+        buttons.Children.Add(button);
+        buttons.Children.Add(viaBot);
+        root.Children.Add(buttons);
         root.Children.Add(state);
         if (extra is not null)
         {
