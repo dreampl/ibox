@@ -1,0 +1,32 @@
+IBOX 2.3.0
+
+New: IBOX account (Telegram)
+- Sign in with Telegram, then manage your Nex subscription inside IBOX, with no mini app needed.
+- Music player in IBOX, with background playback on Android.
+
+New: Nex and Amnezia
+- Nex servers and subscriptions carry a clear Nex badge, and the home screen shows "Nex active" while connected.
+- Nex AmneziaWG keys open straight in AmneziaVPN. IBOX notices when AmneziaVPN is connected to one of our servers.
+
+New: Automations and rules
+- Opt-in automations: connection watchdog, trusted Wi-Fi, nightly subscription refresh and a quota watcher.
+- Rules for individual apps on Android, and rules now work the same way on Xray servers.
+- New settings pages for automations and rules on Windows, Linux and Android.
+
+New: Privacy
+- The time zone can follow your exit country.
+- Fewer signs that give away a VPN, and a warning when other apps detect our servers.
+
+New: Mini view (Windows)
+- A small window with a server picker.
+
+IBAR
+- The notch can float as an island, and music comes first, with seeking.
+- Clicks pass through the notch, it shrinks to a thin line over maximised windows, and it shows a focus timer and system vitals.
+- Batteries of connected Bluetooth devices.
+- Provider news, with "mark as read".
+- Claude permission prompts show Persian text, emoji and tool input correctly, and approve/deny is more reliable.
+
+Faster
+- Windows uses about 1% CPU while minimised (it was 4–11%). Android stops its animations in the background.
+- The Android power button no longer stays pink after a state change.
