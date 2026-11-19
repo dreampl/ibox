@@ -1,0 +1,5 @@
+IBOX 2.3.3
+
+IBOX account (Telegram)
+- Fixed: signing in on Telegram's own page now signs IBOX in to your real account. If you used it in 2.3.2, sign out of Telegram in Profiles once and sign in again.
+- Subscriptions: "From my Telegram account" lists the subscriptions you bought with Telegram. Add any of them to IBOX with one tap.
