@@ -877,23 +877,14 @@ public sealed class DashboardPage(Shell shell) : Page(shell)
         var strip = Clay(new DockPanel { Children = { chevron, pill, tile, info } }, new Thickness(18, 14), 24);
         if (sub.IsNex)
         {
+            // Static gradient trim, matching the Desktop/Mobile Nex badge (no repaint timer).
             strip.BorderThickness = new Thickness(1);
-            var start = DateTime.UtcNow;
-            void UpdateTrim()
+            strip.BorderBrush = new LinearGradientBrush
             {
-                var angle = (DateTime.UtcNow - start).TotalSeconds * Math.PI / 8;
-                var x = Math.Cos(angle) * 0.5;
-                var y = Math.Sin(angle) * 0.5;
-                strip.BorderBrush = new LinearGradientBrush
-                {
-                    StartPoint = new RelativePoint(0.5 - x, 0.5 - y, RelativeUnit.Relative),
-                    EndPoint = new RelativePoint(0.5 + x, 0.5 + y, RelativeUnit.Relative),
-                    GradientStops = { new GradientStop(Color.Parse("#887EC8F0"), 0), new GradientStop(Color.Parse("#889A8CEB"), 1) },
-                };
-            }
-            var timer = new DispatcherTimer(TimeSpan.FromMilliseconds(250), DispatcherPriority.Background, (_, _) => UpdateTrim());
-            strip.AttachedToVisualTree += (_, _) => { UpdateTrim(); timer.Start(); };
-            strip.DetachedFromVisualTree += (_, _) => timer.Stop();
+                StartPoint = new RelativePoint(0, 0.5, RelativeUnit.Relative),
+                EndPoint = new RelativePoint(1, 0.5, RelativeUnit.Relative),
+                GradientStops = { new GradientStop(Color.Parse("#887EC8F0"), 0), new GradientStop(Color.Parse("#889A8CEB"), 1) },
+            };
         }
         strip.Margin = new Thickness(0, 20, 0, 0);
         strip.Cursor = new Cursor(StandardCursorType.Hand);

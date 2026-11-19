@@ -25,6 +25,7 @@ public sealed partial class SubscriptionItem : ObservableObject
     public string Provider => Model.Provider == SubscriptionProviderKind.PasarGuard ? "PasarGuard" : "Subscription";
 
     public bool IsOfficial => Model.IsOfficial;
+    public bool IsNex => Model.IsNex;
 
     public bool SendsDeviceId => Model.SendDeviceId ?? Model.IsOfficial;
 
