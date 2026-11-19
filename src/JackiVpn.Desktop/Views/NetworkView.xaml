@@ -67,6 +67,20 @@
                         </StackPanel>
                     </CheckBox>
                     <Border Style="{StaticResource Separator.Line}" />
+                    <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding MatchTimeZone}">
+                        <StackPanel>
+                            <TextBlock Text="Match time zone to server" />
+                            <TextBlock Text="While connected, the clock's time zone follows the server's location, so apps and sites see a local time that fits the IP. Your own zone comes back on disconnect. Needs the service." Style="{StaticResource Text.Hint}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </CheckBox>
+                    <Border Style="{StaticResource Separator.Line}" />
+                    <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding DetectOtherApps}">
+                        <StackPanel>
+                            <TextBlock Text="Notice when another app or the router uses our servers" />
+                            <TextBlock Text="While IBOX is off, the public address is checked at start and when the network changes." Style="{StaticResource Text.Hint}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </CheckBox>
+                    <Border Style="{StaticResource Separator.Line}" />
                     <Grid Style="{StaticResource Row}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />

@@ -161,6 +161,12 @@ public sealed partial class SettingsViewModel : ObservableObject
         set => _s.Settings.Update(x => x with { Connection = x.Connection with { SmartMode = value } });
     }
 
+    public bool DetectOtherApps
+    {
+        get => S.Privacy.DetectOtherApps;
+        set => _s.Settings.Update(x => x with { Privacy = x.Privacy with { DetectOtherApps = value } });
+    }
+
     // ------------------------------------------------------------------ connection
 
     public bool AutoTune

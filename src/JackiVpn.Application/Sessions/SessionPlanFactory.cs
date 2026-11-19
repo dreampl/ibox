@@ -21,7 +21,7 @@ public sealed record SessionRequest
     public bool? TunnelSupportsIpv6 { get; init; }
     public RoutingSettings Routing { get; init; } = new();
     public IReadOnlyDictionary<string, string> RuleSetPaths { get; init; } = new Dictionary<string, string>();
-    public int Mtu { get; init; } = 9000;
+    public int Mtu { get; init; } = Domain.Settings.ConnectionSettings.DefaultTunMtu;
     public bool MuxEnabled { get; init; }
     public bool DebugLogging { get; init; }
 

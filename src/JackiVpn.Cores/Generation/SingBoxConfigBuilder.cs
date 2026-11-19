@@ -24,7 +24,10 @@ public static class SingBoxConfigBuilder
     public const string DnsBootstrap = "dns-bootstrap";
 
     /// <summary>Services that sign the user out when they see a request from an unsupported region.</summary>
-    public static readonly string[] AlwaysTunneledDomains = ["anthropic.com", "claude.ai", "claude.com", "claudeusercontent.com", "clau.de"];
+    /// <summary>STUN (RFC 5389) and Google's WebRTC STUN port: always through the tunnel (no real-IP leak).</summary>
+    public static readonly int[] StunPorts = [3478, 19302];
+
+    public static readonly string[] AlwaysTunneledDomains =["anthropic.com", "claude.ai", "claude.com", "claudeusercontent.com", "clau.de"];
     public const string DnsFake = "dns-fakeip";
 
     public static (JsonObject Config, List<string> Secrets, List<string> Notes, List<int> Ports) Build(CoreSessionPlan plan, CoreCapabilities caps)
@@ -297,6 +300,13 @@ public static class SingBoxConfigBuilder
         if (plan.Routing.BypassLan)
         {
             routeRules.Add(new JsonObject { ["ip_is_private"] = true, ["outbound"] = DirectTag });
+        }
+
+        if (plan.Routing.Final != RuleActionType.Direct)
+        {
+            // WebRTC/STUN: a STUN reply names the address the request came from. Sent directly (an Iranian-IP or
+            // user "direct" rule), it would show sites the real IP next to the VPN one. Ahead of the user's rules.
+            routeRules.Add(new JsonObject { ["network"] = "udp", ["port"] = new JsonArray(StunPorts.Select(p => (JsonNode?)JsonValue.Create(p)).ToArray()), ["outbound"] = ProxyTag });
         }
 
         if (shapeClasses.Count > 0)

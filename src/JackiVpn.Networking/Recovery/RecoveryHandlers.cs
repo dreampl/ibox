@@ -30,6 +30,13 @@ public sealed class WinHttpRecoveryHandler(WinHttpProxyManager manager) : IRecov
     public RecoveryAction Recover(JournalEntry entry) => new("WinHTTP proxy", true, manager.Restore() ? "Restored." : "Nothing to restore.");
 }
 
+public sealed class TimeZoneRecoveryHandler(Privacy.TimeZoneManager manager) : IRecoveryHandler
+{
+    public JournalEntryKind Kind => JournalEntryKind.TimeZone;
+
+    public RecoveryAction Recover(JournalEntry entry) => new("Time zone", true, manager.Restore() ? "Restored." : "Nothing to restore.");
+}
+
 public sealed class KillSwitchRecoveryHandler(IKillSwitch killSwitch) : IRecoveryHandler
 {
     public JournalEntryKind Kind => JournalEntryKind.KillSwitch;
@@ -55,6 +62,19 @@ public sealed class TunAdapterRecoveryHandler(ILogger logger) : IRecoveryHandler
 
 public static class StaleAdapterCleaner
 {
+    /// <summary>
+    /// Brand names (IBOX, JackiVpn) are ours alone; the generic Windows name is removed only when the device is a
+    /// Wintun tunnel (<c>SWD\WINTUN\…</c>), so a real adapter someone named the same way is never touched.
+    /// </summary>
+    public static bool MayRemove(string interfaceName, string instanceId)
+    {
+        ArgumentNullException.ThrowIfNull(interfaceName);
+        ArgumentNullException.ThrowIfNull(instanceId);
+        var branded = interfaceName.Equals(Domain.ProductInfo.PreviousTunInterfaceName, StringComparison.OrdinalIgnoreCase)
+            || interfaceName.Equals(Domain.ProductInfo.LegacyTunInterfaceName, StringComparison.OrdinalIgnoreCase);
+        return branded || instanceId.StartsWith(@"SWD\WINTUN\", StringComparison.OrdinalIgnoreCase);
+    }
+
     public static RecoveryAction Remove(string interfaceName, ILogger logger)
     {
         ArgumentNullException.ThrowIfNull(logger);
@@ -68,6 +88,12 @@ public static class StaleAdapterCleaner
         if (instanceId is null || !NetworkInspector.IsSafePnpInstanceId(instanceId))
         {
             return new RecoveryAction("TUN adapter", false, $"Adapter '{interfaceName}' exists but its device id could not be determined safely.");
+        }
+
+        if (!MayRemove(interfaceName, instanceId))
+        {
+            // The generic adapter name could in theory belong to a real adapter: only our own Wintun device goes.
+            return new RecoveryAction("TUN adapter", true, $"Adapter '{interfaceName}' is not a Wintun tunnel ({instanceId}); left untouched.");
         }
 
         var psi = new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "pnputil.exe"))

@@ -135,6 +135,7 @@ public sealed class Shell : Window, INotificationSink
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         Services = new LinuxServices(this, () => true);
         Lifetime = new CancellationTokenSource();
+        _ = Services.Privacy.StartAsync(Lifetime.Token);
 
         _pages = CreatePages();
         BuildChrome();

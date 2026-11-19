@@ -698,6 +698,8 @@ public sealed class NetworkPage(Shell shell) : OptionsPage(shell)
                 Row("Mode", null, mode),
                 Row("IPv6", "Auto enables IPv6 only when the server is proven to carry it; otherwise IPv6 is blocked inside the tunnel so it cannot leak.", EnumCombo(Cur.Ipv6, v => Set(x => x with { Ipv6 = v }))),
                 Row("TUN MTU", "1280–9000. Lower it if some sites stall.", Number(c.TunMtu, 1280, 9000, v => Set(x => x with { Connection = x.Connection with { TunMtu = (int)v } }), 10)),
+                Row("Match time zone to server", "While connected, the system time zone follows the server's location; yours comes back on disconnect (timedatectl may ask for your password).", Toggle(Cur.Privacy.MatchTimeZone, v => Set(x => x with { Privacy = x.Privacy with { MatchTimeZone = v } }))),
+                Row("Notice our servers used by another app", "While IBOX is off, the public address is checked at start to see whether another app or the router already uses our servers.", Toggle(Cur.Privacy.DetectOtherApps, v => Set(x => x with { Privacy = x.Privacy with { DetectOtherApps = v } }))),
                 Row("Reconnect attempts", "Retries with backoff before giving up (smart mode switches server after the first).", Number(c.MaxReconnectAttempts, 0, 10, v => Set(x => x with { Connection = x.Connection with { MaxReconnectAttempts = (int)v } })))),
             Section("System proxy", null,
                 Row("Also set the desktop proxy in TUN mode", "Some apps (Claude, …) check the system proxy and treat \"no proxy\" as \"no VPN\". Their traffic is tunneled either way; this only satisfies the check (GNOME/Ubuntu).", Toggle(c.SystemProxyInTun, v => Set(x => x with { Connection = x.Connection with { SystemProxyInTun = v } }))),

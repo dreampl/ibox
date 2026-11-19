@@ -877,6 +877,7 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
             ExitCountryName = known?.CountryName,
             ExitCity = known?.City,
             ExitIsp = known?.Isp,
+            ExitTimeZone = known?.TimeZone ?? Privacy.TimeZoneMap.ForExit(null, known?.CountryCode),
             ExitLatitude = known?.Latitude,
             ExitLongitude = known?.Longitude,
             SelectionReason = SelectionReason(session, snapshot),
@@ -983,6 +984,7 @@ public sealed class ConnectionOrchestrator : IAsyncDisposable
             ExitCountryName = exit.CountryName,
             ExitCity = exit.City,
             ExitIsp = exit.Isp,
+            ExitTimeZone = exit.TimeZone,
             ExitLatitude = exit.Latitude,
             ExitLongitude = exit.Longitude,
         });

@@ -246,6 +246,7 @@ static async Task<int> RunHostAsync(string[] args, bool console)
     s.AddSingleton(_ => new NetworkStateJournal(paths.ServiceJournalPath));
     s.AddSingleton<IKillSwitch>(sp => new WfpKillSwitch(sp.GetRequiredService<ILoggerFactory>().CreateLogger("JackiVpn.KillSwitch")));
     s.AddSingleton(sp => new WinHttpProxyManager(new WinHttpProxyApi(), sp.GetRequiredService<NetworkStateJournal>(), sp.GetRequiredService<ILoggerFactory>().CreateLogger("JackiVpn.WinHttp")));
+    s.AddSingleton(sp => new JackiVpn.Networking.Privacy.TimeZoneManager(new JackiVpn.Networking.Privacy.WindowsTimeZoneApi(), sp.GetRequiredService<NetworkStateJournal>(), sp.GetRequiredService<ILoggerFactory>().CreateLogger("JackiVpn.TimeZone")));
     s.AddSingleton(sp => new SessionPlanFactory(sp.GetRequiredService<CoreBinaryCatalog>()) { FlushDns = static () => JackiVpn.Networking.Adapters.NetworkInspector.FlushDnsCache(), Logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("JackiVpn.DnsTunnel") });
     s.AddSingleton(sp =>
     {
@@ -274,11 +275,13 @@ static async Task<int> RunHostAsync(string[] args, bool console)
                 new OrphanCoreHandler(logger),
                 new KillSwitchRecoveryHandler(killSwitch),
                 new WinHttpRecoveryHandler(sp.GetRequiredService<WinHttpProxyManager>()),
+                new TimeZoneRecoveryHandler(sp.GetRequiredService<JackiVpn.Networking.Privacy.TimeZoneManager>()),
                 new TunAdapterRecoveryHandler(logger),
             ],
             [
                 new KillSwitchSweep(killSwitch),
                 new StaleTunSweep(ProductInfo.TunInterfaceName, () => sp.GetRequiredService<TunnelSessionManager>().Status.State is not (TunnelState.Stopped or TunnelState.Failed), logger),
+                new StaleTunSweep(ProductInfo.PreviousTunInterfaceName, () => false, logger),
                 new StaleTunSweep(ProductInfo.LegacyTunInterfaceName, () => false, logger),
                 new DnsFlushStep(),
             ],
@@ -288,6 +291,7 @@ static async Task<int> RunHostAsync(string[] args, bool console)
         sp.GetRequiredService<TunnelSessionManager>(),
         sp.GetRequiredService<RecoveryCoordinator>(),
         sp.GetRequiredService<WinHttpProxyManager>(),
+        sp.GetRequiredService<JackiVpn.Networking.Privacy.TimeZoneManager>(),
         sp.GetRequiredService<CoreBinaryCatalog>(),
         sp.GetRequiredService<SingBoxCoreEngine>(),
         sp.GetRequiredService<XrayCoreEngine>(),

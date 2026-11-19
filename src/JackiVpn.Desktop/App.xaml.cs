@@ -167,6 +167,10 @@ public partial class App : System.Windows.Application
             _services.Logger.LogError("Startup recovery failed: {Error}", SecretRedactor.Redact(ex.Message));
         }
 
+        // A time zone left by a crashed session goes back before anything reconnects; then one "already on our
+        // servers through another app?" check (repeated only when the network changes).
+        _ = _services.Privacy.StartAsync(_services.Lifetime);
+
         WheelScrolling.Install();
 #if DEBUG
         PerfProbe.StartIfAsked(_services.Logger);

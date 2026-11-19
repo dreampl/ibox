@@ -232,6 +232,18 @@ public sealed class AppServices : IAsyncDisposable
             Keep();
         }
         Traffic.Changed += (_, _) => Agent.NotifyChanged();
+
+        var privacyLog = LoggerFactory.CreateLogger("JackiVpn.Privacy");
+        Privacy = new Application.Privacy.PrivacyFeatures(
+            Orchestrator,
+            Sandboxed ? null : new Application.Privacy.TimeZoneSync(new Services.ServiceTimeZoneControl(Service), () => Settings.Current, privacyLog),
+            new Application.Privacy.OurServerDetector(
+                ct => Application.Privacy.OurServerDetector.LookupPublicIpAsync(Settings.Current.Probe, ct),
+                async ct => Application.Privacy.OurServerDetector.KnownIps(Insights, await Profiles.GetAllAsync(ct).ConfigureAwait(false)),
+                () => Application.Privacy.OurServerDetector.ForeignTunnelUp() || ForeignSystemProxy(),
+                () => Settings.Current,
+                privacyLog));
+        Settings.Changed += (_, _) => Privacy.OnSettingsChanged();
     }
 
     public Application.Connectivity.DnsFinder DnsFinder { get; }
@@ -340,6 +352,22 @@ public sealed class AppServices : IAsyncDisposable
     public ProfileService ProfileService { get; }
     public RuleSetManager RuleSets { get; }
     public ServiceControl Service { get; }
+
+    /// <summary>Time zone matching and the "already on our servers through another app / the router" check.</summary>
+    public Application.Privacy.PrivacyFeatures Privacy { get; }
+
+    /// <summary>While IBOX is off its own proxy is restored, so an enabled system proxy belongs to another app.</summary>
+    private bool ForeignSystemProxy()
+    {
+        try
+        {
+            return WinInet.Query(null) is { ProxyEnabled: true, ProxyServer.Length: > 0 };
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            return false;
+        }
+    }
 
     /// <summary>Local profiles: each person's own (encrypted) settings.</summary>
     public Application.Accounts.LocalAccountService Accounts { get; }

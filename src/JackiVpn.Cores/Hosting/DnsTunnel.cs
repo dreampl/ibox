@@ -97,7 +97,8 @@ public static class DnsTunnel
                 .Where(n => n.OperationalStatus == OperationalStatus.Up
                     && n.NetworkInterfaceType is not (NetworkInterfaceType.Loopback or NetworkInterfaceType.Tunnel)
                     && !n.Name.Equals(Domain.ProductInfo.TunInterfaceName, StringComparison.OrdinalIgnoreCase)
-                    && !n.Name.Equals(Domain.ProductInfo.LegacyTunInterfaceName, StringComparison.OrdinalIgnoreCase))
+                    && !n.Name.Equals(Domain.ProductInfo.LegacyTunInterfaceName, StringComparison.OrdinalIgnoreCase)
+                    && !n.Name.Equals(Domain.ProductInfo.PreviousTunInterfaceName, StringComparison.OrdinalIgnoreCase))
                 .Select(n => n.GetIPProperties())
                 .Where(p => p.GatewayAddresses.Any(g => !g.Address.Equals(IPAddress.Any)))
                 .SelectMany(p => p.DnsAddresses)

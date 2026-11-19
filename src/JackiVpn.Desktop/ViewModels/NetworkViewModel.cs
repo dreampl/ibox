@@ -109,6 +109,18 @@ public sealed partial class NetworkViewModel : SettingsPageViewModel
         get => S.Connectivity.FingerprintRotation;
         set => Set(s => s with { Connectivity = s.Connectivity with { FingerprintRotation = value } });
     }
+    public bool MatchTimeZone
+    {
+        get => S.Privacy.MatchTimeZone;
+        set => Set(s => s with { Privacy = s.Privacy with { MatchTimeZone = value } });
+    }
+
+    public bool DetectOtherApps
+    {
+        get => S.Privacy.DetectOtherApps;
+        set => Set(s => s with { Privacy = s.Privacy with { DetectOtherApps = value } });
+    }
+
     public bool WinHttp
     {
         get => S.Connection.SetWinHttpProxy;

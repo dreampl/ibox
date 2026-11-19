@@ -54,6 +54,9 @@ public sealed partial class DashboardViewModel : ObservableObject
     [ObservableProperty] private bool _jackiSmartActive;
     [ObservableProperty] private string? _serviceBanner;
     [ObservableProperty] private string? _proxyBanner;
+
+    /// <summary>IBOX is off, but this device already goes out through one of our servers (another app / the router).</summary>
+    [ObservableProperty] private string? _ourServerBanner;
     [ObservableProperty] private bool _canFixProxy;
     [ObservableProperty] private string _selectionText = "Smart: best server";
     [ObservableProperty] private string? _selectionReason;
@@ -224,6 +227,8 @@ public sealed partial class DashboardViewModel : ObservableObject
             _ = RefreshNexProfileAsync(_nexProfileId, true);
         });
         services.DualVpn.Changed += (_, _) => Ui.Post(RefreshDualVpn);
+        services.Privacy.Detector.Changed += (_, f) => Ui.Post(() => OurServerBanner = OurServerText(f));
+        OurServerBanner = OurServerText(services.Privacy.Detector.Current);
         RefreshDualVpn();
         services.Traffic.Changed += (_, _) => Ui.Post(() =>
         {
@@ -440,6 +445,16 @@ public sealed partial class DashboardViewModel : ObservableObject
 
     [RelayCommand]
     private void DismissBanner() => ServiceBanner = null;
+
+    [RelayCommand]
+    private void DismissOurServer() => _s.Privacy.Detector.Clear();
+
+    private static string? OurServerText(Application.Privacy.OurServerFinding? f) => f?.Via switch
+    {
+        null => null,
+        Application.Privacy.OurServerPath.Router => "You're already connected to our servers through your router — no need to turn IBOX on (optional).",
+        _ => "You're already connected to our servers through another app — no need to turn IBOX on (optional).",
+    };
 
     [RelayCommand]
     private void CopyIp()
