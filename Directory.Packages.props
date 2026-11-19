@@ -26,6 +26,8 @@
     <PackageVersion Include="FluentAssertions" Version="7.2.2" />
     <PackageVersion Include="NSubstitute" Version="6.2.0" />
     <PackageVersion Include="WireMock.Net" Version="2.18.0" />
+    <!-- Pinned above WireMock's transitive 2.3.0 (GHSA-6527-9fp8-r4x6); tests only. -->
+    <PackageVersion Include="Microsoft.AspNetCore.WebUtilities" Version="2.3.14" />
     <PackageVersion Include="FsCheck" Version="3.4.0" />
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
   </ItemGroup>
