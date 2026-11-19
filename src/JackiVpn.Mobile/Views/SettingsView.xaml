@@ -24,6 +24,12 @@
                         <controls:ToggleSwitch IsToggled="{Binding SmartMode}" />
                     </controls:SettingRow.Trailing>
                 </controls:SettingRow>
+                <controls:SettingRow Icon="search" Tint="{StaticResource Teal}" Title="{loc:T Set_DetectOtherApps}" Subtitle="{loc:T Set_DetectOtherAppsHint}">
+                    <controls:SettingRow.Trailing>
+                        <controls:ToggleSwitch IsToggled="{Binding DetectOtherApps}" />
+                    </controls:SettingRow.Trailing>
+                </controls:SettingRow>
+                <controls:SettingRow Icon="info" Tint="{StaticResource TextMuted}" Title="{loc:T Set_MatchTimeZone}" Subtitle="{loc:T Set_MatchTimeZoneAndroid}" />
             </controls:SettingGroup>
 
             <!-- Proxy-only details -->

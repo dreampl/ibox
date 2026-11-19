@@ -37,6 +37,11 @@ public sealed partial class HomeViewModel : ObservableObject
     [ObservableProperty] private string _upTotal = "0 B";
     [ObservableProperty] private string? _selectionReason;
     [ObservableProperty] private string? _lastError;
+
+    /// <summary>IBOX is off, but this phone already goes out through one of our servers (another app / the router).</summary>
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(HasOurServer))] private string? _ourServerText;
+
+    public bool HasOurServer => OurServerText is not null;
     [ObservableProperty] private string _selectionText = "Smart: fastest working server";
     [ObservableProperty] private bool _serverIsNex;
     [ObservableProperty] private bool _nexServiceAvailable;
@@ -72,6 +77,8 @@ public sealed partial class HomeViewModel : ObservableObject
             _ = RefreshNexServiceAsync();
             _ = RefreshNexProfileAsync(_nexProfileId, true);
         });
+        services.Privacy.Detector.Changed += (_, f) => Fmt.OnUi(() => OurServerText = OurServerFor(f));
+        OurServerText = OurServerFor(services.Privacy.Detector.Current);
         Apply(services.Orchestrator.Status);
         _ = RefreshSelectionAsync();
         _ = RefreshNexServiceAsync();
@@ -508,4 +515,14 @@ public sealed partial class HomeViewModel : ObservableObject
         var subs = await _s.Subscriptions.GetAllAsync(_s.Lifetime);
         NexServiceAvailable = subs.Any(s => s.IsNex);
     }
+
+    [RelayCommand]
+    private void DismissOurServer() => _s.Privacy.Detector.Clear();
+
+    private static string? OurServerFor(Application.Privacy.OurServerFinding? f) => f?.Via switch
+    {
+        null => null,
+        Application.Privacy.OurServerPath.Router => L.Get("Home_OurServerRouter"),
+        _ => L.Get("Home_OurServerApp"),
+    };
 }

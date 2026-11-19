@@ -153,7 +153,22 @@ public sealed class LinuxServices : IAsyncDisposable
             () => Settings.Current.Agent,
             _loggerFactory.CreateLogger("JackiVpn.Agent"));
         RuleSets = ruleSets;
+
+        var privacyLog = _loggerFactory.CreateLogger("JackiVpn.Privacy");
+        Privacy = new Application.Privacy.PrivacyFeatures(
+            Orchestrator,
+            new Application.Privacy.TimeZoneSync(new LinuxTimeZoneControl(Path.Combine(DataDir, "state", "timezone-original.txt")), () => Settings.Current, privacyLog),
+            new Application.Privacy.OurServerDetector(
+                ct => Application.Privacy.OurServerDetector.LookupPublicIpAsync(Settings.Current.Probe, ct),
+                async ct => Application.Privacy.OurServerDetector.KnownIps(Insights, await Profiles.GetAllAsync(ct).ConfigureAwait(false)),
+                Application.Privacy.OurServerDetector.ForeignTunnelUp,
+                () => Settings.Current,
+                privacyLog));
+        Settings.Changed += (_, _) => Privacy.OnSettingsChanged();
     }
+
+    /// <summary>Time zone matching and the "already on our servers through another app / the router" check.</summary>
+    public Application.Privacy.PrivacyFeatures Privacy { get; }
 
     public Application.Workplace.WorkplaceService Workplace { get; }
 

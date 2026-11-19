@@ -21,6 +21,7 @@ public sealed class ServiceRequestHandler(
     TunnelSessionManager tunnel,
     RecoveryCoordinator recovery,
     WinHttpProxyManager winHttp,
+    Networking.Privacy.TimeZoneManager timeZone,
     CoreBinaryCatalog catalog,
     ICoreEngine singBox,
     ICoreEngine xray,
@@ -107,6 +108,26 @@ public sealed class ServiceRequestHandler(
 
             case IpcMethods.RestoreWinHttpProxy:
                 winHttp.Restore();
+                return null;
+
+            case IpcMethods.ApplyTimeZone:
+            {
+                var request = Parse<TimeZoneApplyRequest>(payload);
+                if (Application.Privacy.TimeZoneMap.ToWindowsId(request.IanaId) is not { } windowsId)
+                {
+                    throw new IpcHandlerException(IpcErrorCodes.BadRequest, "Unknown time zone.");
+                }
+
+                if (!timeZone.Apply(windowsId))
+                {
+                    throw new IpcHandlerException(IpcErrorCodes.BadRequest, "This time zone is not installed on Windows.");
+                }
+
+                return null;
+            }
+
+            case IpcMethods.RestoreTimeZone:
+                timeZone.Restore();
                 return null;
 
             case IpcMethods.GetConnections:

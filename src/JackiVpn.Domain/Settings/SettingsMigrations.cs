@@ -38,6 +38,18 @@ public static class SettingsMigrations
             s = s with { Ecosystem = s.Ecosystem with { Enabled = true } };
         }
 
+        if (s.SchemaVersion < 6)
+        {
+            // v6: privacy. Matching the time zone to the exit is new and changes the system clock's zone, so it is
+            // on only for new installs; the jumbo TUN MTU (a VPN tell) becomes ordinary Ethernet size unless the
+            // user had chosen another value.
+            s = s with
+            {
+                Privacy = s.Privacy with { MatchTimeZone = false },
+                Connection = s.Connection.TunMtu == 9000 ? s.Connection with { TunMtu = ConnectionSettings.DefaultTunMtu } : s.Connection,
+            };
+        }
+
         // Invariant (every version): a valid random device ID exists for device-limited providers.
         if (!Subscriptions.DeviceIdentity.IsValidHwid(s.Device.Hwid))
         {

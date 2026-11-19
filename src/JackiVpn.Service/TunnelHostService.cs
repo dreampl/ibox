@@ -16,6 +16,7 @@ public sealed class TunnelHostService(
     AppPaths paths,
     RecoveryCoordinator recovery,
     TunnelSessionManager tunnel,
+    Networking.Privacy.TimeZoneManager timeZone,
     IpcServer ipc,
     ILogger<TunnelHostService> logger) : BackgroundService
 {
@@ -69,6 +70,17 @@ public sealed class TunnelHostService(
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             logger.LogError("Tunnel teardown failed: {Error}", SecretRedactor.Redact(ex.Message));
+        }
+
+        try
+        {
+            // Service stop, uninstall or shutdown: the user's own time zone comes back (the app re-applies the
+            // exit's zone if a session is still wanted after a restart).
+            timeZone.Restore();
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            logger.LogError("Time zone restore failed: {Error}", SecretRedactor.Redact(ex.Message));
         }
 
         await ipc.DisposeAsync().ConfigureAwait(false);

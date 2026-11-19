@@ -174,7 +174,22 @@ public sealed class MobileServices : IAsyncDisposable
         };
         Activity = new ActivityMonitor(this);
         Orchestrator.StatusChanged += (_, st) => StatusSurfaces.Update(context, st);
+
+        // Android gives apps no way to change the time zone: only the "already on our servers" check runs here.
+        Privacy = new Application.Privacy.PrivacyFeatures(
+            Orchestrator,
+            null,
+            new Application.Privacy.OurServerDetector(
+                ct => Application.Privacy.OurServerDetector.LookupPublicIpAsync(Settings.Current.Probe, ct),
+                async ct => Application.Privacy.OurServerDetector.KnownIps(Insights, await Profiles.GetAllAsync(ct).ConfigureAwait(false)),
+                Application.Privacy.OurServerDetector.ForeignTunnelUp,
+                () => Settings.Current,
+                LoggerFactory.CreateLogger("JackiVpn.Privacy")));
+        Settings.Changed += (_, _) => Privacy.OnSettingsChanged();
     }
+
+    /// <summary>The "already on our servers through another app / the router" check (no time zone change on Android).</summary>
+    public Application.Privacy.PrivacyFeatures Privacy { get; }
 
     /// <summary>The APK flavour this process runs (the update feed has one APK per ABI).</summary>
     public static string CurrentAbi => System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture switch

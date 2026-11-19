@@ -6,7 +6,7 @@ using JackiVpn.Security;
 namespace JackiVpn.Application.Health;
 
 /// <summary>Where traffic actually leaves the tunnel, as seen by an external service through the connection.</summary>
-public sealed record ExitInfo(string Ip, string? CountryCode, string? CountryName, string? City, string? Isp, DateTimeOffset SeenUtc, double? Latitude = null, double? Longitude = null);
+public sealed record ExitInfo(string Ip, string? CountryCode, string? CountryName, string? City, string? Isp, DateTimeOffset SeenUtc, double? Latitude = null, double? Longitude = null, string? TimeZone = null);
 
 /// <summary>Learned, non-secret facts about one server configuration (keyed by its identity fingerprint).</summary>
 public sealed record ProfileInsight
@@ -70,6 +70,15 @@ public sealed class InsightStore
         lock (_gate)
         {
             return _items.TryGetValue(fingerprint, out var v) ? v : null;
+        }
+    }
+
+    /// <summary>Every exit address learned so far (for spotting our servers used by another app).</summary>
+    public IReadOnlyList<string> ExitIps()
+    {
+        lock (_gate)
+        {
+            return _items.Values.Select(i => i.Exit?.Ip).OfType<string>().Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         }
     }
 

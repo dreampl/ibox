@@ -25,7 +25,7 @@ public sealed class AndroidVpnBackend(
     ILogger logger,
     bool proxyOnly = false) : IConnectionBackend
 {
-    public const int TunMtu = 8500;
+    public const int TunMtu = Domain.Settings.ConnectionSettings.DefaultTunMtu;
 
     private ISessionRunner? _runner;
     private CancellationTokenSource? _trafficCts;

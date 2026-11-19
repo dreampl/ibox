@@ -151,7 +151,7 @@ public sealed class RecoveryCoordinator(NetworkStateJournal journal, IEnumerable
 
         // Order matters: stop orphaned cores first, then restore settings, remove the firewall last-but-one
         // (after cores are gone so nothing leaks), then adapters.
-        var order = new[] { JournalEntryKind.CoreProcess, JournalEntryKind.WinInetProxy, JournalEntryKind.WinHttpProxy, JournalEntryKind.KillSwitch, JournalEntryKind.TunAdapter };
+        var order = new[] { JournalEntryKind.CoreProcess, JournalEntryKind.WinInetProxy, JournalEntryKind.WinHttpProxy, JournalEntryKind.TimeZone, JournalEntryKind.KillSwitch, JournalEntryKind.TunAdapter };
         foreach (var kind in order)
         {
             foreach (var entry in journal.OfKind(kind))

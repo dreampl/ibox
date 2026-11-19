@@ -71,6 +71,9 @@ public sealed record ConnectionStatus
     public double? ExitLongitude { get; init; }
     public string? ExitIsp { get; init; }
 
+    /// <summary>IANA time zone of the exit (from the geo lookup, else the country's main zone).</summary>
+    public string? ExitTimeZone { get; init; }
+
     /// <summary>Live round-trip through the tunnel on a kept-alive connection (like a ping), in ms.</summary>
     public double? LatencyMs { get; init; }
 

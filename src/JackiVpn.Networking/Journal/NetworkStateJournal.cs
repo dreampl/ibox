@@ -13,6 +13,9 @@ public enum JournalEntryKind
     KillSwitch,
     TunAdapter,
     CoreProcess,
+
+    /// <summary>The machine time zone was changed to match the exit (payload: the original).</summary>
+    TimeZone,
 }
 
 public sealed record JournalEntry

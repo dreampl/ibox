@@ -50,13 +50,23 @@
         </VerticalStackLayout>
 
         <!-- Error -->
-        <Border x:Name="ErrorCard" Grid.Row="2" IsVisible="{Binding HasError}" BackgroundColor="{StaticResource DangerSoft}" Stroke="#66FB5C7C"
+        <VerticalStackLayout Grid.Row="2">
+        <Border IsVisible="{Binding HasOurServer}" BackgroundColor="{StaticResource Surface}" Stroke="#6622C55E"
+                StrokeShape="RoundRectangle 18" Padding="14,10" Margin="0,0,0,10">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                <controls:Icon Name="info" Size="18" Color="{StaticResource Success}" />
+                <Label Grid.Column="1" Text="{Binding OurServerText}" FontSize="12.5" LineBreakMode="WordWrap" MaxLines="4" />
+                <Button Grid.Column="2" Text="✕" FontSize="12" Padding="8,0" BackgroundColor="Transparent" TextColor="{StaticResource TextMuted}" Command="{Binding DismissOurServerCommand}" />
+            </Grid>
+        </Border>
+        <Border x:Name="ErrorCard" IsVisible="{Binding HasError}" BackgroundColor="{StaticResource DangerSoft}" Stroke="#66FB5C7C"
                 StrokeShape="RoundRectangle 18" Padding="14,10" Margin="0,0,0,10">
             <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
                 <controls:Icon Name="info" Size="18" Color="{StaticResource Danger}" />
                 <Label Grid.Column="1" Text="{Binding LastError}" FontSize="12.5" LineBreakMode="WordWrap" MaxLines="3" />
             </Grid>
         </Border>
+        </VerticalStackLayout>
 
         <!-- AmneziaVPN is connected while IBOX is idle: one tap connects IBOX (Android then turns Amnezia's VPN off). -->
         <Border Grid.Row="2" IsVisible="{Binding AmneziaShown}" BackgroundColor="{StaticResource TealSoft}" Stroke="#6622C55E"

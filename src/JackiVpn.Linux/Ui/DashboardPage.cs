@@ -205,6 +205,7 @@ public sealed class DashboardPage(Shell shell) : Page(shell)
     private TextBlock _ip = new();
     private TextBlock _reason = new();
     private TextBlock _error = new();
+    private TextBlock _ourServer = new();
     private Border _modeTun = new();
     private Border _modeProxy = new();
     private ToggleSwitch? _smart;
@@ -272,6 +273,9 @@ public sealed class DashboardPage(Shell shell) : Page(shell)
         Track(() => S.DualVpn.Changed -= dualChanged);
         S.Orchestrator.StatusChanged += status;
         Track(() => S.Orchestrator.StatusChanged -= status);
+        EventHandler<Application.Privacy.OurServerFinding?> ours = (_, f) => Dispatcher.UIThread.Post(() => ShowOurServer(f));
+        S.Privacy.Detector.Changed += ours;
+        Track(() => S.Privacy.Detector.Changed -= ours);
         EventHandler<Domain.Settings.AppSettings> settings = (_, _) => Dispatcher.UIThread.Post(() => _ = RefreshSelectionAsync());
         S.Settings.Changed += settings;
         Track(() => S.Settings.Changed -= settings);
@@ -279,7 +283,19 @@ public sealed class DashboardPage(Shell shell) : Page(shell)
         _clock = clock;
         Track(clock.Stop);
         Apply(S.Orchestrator.Status);
+        ShowOurServer(S.Privacy.Detector.Current);
         return new StackPanel { Children = { hero, cards, _plan } };
+    }
+
+    private void ShowOurServer(Application.Privacy.OurServerFinding? f)
+    {
+        _ourServer.Text = f?.Via switch
+        {
+            null => string.Empty,
+            Application.Privacy.OurServerPath.Router => "You're already connected to our servers through your router — no need to turn IBOX on (optional).",
+            _ => "You're already connected to our servers through another app — no need to turn IBOX on (optional).",
+        };
+        _ourServer.IsVisible = f is not null;
     }
 
     public override void OnShown()
@@ -335,7 +351,8 @@ public sealed class DashboardPage(Shell shell) : Page(shell)
         _reason = new TextBlock { FontSize = 12, Foreground = B(Muted), Margin = new Thickness(0, 8, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis };
         _error = new TextBlock { FontSize = 12, Foreground = B(Danger), Margin = new Thickness(0, 8, 0, 0), TextWrapping = TextWrapping.Wrap };
         _duration = new TextBlock { FontFamily = new FontFamily("monospace"), FontSize = 12, Foreground = B(Text), VerticalAlignment = VerticalAlignment.Center };
-        var statusBlock = new StackPanel { Margin = new Thickness(2, 10, 360, 0), VerticalAlignment = VerticalAlignment.Center, Children = { _title, _detail, _chips, _ip, _reason, _error } };
+        _ourServer = new TextBlock { FontSize = 12, Foreground = B(Success), Margin = new Thickness(0, 8, 0, 0), TextWrapping = TextWrapping.Wrap };
+        var statusBlock = new StackPanel { Margin = new Thickness(2, 10, 360, 0), VerticalAlignment = VerticalAlignment.Center, Children = { _title, _detail, _chips, _ip, _reason, _error, _ourServer } };
         Grid.SetRow(statusBlock, 1);
 
         var middle = new Grid { RowDefinitions = new RowDefinitions("Auto,*"), Margin = new Thickness(24, 6, 0, 0), Children = { location, tiles, statusBlock } };

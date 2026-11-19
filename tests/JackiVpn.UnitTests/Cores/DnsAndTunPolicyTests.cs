@@ -195,7 +195,7 @@ public class DnsAndTunPolicyTests
     {
         var c = Build(Tun(b => b.Plan = b.Plan with { BlockQuic = true, Routing = new RoutingSettings { Rules = [IrDirect] } }));
         var rules = c["route"]!["rules"]!.AsArray().OfType<JsonObject>().ToList();
-        var quic = rules.FindIndex(r => r["network"]?.GetValue<string>() == "udp" && r["port"]?.GetValue<int>() == 443);
+        var quic = rules.FindIndex(r => r["network"]?.GetValue<string>() == "udp" && r["port"] is JsonValue p443 && p443.GetValue<int>() == 443);
         var direct = rules.FindIndex(r => r["domain_suffix"] is not null && r["outbound"]?.GetValue<string>() == "direct");
 
         quic.Should().BeGreaterThan(direct, "user Direct rules must match before the QUIC block");
@@ -206,7 +206,7 @@ public class DnsAndTunPolicyTests
     public void Quic_is_not_blocked_when_unmatched_traffic_goes_direct_or_when_disabled()
     {
         static bool HasQuicBlock(JsonObject c) => c["route"]!["rules"]!.AsArray().OfType<JsonObject>()
-            .Any(r => r["network"]?.GetValue<string>() == "udp" && r["port"]?.GetValue<int>() == 443);
+            .Any(r => r["network"]?.GetValue<string>() == "udp" && r["port"] is JsonValue p443 && p443.GetValue<int>() == 443);
 
         HasQuicBlock(Build(Tun(b => b.Plan = b.Plan with { BlockQuic = true, Routing = new RoutingSettings { Final = RuleActionType.Direct } }))).Should().BeFalse();
         HasQuicBlock(Build(Tun())).Should().BeFalse();

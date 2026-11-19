@@ -243,7 +243,13 @@ public sealed record ConnectionSettings
 
     public string ProxyBypassList { get; init; } = "localhost;127.*;10.*;172.16.*;172.17.*;172.18.*;172.19.*;172.20.*;172.21.*;172.22.*;172.23.*;172.24.*;172.25.*;172.26.*;172.27.*;172.28.*;172.29.*;172.30.*;172.31.*;192.168.*;<local>";
 
-    public int TunMtu { get; init; } = 9000;
+    /// <summary>
+    /// Ordinary Ethernet size: a jumbo MTU on the adapter is a well-known sign of a VPN tunnel. Older installs that
+    /// kept the earlier 9000 default are moved to this value (schema 6).
+    /// </summary>
+    public int TunMtu { get; init; } = DefaultTunMtu;
+
+    public const int DefaultTunMtu = 1500;
 
     public MuxMode Mux { get; init; } = MuxMode.Auto;
 
@@ -520,6 +526,19 @@ public sealed record PrivacySettings
     public bool TelemetryEnabled { get; init; }
 
     public bool CrashReportsEnabled { get; init; }
+
+    /// <summary>
+    /// While connected, the clock's time zone follows the exit server's location (from the exit lookup), so the
+    /// local time apps and sites see matches the exit IP. Restored on disconnect, after a crash and on uninstall.
+    /// On for new installs; installs from before schema 6 keep it off. Windows (through the service) and Linux.
+    /// </summary>
+    public bool MatchTimeZone { get; init; } = true;
+
+    /// <summary>
+    /// While IBOX is off, check (at start and when the network changes) whether this device already goes out
+    /// through one of the user's servers — another app or the router uses the same configs.
+    /// </summary>
+    public bool DetectOtherApps { get; init; } = true;
 }
 
 public sealed record SubscriptionSettings
@@ -636,7 +655,7 @@ public sealed record DeviceSettings
 
 public sealed record AppSettings
 {
-    public const int CurrentSchemaVersion = 5;
+    public const int CurrentSchemaVersion = 6;
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
     public ConnectionSettings Connection { get; init; } = new();

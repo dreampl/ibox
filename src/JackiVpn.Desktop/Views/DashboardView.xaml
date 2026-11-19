@@ -114,6 +114,15 @@
                     </StackPanel>
                 </DockPanel>
             </Border>
+            <Border Style="{StaticResource Banner.Info}" Visibility="{Binding OurServerBanner, Converter={StaticResource Null2Vis}}">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Style="{StaticResource Button.Icon}" Content="&#xE711;" Command="{Binding DismissOurServerCommand}" ToolTip="Dismiss" />
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource Icon}" Text="&#xE73E;" Foreground="{DynamicResource B.Success}" Margin="0,0,10,0" VerticalAlignment="Top" />
+                        <TextBlock Text="{Binding OurServerBanner}" TextWrapping="Wrap" MaxWidth="700" />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
             <Border Style="{StaticResource Banner.Danger}" Visibility="{Binding KillSwitchEngaged, Converter={StaticResource Bool2Vis}}">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Style="{StaticResource Icon}" Text="&#xEA18;" Foreground="{DynamicResource B.Danger}" Margin="0,0,10,0" />
