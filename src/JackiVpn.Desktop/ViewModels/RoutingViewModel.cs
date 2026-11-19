@@ -56,6 +56,7 @@ public sealed partial class RuleItem(RoutingRule rule, Action<RuleItem, bool> se
         RuleConditionType.ProcessName => "process",
         RuleConditionType.ProcessPath => "process path",
         RuleConditionType.Network => "network",
+        RuleConditionType.AppPackage => "app",
         _ => t.ToString(),
     };
 }

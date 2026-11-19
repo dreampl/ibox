@@ -39,6 +39,8 @@ public static class MauiProgram
         builder.Services.AddSingleton<EcosystemViewModel>();
         builder.Services.AddTransient<EcosystemPage>();
         builder.Services.AddTransient<UsagePage>();
+        builder.Services.AddTransient<RulesPage>();
+        builder.Services.AddTransient<AutomationsPage>();
 #if ANDROID
         // Flat buttons: no Material elevation. Some Samsung builds (Android 12) draw it as a hard round layer under
         // round buttons instead of a soft shadow.

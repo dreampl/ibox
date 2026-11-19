@@ -166,6 +166,18 @@ public sealed class MobileServices : IAsyncDisposable
         Traffic.DetectDual = DualVpn.Detect;
         DualVpn.Attach(Orchestrator);
         RoutingWatcher = new Application.Routing.RoutingWatcher(Settings, Orchestrator, LoggerFactory.CreateLogger("JackiVpn.Routing"));
+        // Opt-in automations (Settings › Automations): started and stopped to follow the settings.
+        Automations = new Application.Automations.AutomationManager(new Application.Automations.AppAutomationEnvironment(
+            Settings, Orchestrator, Health, SubscriptionService, Profiles, Subscriptions,
+            (c, t, m) => Notifications.Notify(c, t, m),
+#if ANDROID
+            Platforms.Android.AndroidNetworkInfo.Current
+#else
+            null
+#endif
+            ));
+        Automations.Apply(Settings.Current.Automations);
+        Settings.Changed += (_, s) => Automations.Apply(s.Automations);
         var updateLog = LoggerFactory.CreateLogger("JackiVpn.Updates");
         Updates = new Infrastructure.Updates.UpdateMonitor(new Infrastructure.Updates.AppUpdateService(updateLog), () => Settings.Current.Updates,
             Version.TryParse(AppInfo.Current.VersionString, out var v) ? v : new Version(0, 0, 0), "android", CurrentAbi, updateLog)
@@ -240,6 +252,8 @@ public sealed class MobileServices : IAsyncDisposable
 
     /// <summary>Applies routing changes to the running connection.</summary>
     public Application.Routing.RoutingWatcher RoutingWatcher { get; }
+
+    public Application.Automations.AutomationManager Automations { get; }
 
     /// <summary>"Samsung SM-S911B" — shown to the user's own panel and devices, never the device's user name.</summary>
     public static string PhoneModel => global::Android.OS.Build.Manufacturer + " " + global::Android.OS.Build.Model;

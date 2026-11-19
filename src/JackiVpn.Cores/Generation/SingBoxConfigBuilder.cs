@@ -772,6 +772,10 @@ public static class SingBoxConfigBuilder
                 case RuleConditionType.NetworkType:
                     notes.Add($"Rule '{rule.Name}': network type matching is not supported on Windows; rule skipped.");
                     return null;
+                case RuleConditionType.AppPackage:
+                    // Android decides per app before traffic reaches the core (AppRuleResolver feeds the VpnService
+                    // allowed/disallowed apps); the core cannot see which app opened a tunnelled connection.
+                    return null;
             }
         }
 

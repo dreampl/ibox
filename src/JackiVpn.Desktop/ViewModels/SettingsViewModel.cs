@@ -289,6 +289,9 @@ public sealed partial class SettingsViewModel : SettingsPageViewModel
     /// <summary>Telemetry stays off: nothing is collected or sent. Shown for transparency only.</summary>
     public bool Telemetry => S.Privacy.TelemetryEnabled;
 
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    private void OpenAutomations() => Views.AutomationsWindow.Show(_s);
+
     public string DataFolder => _s.Paths.UserDataRoot;
 
     public void OpenDataFolder() => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", $"\"{_s.Paths.UserDataRoot}\"") { UseShellExecute = false });

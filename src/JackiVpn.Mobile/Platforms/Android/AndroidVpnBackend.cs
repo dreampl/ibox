@@ -103,7 +103,14 @@ public sealed class AndroidVpnBackend(
             else
             {
                 var a = plan.Frontend.InboundAuth!;
-                service.OpenTunnel(new TunnelOptions(_port.Value, a.Username, a.Password, TunMtu, s.Routing.BypassLan, s.SplitTunnel.Mode, TunnelOptions.JoinPackages(s.SplitTunnel.Packages)));
+                // App rules (Rules › App) are applied by Android itself: merged into the per-app lists here.
+                var apps = JackiVpn.Routing.AppRuleResolver.Resolve(s.SplitTunnel, s.Routing.Rules);
+                foreach (var note in apps.Notes)
+                {
+                    logger.LogInformation("Per-app VPN: {Note}", note);
+                }
+
+                service.OpenTunnel(new TunnelOptions(_port.Value, a.Username, a.Password, TunMtu, s.Routing.BypassLan, apps.Mode, TunnelOptions.JoinPackages(apps.Packages)));
                 service.UpdateNotification("Connected", request.Profile.DisplayName);
             }
         }

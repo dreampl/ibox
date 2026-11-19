@@ -190,6 +190,12 @@ public sealed class AppServices : IAsyncDisposable
             async ct => (await Profiles.GetAllAsync(ct).ConfigureAwait(false)).Select(p => p.Server),
             ct => Application.Amnezia.AmneziaWatcher.TraceEgressAsync(Settings.Current.Probe, ct));
         RoutingWatcher = new Application.Routing.RoutingWatcher(Settings, Orchestrator, LoggerFactory.CreateLogger("JackiVpn.Routing"));
+        // Opt-in automations (Settings › Automations): started and stopped to follow the settings.
+        Automations = new Application.Automations.AutomationManager(new Application.Automations.AppAutomationEnvironment(
+            Settings, Orchestrator, Health, SubscriptionService, Profiles, Subscriptions,
+            (c, t, m) => Notifications.Notify(c, t, m),null));
+        Automations.Apply(Settings.Current.Automations);
+        Settings.Changed += (_, s) => Automations.Apply(s.Automations);
         RoutingEditor = new Application.Routing.RoutingEditorServer(Settings, LoggerFactory.CreateLogger("JackiVpn.RoutingEditor"));
         Agent = new Application.Agent.AgentPipeServer(
             new Application.Agent.AgentController(new Application.Agent.AgentDependencies
@@ -309,6 +315,8 @@ public sealed class AppServices : IAsyncDisposable
 
     /// <summary>Applies routing changes to the running connection.</summary>
     public Application.Routing.RoutingWatcher RoutingWatcher { get; }
+
+    public Application.Automations.AutomationManager Automations { get; }
 
     /// <summary>The node-based routing editor in the browser (loopback, on demand).</summary>
     public Application.Routing.RoutingEditorServer RoutingEditor { get; }

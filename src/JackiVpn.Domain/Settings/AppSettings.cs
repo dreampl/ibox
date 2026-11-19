@@ -693,6 +693,9 @@ public sealed record AppSettings
 
     /// <summary>Control by the command line and AI agents (MCP). Off by default.</summary>
     public AgentSettings Agent { get; init; } = new();
+
+    /// <summary>Opt-in automations (server watchdog, trusted Wi-Fi, nightly refresh, quota watcher).</summary>
+    public AutomationSettings Automations { get; init; } = new();
 }
 
 /// <summary>

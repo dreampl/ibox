@@ -288,6 +288,7 @@ public sealed class RoutingPage : OptionsPage
         RuleConditionType.ProcessName => "process",
         RuleConditionType.ProcessPath => "process path",
         RuleConditionType.Network => "network",
+        RuleConditionType.AppPackage => "app",
         _ => type.ToString(),
     };
 }
@@ -297,7 +298,7 @@ internal static class RuleEditorDialog
 {
     public static async Task<RoutingRule?> ShowAsync(Window owner, RoutingRule? original, IReadOnlyList<string> tags)
     {
-        var types = Enum.GetValues<RuleConditionType>().Where(t => t != RuleConditionType.NetworkType).ToArray();
+        var types = Enum.GetValues<RuleConditionType>().Where(t => t is not (RuleConditionType.NetworkType or RuleConditionType.AppPackage)).ToArray();
         var rows = new StackPanel { Spacing = 6 };
         void AddRow(RuleConditionType type, string values)
         {
