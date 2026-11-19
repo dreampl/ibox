@@ -52,6 +52,7 @@ public sealed class LinuxServices : IAsyncDisposable
         var database = new JackiDatabase(Path.Combine(DataDir, "jackivpn.db"));
         var protector = new KeyFileSecretProtector(Path.Combine(DataDir, "secret.key"));
         Profiles = new SqliteProfileRepository(database, protector);
+        Ibox = new Application.Account.IboxServices(DataDir, protector, _loggerFactory.CreateLogger("JackiVpn.Account"));
         Subscriptions = new SqliteSubscriptionRepository(database, protector);
         var healthHistory = new SqliteHealthHistoryRepository(database);
         Settings = new SettingsStore(new SqliteSettingsRepository(database), _loggerFactory.CreateLogger("JackiVpn.Settings"));
@@ -226,6 +227,9 @@ public sealed class LinuxServices : IAsyncDisposable
     /// <summary>What the desktop's media players are playing (MPRIS), for the notch.</summary>
     public Application.Media.INowPlayingSource NowPlaying { get; } = new MprisNowPlaying();
 
+    /// <summary>IBOX account (Telegram): subscription management and music (its player is also an INowPlayingSource).</summary>
+    public Application.Account.IboxServices Ibox { get; }
+
     /// <summary>What IBOX learned per server (last exit country, working fixes).</summary>
     public InsightStore Insights { get; }
 
@@ -317,6 +321,7 @@ public sealed class LinuxServices : IAsyncDisposable
         LinuxPrivilege.Stop();
         await Accounts.SaveActiveAsync(CancellationToken.None).ConfigureAwait(false);
         await Agent.DisposeAsync().ConfigureAwait(false);
+        Ibox.Dispose();
         await RoutingEditor.DisposeAsync().ConfigureAwait(false);
         await Usage.DisposeAsync().ConfigureAwait(false);
         await Orchestrator.DisposeAsync().ConfigureAwait(false);

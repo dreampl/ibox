@@ -147,6 +147,10 @@ public sealed partial class SettingsViewModel : SettingsPageViewModel
         private set => SetProperty(ref _ibarNote, value);
     }
 
+    /// <summary>The IBOX account window (Telegram sign-in, subscription, music).</summary>
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    private void OpenAccount() => Views.AccountWindow.Open(_s.Ibox);
+
     /// <summary>Runs IBAR's own per-user installer (shipped with IBOX) silently, then starts IBAR.</summary>
     [CommunityToolkit.Mvvm.Input.RelayCommand]
     private async System.Threading.Tasks.Task InstallIbar()

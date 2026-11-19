@@ -51,6 +51,7 @@ public sealed class MobileServices : IAsyncDisposable
         Database = new JackiDatabase(Path.Combine(DataDir, "jackivpn.db"));
         var protector = new AndroidKeystoreSecretProtector();
         Profiles = new SqliteProfileRepository(Database, protector);
+        Ibox = new Application.Account.IboxServices(DataDir, protector, LoggerFactory.CreateLogger("JackiVpn.Account"));
         Subscriptions = new SqliteSubscriptionRepository(Database, protector);
         HealthHistory = new SqliteHealthHistoryRepository(Database);
         ConnectionHistory = new SqliteConnectionHistoryRepository(Database);
@@ -222,6 +223,9 @@ public sealed class MobileServices : IAsyncDisposable
 
     /// <summary>Account export/import (.ibox) between Windows, Linux and Android.</summary>
     public Application.Accounts.AccountTransfer AccountTransfer { get; }
+
+    /// <summary>IBOX account (Telegram): subscription management and music (its player is also an INowPlayingSource).</summary>
+    public Application.Account.IboxServices Ibox { get; }
     public Application.Connectivity.EndpointRescue Rescue { get; }
     public Application.Connectivity.DnsFinder DnsFinder { get; }
 

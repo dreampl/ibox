@@ -451,6 +451,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     // ------------------------------------------------------------------ account (to and from another device)
 
     [RelayCommand]
+    private Task OpenIboxAccountAsync() => Shell.Current.Navigation.PushAsync(new Pages.IboxAccountPage(_s));
+
+    [RelayCommand]
     private async Task ExportAccountAsync()
     {
         var password = await Shell.Current.DisplayPromptAsync(L.Get("Set_Export"), L.Get("Acc_Password"), L.Get("Ok"), L.Get("Cancel"), maxLength: 128);

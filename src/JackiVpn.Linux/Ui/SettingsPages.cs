@@ -768,6 +768,8 @@ public sealed class SettingsPage(Shell shell) : OptionsPage(shell)
 
     protected override Control Build() => Stack(
         Header("Settings", "Look (light / dark), start-up, the notch, notifications and AI agents."),
+        Section("IBOX account (Telegram)", "Sign in with Telegram to manage your subscription here (usage, expiry, exit country, renewals) and to play your IBOX music library.",
+            Row("Account", null, Outline("Open account", () => { if (TopLevel.GetTopLevel(this) is Window w) { AccountWindow.Open(w, S.Ibox); } }))),
         Section("Appearance", null,
             Row("Theme", "System follows the desktop's light or dark setting. Changes apply at once.", Combo(
                 [(AppTheme.System, "System"), (AppTheme.Light, "Light"), (AppTheme.Dark, "Dark")],

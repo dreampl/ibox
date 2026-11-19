@@ -108,6 +108,7 @@
             </controls:SettingGroup>
 
             <controls:SettingGroup Header="{loc:T Set_Account}">
+                <controls:SettingRow Icon="devices" Tint="{StaticResource Primary}" Title="{loc:T Set_Ibox}" Subtitle="{loc:T Set_IboxHint}" Command="{Binding OpenIboxAccountCommand}" />
                 <controls:SettingRow Icon="up" Tint="{StaticResource Primary2}" Title="{loc:T Set_Export}" Subtitle="{loc:T Set_ExportHint}" Command="{Binding ExportAccountCommand}" />
                 <controls:SettingRow Icon="down" Tint="{StaticResource Teal}" Title="{loc:T Set_Import}" Subtitle="{loc:T Set_ImportHint}" Command="{Binding ImportAccountCommand}" />
             </controls:SettingGroup>

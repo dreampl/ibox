@@ -7,6 +7,20 @@
             <TextBlock Text="Look (light / dark), start-up, the notch, notifications and AI agents." Style="{StaticResource Text.PageSubtitle}" />
 
             <v:ClaySurface>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="IBOX account (Telegram)" Style="{StaticResource Text.Section}" />
+                        <TextBlock Text="Sign in with Telegram to manage your subscription here (usage, expiry, exit country, renewals) and to play your IBOX music library." Style="{StaticResource Text.Hint}" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="Open account" Command="{Binding OpenAccountCommand}" Padding="14,6" VerticalAlignment="Center" Margin="12,0,0,0" />
+                </Grid>
+            </v:ClaySurface>
+
+            <v:ClaySurface>
                 <StackPanel>
                     <TextBlock Text="Appearance" Style="{StaticResource Text.Section}" />
                     <Grid Style="{StaticResource Row}">

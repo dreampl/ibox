@@ -66,6 +66,7 @@ public sealed class AppServices : IAsyncDisposable
         Settings = new SettingsStore(new SqliteSettingsRepository(Database), LoggerFactory.CreateLogger("JackiVpn.Settings"));
         Func<AppSettings> settings = () => Settings.Current;
         Accounts = new Application.Accounts.LocalAccountService(System.IO.Path.Combine(Paths.UserDataRoot, "profiles"), protector, Settings, LoggerFactory.CreateLogger("JackiVpn.Profiles"));
+        Ibox = new Application.Account.IboxServices(Paths.UserDataRoot, protector, LoggerFactory.CreateLogger("JackiVpn.Account"));
         DualVpn = new Application.Workplace.SecondVpnService(Settings, Profiles, protector, Sandboxed ? null : new Services.WindowsIpsec(), LoggerFactory.CreateLogger("JackiVpn.DualVpn"));
 
         Catalog = new CoreBinaryCatalog(Paths.CoresDir);
@@ -311,6 +312,9 @@ public sealed class AppServices : IAsyncDisposable
     /// <summary>Notices AmneziaVPN connected to one of our servers while IBOX is idle.</summary>
     public Application.Amnezia.AmneziaWatcher Amnezia { get; }
 
+    /// <summary>IBOX account (Telegram): subscription management and music.</summary>
+    public Application.Account.IboxServices Ibox { get; }
+
     /// <summary>Account export/import (.ibox) between Windows, Linux and Android.</summary>
     public Application.Accounts.AccountTransfer AccountTransfer { get; }
     public Application.Connectivity.EndpointRescue Rescue { get; }
@@ -485,6 +489,7 @@ public sealed class AppServices : IAsyncDisposable
         {
             await Accounts.SaveActiveAsync(CancellationToken.None).ConfigureAwait(false);
             await Agent.DisposeAsync().ConfigureAwait(false);
+            Ibox.Dispose();
             await RoutingEditor.DisposeAsync().ConfigureAwait(false);
             await Orchestrator.DisposeAsync().ConfigureAwait(false);
         }
