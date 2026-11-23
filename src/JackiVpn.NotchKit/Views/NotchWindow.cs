@@ -266,6 +266,7 @@ public sealed partial class NotchWindow : Window
         SourceInitialized += (_, _) =>
         {
             MakeToolWindow();
+            RegisterShortcut();
             PlaceOnMonitor();
         };
         DpiChanged += (_, _) => Dispatcher.BeginInvoke(PlaceOnMonitor);

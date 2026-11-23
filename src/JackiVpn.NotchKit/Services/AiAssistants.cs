@@ -390,6 +390,11 @@ public sealed class AiAssistants : IAsyncDisposable
 
     private async Task TellAsync(NotchMessage message)
     {
+        if (message.Source == NotchSources.Telegram)
+        {
+            Alert?.Invoke(this, new AiAlert(NotchSources.Telegram, "Telegram", message.Title, message.Detail, BrandIcons.Telegram, null) { Seconds = 5 });
+            return;
+        }
         if (message.Source == NotchSources.Claude)
         {
             Interlocked.Exchange(ref _lastClaudeHookTicks, Environment.TickCount64);

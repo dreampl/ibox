@@ -84,7 +84,8 @@ public static class NexViewParser
     }
 
     private static TelegramUser? Named(JsonNode? u) =>
-        u is JsonObject o ? new TelegramUser(0, Str(o, "name") ?? string.Empty, Str(o, "username")) : null;
+        u is JsonObject o ? TelegramUser.From(o) ?? new TelegramUser(0, Str(o, "name") ?? string.Empty, Str(o, "username"))
+        { PhotoUrl = Str(o, "photo_url") ?? Str(o, "picture") } : null;
 
     private static NexInfo? Nex(JsonObject? n)
     {

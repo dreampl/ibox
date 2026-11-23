@@ -38,6 +38,7 @@ public partial class App : System.Windows.Application
     private MainViewModel? _vm;
     private ActivityDetector? _activity;
     private int _exiting;
+    private StartupSplash? _splash;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -96,6 +97,13 @@ public partial class App : System.Windows.Application
         };
 
         ThemeManager.Apply(AppTheme.System);
+        Motion.Reduced = !SystemParameters.ClientAreaAnimation;
+        if (!e.Args.Contains(StartupManager.MinimizedArgument, StringComparer.OrdinalIgnoreCase))
+        {
+            _splash = new StartupSplash();
+            _splash.Show();
+            await Dispatcher.Yield(DispatcherPriority.Background);
+        }
         if (InstanceSuffix.Length == 0)
         {
             StartupManager.Refresh();
@@ -107,6 +115,8 @@ public partial class App : System.Windows.Application
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
+            _splash?.Close();
+            _splash = null;
             _services?.Logger.LogCritical("Startup failed: {Error}", SecretRedactor.Redact(ex.ToString()));
             MessageBox.Show("IBOX could not start:\n\n" + SecretRedactor.Redact(ex.Message), "IBOX", MessageBoxButton.OK, MessageBoxImage.Error);
             await ExitAsync();
@@ -216,6 +226,11 @@ public partial class App : System.Windows.Application
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
         SessionEnding += OnSessionEnding;
 
+        if (_splash is { } splash)
+        {
+            await splash.FinishAsync();
+            _splash = null;
+        }
         if (!(launchedMinimized || settings.Startup.StartMinimized))
         {
             CurrentWindow!.Show();
@@ -231,15 +246,7 @@ public partial class App : System.Windows.Application
             _ = Dispatcher.BeginInvoke(async () =>
             {
                 await Task.Delay(600);
-                if (tour)
-                {
-                    await _vm.ShowTourAsync();
-                }
-
-                if (_services.Ibox.ShouldOfferSignIn)
-                {
-                    Views.AccountWindow.ShowSignIn(_services.Ibox, firstRun: true);
-                }
+                await _vm.ShowTourAsync();
             }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         }
         SetupNotch();
@@ -407,6 +414,16 @@ public partial class App : System.Windows.Application
         services.Traffic.Changed += (_, _) => Dispatcher.BeginInvoke(Mirror);
         services.Agent.NotchYieldChanged += (_, _) => Dispatcher.BeginInvoke(() => Sync(services.Settings.Current.Ui.Notch));
         Sync(services.Settings.Current.Ui.Notch);
+        services.Ibox.LoginStateChanged += (_, state) => Dispatcher.BeginInvoke(() =>
+        {
+            var alert = new Services.AiAlert(Domain.Agent.NotchSources.Telegram, "Telegram", state.Title, state.Detail, Services.BrandIcons.Telegram, null)
+            { Seconds = 5, Open = ShowWindow };
+            if (_notch is not null) { _notch.ShowAlert(alert); }
+            else if (services.Settings.Current.Ui.Notch.Enabled && Services.Ecosystem.IbarRunning())
+            {
+                _ = RelayTelegramStatusAsync(state);
+            }
+        });
 
         // Visual check of a test copy only (own data folder): cycles the notch through the states.
         if (InstanceSuffix.Length > 0 && Environment.GetEnvironmentVariable("JACKIVPN_NOTCH_DEMO") == "1")
@@ -442,6 +459,24 @@ public partial class App : System.Windows.Application
                 }
             };
             demo.Start();
+        }
+    }
+
+    private async Task RelayTelegramStatusAsync(Application.Account.TelegramSignInState state)
+    {
+        try
+        {
+            await Agent.NotchHook.SendAsync(new Domain.Agent.NotchMessage
+            {
+                Source = Domain.Agent.NotchSources.Telegram,
+                Kind = Domain.Agent.NotchMessage.Tell,
+                Title = state.Title,
+                Detail = state.Detail,
+            }, Domain.Agent.NotchBridge.PipeName(Environment.UserName), _services!.Lifetime);
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or TimeoutException or OperationCanceledException or System.Text.Json.JsonException or UnauthorizedAccessException)
+        {
+            _services?.Logger.LogDebug("Telegram status could not reach IBAR ({Reason})", ex.GetType().Name);
         }
     }
 

@@ -63,7 +63,7 @@ public sealed class SubscriptionsPage(Shell shell) : Page(shell)
             Children =
             {
                 Header("Subscriptions", "Paste the link your provider gave you; IBOX adds its servers and keeps them up to date. Links are stored encrypted.", Ghost("Update all", () => _ = UpdateAllAsync())),
-                addCard,
+                Ghost("Add subscription", () => Shell.ShowDrawer("Add subscription", addCard)),
                 _list,
             },
         };

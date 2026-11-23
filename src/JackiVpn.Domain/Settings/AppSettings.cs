@@ -54,15 +54,16 @@ public enum AppTheme
 {
     Dark = 0,
 
-    /// <summary>Legacy palette; shown as Dark.</summary>
+    /// <summary>Neutral black surfaces.</summary>
     Black,
 
-    /// <summary>Legacy palette; shown as Dark.</summary>
+    /// <summary>The original navy palette.</summary>
     Blue,
     Light,
 
     /// <summary>Follows the Windows app theme (light or dark), live.</summary>
     System,
+    Gray,
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<AppLogLevel>))]

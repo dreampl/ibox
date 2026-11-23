@@ -16,8 +16,12 @@
 
         <!-- Top bar -->
         <Grid ColumnDefinitions="Auto,*,Auto" HeightRequest="52">
-            <Border WidthRequest="38" HeightRequest="38" StrokeShape="RoundRectangle 12" StrokeThickness="0" BackgroundColor="Black" VerticalOptions="Center">
-                <controls:EyeMarkView State="Awake" Animated="False" WidthRequest="21" HeightRequest="21" HorizontalOptions="Center" VerticalOptions="Center" />
+            <Border WidthRequest="44" HeightRequest="44" StrokeShape="RoundRectangle 22" StrokeThickness="0" BackgroundColor="Black" VerticalOptions="Center">
+                <Grid>
+                    <controls:EyeMarkView State="Awake" Animated="False" WidthRequest="21" HeightRequest="21" HorizontalOptions="Center" VerticalOptions="Center" />
+                    <Image x:Name="AccountPhoto" Aspect="AspectFill" IsVisible="False" />
+                </Grid>
+                <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnAccountTapped" /></Border.GestureRecognizers>
             </Border>
             <Label Grid.Column="1" Text="IBOX" FontFamily="OpenSansSemibold" FontSize="18" VerticalOptions="Center" Margin="12,0" />
             <Border Grid.Column="2" Style="{StaticResource Chip}" Padding="12,2,6,2" VerticalOptions="Center">

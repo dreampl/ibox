@@ -22,8 +22,7 @@ internal static class AccountWindow
     public const int SubscriptionTab = 0;
     public const int MusicTab = 1;
 
-    private static Window? _open;
-    private static TabControl? _tabs;
+    private static MainWindow? _open;
 
     /// <summary>Music and the subscription manager are for signed-in users only: signed out, this asks to sign in first.</summary>
     public static void Open(IboxServices ibox, int tab = SubscriptionTab)
@@ -45,26 +44,11 @@ internal static class AccountWindow
     /// <summary>IBOX's own account screens (no WebView2, or music could not open with the account).</summary>
     public static void OpenNative(IboxServices ibox, int tab)
     {
-        if (_open is { IsLoaded: true })
-        {
-            _tabs!.SelectedIndex = tab;
-            _open.Activate();
-            return;
-        }
-
-        var w = DialogService.CreateWindow("IBOX account", 620);
-        w.SizeToContent = SizeToContent.Manual;
-        w.Height = Math.Min(760, SystemParameters.WorkArea.Height * 0.9);
-        w.ResizeMode = ResizeMode.CanResize;
-        w.ShowInTaskbar = true;
-        var tabs = new TabControl { Margin = new Thickness(12) };
+        var w = MainWindow.Current;
+        if (w is null) { return; }
         var sub = new ContentControl();
         var music = new ContentControl();
-        tabs.Items.Add(new TabItem { Header = "Subscription", Content = new ScrollViewer { Content = sub, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } });
-        tabs.Items.Add(new TabItem { Header = "Music", Content = music });
-        tabs.SelectedIndex = tab;
-        _tabs = tabs;
-        w.Content = tabs;
+        FrameworkElement page = tab == MusicTab ? music : new ScrollViewer { Content = sub, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
 
         void RenderSub() => sub.Content = ibox.Account.SignedIn ? Subscription(ibox, RenderSub) : SignIn(ibox.Account.Login, "Sign in with Telegram to see and manage your subscription here: usage, expiry, servers and renewals.", r =>
         {
@@ -76,16 +60,15 @@ internal static class AccountWindow
 
         EventHandler<AccountView> updated = (_, _) => w.Dispatcher.BeginInvoke(RenderSub);
         // Signed out (here, in Profiles, or by the server): music and the subscription manager close.
-        EventHandler signedOut = (_, _) => w.Dispatcher.BeginInvoke(() => { if (!ibox.SignedIn) { w.Close(); } });
-        ibox.Watcher.Updated += updated;
-        ibox.SignInChanged += signedOut;
-        w.Closed += (_, _) =>
+        EventHandler signedOut = (_, _) => w.Dispatcher.BeginInvoke(() => { if (!ibox.SignedIn) { w.CloseDrawer(); } });
+        w.OpenDrawer(tab == MusicTab ? "Music" : "My subscription", page, () =>
         {
             ibox.Watcher.Updated -= updated;
             ibox.SignInChanged -= signedOut;
             _open = null;
-            _tabs = null;
-        };
+        });
+        ibox.Watcher.Updated += updated;
+        ibox.SignInChanged += signedOut;
         if (ibox.Account.SignedIn)
         {
             ibox.Watcher.Start();
@@ -94,11 +77,10 @@ internal static class AccountWindow
         RenderSub();
         RenderMusic();
         _open = w;
-        w.Show();
     }
 
     // ------------------------------------------------------------------ sign-in
-    private static Window? _signIn;
+    private static MainWindow? _signIn;
 
     /// <summary>
     /// The optional Telegram sign-in. On first run it says what signing in adds; "Not now" keeps IBOX fully usable
@@ -113,10 +95,10 @@ internal static class AccountWindow
             return;
         }
 
-        var w = DialogService.CreateWindow("Sign in with Telegram", 520);
-        w.ShowInTaskbar = true;
+        var w = MainWindow.Current;
+        if (w is null) { return; }
         var later = DialogService.Styled(new Button { Content = firstRun ? "Not now" : "Cancel", Padding = new Thickness(16, 8, 16, 8), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 10, 0, 0) }, "Button.Ghost");
-        later.Click += (_, _) => w.Close();
+        later.Click += (_, _) => w.CloseDrawer();
         var extra = new StackPanel();
         extra.Children.Add(later);
         if (firstRun)
@@ -125,22 +107,21 @@ internal static class AccountWindow
         }
 
         var why = "Signing in adds your IBOX music library and lets you manage your subscription inside IBOX: usage, expiry, servers and renewals.";
-        w.Content = SignIn(ibox.Account.Login, why, r =>
+        var content = SignIn(ibox.Account.Login, why, r =>
         {
             ibox.SignIn(r);
-            w.Close();
+            w.CloseDrawer();
             then?.Invoke();
         }, extra);
-        w.Closed += (_, _) =>
+        w.OpenDrawer("Sign in with Telegram", content, () =>
         {
             ibox.MarkSignInOffered();
             _signIn = null;
-        };
+        });
         _signIn = w;
-        w.Show();
     }
 
-    private static FrameworkElement SignIn(TelegramLogin login, string why, Action<LoginResult> done, FrameworkElement? extra)
+    internal static FrameworkElement SignIn(TelegramLogin login, string why, Action<LoginResult> done, FrameworkElement? extra)
     {
         var root = new StackPanel { Margin = new Thickness(16) };
         root.Children.Add(Title("Sign in with Telegram"));
@@ -154,12 +135,14 @@ internal static class AccountWindow
         async Task Run(bool official)
         {
             cts?.Cancel();
+            cts?.Dispose();
             cts = new CancellationTokenSource();
+            var ct = cts.Token;
             button.IsEnabled = viaBot.IsEnabled = false;
             try
             {
                 var device = IboxServices.DeviceName("Windows");
-                var c = (official ? await login.StartOfficialAsync(device, cts.Token) : null) ?? await login.StartAsync(device, cts.Token);
+                var c = (official ? await login.StartOfficialAsync(device, ct) : null) ?? await login.StartAsync(device, ct);
                 state.Text = c.Official
                     ? $"Your browser opens Telegram's sign-in page. Sign in there, then come back: IBOX continues by itself.\nIf the browser did not open: {c.Link}"
                     : $"Telegram opens with the IBOX bot. Check that it shows the code {c.Code}, then press Approve there.\nIf Telegram did not open: {c.Link}";
@@ -170,10 +153,11 @@ internal static class AccountWindow
                     {
                         state.Text = c.Official ? "Checking your Telegram sign-in…" : $"Code {c.Code}: now press Approve in Telegram.";
                     }
-                }), cts.Token));
+                }), ct));
             }
             catch (Exception e) when (e is LoginFailedException or ServiceUnreachableException or OperationCanceledException)
             {
+                login.ReportFailure(e is OperationCanceledException);
                 state.Text = e is OperationCanceledException ? string.Empty : e.Message;
             }
             finally
@@ -194,6 +178,7 @@ internal static class AccountWindow
             root.Children.Add(extra);
         }
 
+        root.Unloaded += (_, _) => { cts?.Cancel(); cts?.Dispose(); cts = null; };
         return root;
     }
 

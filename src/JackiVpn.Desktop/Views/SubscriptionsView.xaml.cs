@@ -11,7 +11,20 @@ namespace JackiVpn.Desktop.Views;
 
 public partial class SubscriptionsView : UserControl
 {
-    public SubscriptionsView() => InitializeComponent();
+    public SubscriptionsView()
+    {
+        InitializeComponent();
+        ((Panel)AddSection.Parent).Children.Remove(AddSection);
+        var clock = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+        clock.Tick += (_, _) => { if (DataContext is SubscriptionsViewModel vm) { foreach (var item in vm.Items) { item.RefreshTime(); } } };
+        IsVisibleChanged += (_, _) => { if (IsVisible) { clock.Start(); } else { clock.Stop(); } };
+    }
+
+    private void OnAddClick(object sender, RoutedEventArgs e)
+    {
+        AddSection.DataContext = DataContext;
+        MainWindow.Current?.OpenDrawer("Add subscription", AddSection);
+    }
 
     /// <summary>The subscriptions bought with the signed-in Telegram account: each one added here with one click.</summary>
     private async void OnFromAccountClick(object sender, RoutedEventArgs e)
@@ -21,11 +34,9 @@ public partial class SubscriptionsView : UserControl
             return;
         }
 
-        var w = DialogService.CreateWindow("From my Telegram account", 520);
         var list = new StackPanel { Margin = new Thickness(16) };
         list.Children.Add(DialogService.Styled(new TextBlock { Text = "Loading your subscriptions…", TextWrapping = TextWrapping.Wrap }, "Text.Hint"));
-        w.Content = new ScrollViewer { Content = list, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = 560 };
-        w.Show();
+        MainWindow.Current?.OpenDrawer("From my Telegram account", new ScrollViewer { Content = list, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
         try
         {
             var links = await vm.AccountLinksAsync();
@@ -85,7 +96,7 @@ public partial class SubscriptionsView : UserControl
             var uri = await vm.NexManagementUriAsync(item);
             if (uri is not null)
             {
-                Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
+                BrowserDrawer.Open(uri, "Nex subscription");
                 return;
             }
         }
@@ -130,7 +141,7 @@ public partial class SubscriptionsView : UserControl
             content.Children.Add(new TextBlock { Text = "Select a configuration. IBOX opens AmneziaVPN and imports it; then click Connect there.", TextWrapping = TextWrapping.Wrap });
             content.Children.Add(options);
             content.Children.Add(buttons);
-            var dialog = new Window
+            var dialog = new DrawerDialog
             {
                 Title = "Nex · AmneziaWG",
                 Owner = Window.GetWindow(this),

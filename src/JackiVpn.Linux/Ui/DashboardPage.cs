@@ -244,7 +244,8 @@ public sealed class DashboardPage(Shell shell) : Page(shell)
     private DispatcherTimer? _clock;
     private TextBlock _duration = new();
 
-    public override string Title => "Dashboard";
+    public override string Title => "Connection";
+    protected override bool ScrollContent => false;
 
     public override string Glyph => Icons.Home;
 
@@ -253,14 +254,9 @@ public sealed class DashboardPage(Shell shell) : Page(shell)
         _orb = new ConnectOrb { VerticalAlignment = VerticalAlignment.Center };
         _orb.PointerPressed += async (_, _) => await ToggleAsync();
         var hero = BuildHero();
-        var cards = new Grid { ColumnDefinitions = new ColumnDefinitions("1.32*,20,*,20,*"), Margin = new Thickness(0, 20, 0, 0) };
-        cards.Children.Add(BuildTraffic());
+        var traffic = BuildTraffic();
         var speed = BuildSpeed();
-        Grid.SetColumn(speed, 2);
-        cards.Children.Add(speed);
         var server = BuildServer();
-        Grid.SetColumn(server, 4);
-        cards.Children.Add(server);
         _plan = new Panel();
 
         EventHandler<ConnectionStatus> status = (_, st) => Dispatcher.UIThread.Post(() => Apply(st));
@@ -284,7 +280,14 @@ public sealed class DashboardPage(Shell shell) : Page(shell)
         Track(clock.Stop);
         Apply(S.Orchestrator.Status);
         ShowOurServer(S.Privacy.Detector.Current);
-        return new StackPanel { Children = { hero, cards, _plan } };
+        var cards = new Grid { ColumnDefinitions = new ColumnDefinitions("1.1*,*,1.1*"), ColumnSpacing = 16 };
+        traffic.VerticalAlignment = speed.VerticalAlignment = server.VerticalAlignment = VerticalAlignment.Stretch;
+        cards.Children.Add(traffic);
+        Grid.SetColumn(speed, 1);
+        cards.Children.Add(speed);
+        Grid.SetColumn(server, 2);
+        cards.Children.Add(server);
+        return new ScrollViewer { Content = new StackPanel { Spacing = 18, Margin = new Thickness(20, 8, 24, 24), Children = { hero, cards, _plan } } };
     }
 
     private void ShowOurServer(Application.Privacy.OurServerFinding? f)

@@ -291,8 +291,8 @@ public sealed class PowerButton : ContentView
 
     private async Task CelebrateAsync()
     {
-        await _core.ScaleToAsync(1.1, 160, Easing.CubicOut);
-        await _core.ScaleToAsync(1, 700, Motion.Spring);
+        await _core.FadeToAsync(0.92, 60, Easing.CubicOut);
+        await _core.FadeToAsync(1, 100, Easing.CubicOut);
     }
 
     private void Press()
@@ -354,18 +354,9 @@ public sealed class PowerButton : ContentView
             return;
         }
 
-        var amplitude = _visual == PowerVisual.Connected ? 0.05 : 0.025;
-        new Animation(v =>
-        {
-            var s = Math.Sin(v * Math.PI * 2);
-            for (var i = 0; i < _halos.Length; i++)
-            {
-                _halos[i].Scale = 1 + amplitude * (0.6 + i * 0.3) * (0.5 + 0.5 * Math.Sin((v * Math.PI * 2) - (i * 0.6)));
-            }
-
-            _glow.Scale = 1 + amplitude * s;
-            _glow.Opacity = 0.85 + 0.15 * s;
-        }, 0, 1).Commit(this, Loop, 33, _visual == PowerVisual.Connected ? 3600u : 5200u, Easing.Linear, repeat: () => _visual != PowerVisual.Busy && IsLoaded && AppVisible);
+        _glow.Scale = 1;
+        _glow.Opacity = 1;
+        foreach (var halo in _halos) { halo.Scale = 1; }
     }
 
     private static Brush Brush(string key) => (Brush)Microsoft.Maui.Controls.Application.Current!.Resources[key];

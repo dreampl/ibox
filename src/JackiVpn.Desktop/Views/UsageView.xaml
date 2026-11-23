@@ -387,7 +387,7 @@
             </v:ClaySurface>
 
             <!-- Workplace -->
-            <v:ClaySurface>
+            <v:ClaySurface x:Name="WorkplaceSection">
                 <StackPanel>
                     <DockPanel>
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">

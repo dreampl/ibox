@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -277,8 +278,28 @@ public sealed partial class NotchWindow
     public void ShowAlert(AiAlert alert)
     {
         ArgumentNullException.ThrowIfNull(alert);
-        if ((!_settings.AiAssistants && alert.Source != "plugin") || _hiddenForFullScreen || !IsVisible)
+        if ((!_settings.AiAssistants && alert.Source is not ("plugin" or NotchSources.Telegram)) || _hiddenForFullScreen || !IsVisible)
         {
+            return;
+        }
+
+        if (alert.Source == NotchSources.Telegram)
+        {
+            var otherAlerts = _alerts.Where(a => a.Source != NotchSources.Telegram).ToArray();
+            _alerts.Clear();
+            foreach (var other in otherAlerts) { _alerts.Enqueue(other); }
+        }
+
+        if (alert.Source == NotchSources.Telegram && _panel == NotchPanel.Alert && _alertShown?.Source == NotchSources.Telegram)
+        {
+            _alertShown = alert;
+            SetIcon(_alertIcon, alert.Icon, alert.Source, 18, alert.App);
+            _alertTitle.Text = alert.Title;
+            _alertBody.Text = alert.Body ?? string.Empty;
+            _alertBody.Visibility = string.IsNullOrEmpty(alert.Body) ? Visibility.Collapsed : Visibility.Visible;
+            _alertTimer.Stop();
+            _alertTimer.Interval = TimeSpan.FromSeconds(alert.Seconds ?? 5);
+            _alertTimer.Start();
             return;
         }
 
@@ -316,6 +337,8 @@ public sealed partial class NotchWindow
         SetIcon(_alertIcon, alert.Icon, alert.Source, 18, alert.App);
         _alertApp.Text = alert.App;
         _alertTitle.Text = alert.Title;
+        _alertTitle.FlowDirection = alert.Source == NotchSources.Telegram ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
+        _alertBody.FlowDirection = _alertTitle.FlowDirection;
         _alertBody.Text = alert.Body ?? string.Empty;
         _alertBody.Visibility = string.IsNullOrEmpty(alert.Body) ? Visibility.Collapsed : Visibility.Visible;
         var first = _panel != NotchPanel.Alert;

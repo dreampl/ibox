@@ -37,12 +37,32 @@ public partial class HomeView : ContentView
 #endif
         Loaded += (_, _) =>
         {
+            if (Services.MobileServices.Instance is { } s) { s.Ibox.AvatarChanged += OnAvatarChanged; }
+            RefreshAvatar();
             vm.PropertyChanged += OnChanged;
             _wasConnected = vm.IsConnected;
             _hadActivity = vm.HasActivity;
             Apply(animate: false);
         };
-        Unloaded += (_, _) => vm.PropertyChanged -= OnChanged;
+        Unloaded += (_, _) =>
+        {
+            vm.PropertyChanged -= OnChanged;
+            if (Services.MobileServices.Instance is { } s) { s.Ibox.AvatarChanged -= OnAvatarChanged; }
+        };
+    }
+
+    private void OnAvatarChanged(object? sender, EventArgs e) => MainThread.BeginInvokeOnMainThread(RefreshAvatar);
+
+    private void RefreshAvatar()
+    {
+        var path = Services.MobileServices.Instance?.Ibox.PhotoPath;
+        AccountPhoto.Source = path is null ? null : ImageSource.FromFile(path);
+        AccountPhoto.IsVisible = path is not null;
+    }
+
+    private async void OnAccountTapped(object? sender, TappedEventArgs e)
+    {
+        if (Services.MobileServices.Instance is { } s) { await Shell.Current.Navigation.PushAsync(new Pages.IboxAccountPage(s)); }
     }
 
     private async void OnPowerTapped(object? sender, EventArgs e)

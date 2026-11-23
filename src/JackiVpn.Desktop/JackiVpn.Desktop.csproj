@@ -23,6 +23,7 @@
     <ProjectReference Include="..\JackiVpn.Application\JackiVpn.Application.csproj" />
     <ProjectReference Include="..\JackiVpn.Infrastructure\JackiVpn.Infrastructure.csproj" />
     <ProjectReference Include="..\JackiVpn.NotchKit\JackiVpn.NotchKit.csproj" />
+    <ProjectReference Include="..\JackiVpn.Agent\JackiVpn.Agent.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" />

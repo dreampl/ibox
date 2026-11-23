@@ -19,7 +19,7 @@ internal static class AccountWindow
     public const int SubscriptionTab = 0;
     public const int MusicTab = 1;
 
-    private static Window? _open;
+    private static Shell? _open;
     private static TabControl? _tabs;
 
     /// <summary>Music and the subscription manager are for signed-in users only: signed out, this asks to sign in first.</summary>
@@ -38,7 +38,7 @@ internal static class AccountWindow
             return;
         }
 
-        var w = new Window { Title = "IBOX account", Width = 620, Height = 720, Background = B(CardBg), WindowStartupLocation = WindowStartupLocation.CenterOwner };
+        if (owner is not Shell w) { return; }
         var sub = new ContentControl();
         var music = new ContentControl();
         _tabs = new TabControl
@@ -51,7 +51,6 @@ internal static class AccountWindow
             },
             SelectedIndex = tab,
         };
-        w.Content = _tabs;
 
         void RenderSub() => sub.Content = ibox.Account.SignedIn ? Subscription(w, ibox, RenderSub)
             : SignIn(ibox.Account.Login, "Sign in with Telegram to see and manage your subscription here: usage, expiry, servers and renewals.", r =>
@@ -64,16 +63,16 @@ internal static class AccountWindow
 
         EventHandler<AccountView> updated = (_, _) => Dispatcher.UIThread.Post(RenderSub);
         // Signed out (here, in Profiles, or by the server): music and the subscription manager close.
-        EventHandler signedOut = (_, _) => Dispatcher.UIThread.Post(() => { if (!ibox.SignedIn) { w.Close(); } });
-        ibox.Watcher.Updated += updated;
-        ibox.SignInChanged += signedOut;
-        w.Closed += (_, _) =>
+        EventHandler signedOut = (_, _) => Dispatcher.UIThread.Post(() => { if (!ibox.SignedIn) { w.CloseDrawer(); } });
+        w.ShowDrawer("IBOX account", _tabs, () =>
         {
             ibox.Watcher.Updated -= updated;
             ibox.SignInChanged -= signedOut;
             _open = null;
             _tabs = null;
-        };
+        });
+        ibox.Watcher.Updated += updated;
+        ibox.SignInChanged += signedOut;
         if (ibox.Account.SignedIn)
         {
             ibox.Watcher.Start();
@@ -82,7 +81,6 @@ internal static class AccountWindow
         RenderSub();
         RenderMusic();
         _open = w;
-        w.Show(owner);
     }
 
     private static TextBlock W(TextBlock t)
@@ -98,7 +96,7 @@ internal static class AccountWindow
         return s;
     }
 
-    private static Window? _signIn;
+    private static Shell? _signIn;
 
     /// <summary>
     /// The optional Telegram sign-in. On first run it says what signing in adds; "Not now" keeps IBOX fully usable
@@ -112,27 +110,26 @@ internal static class AccountWindow
             return;
         }
 
-        var w = new Window { Title = "Sign in with Telegram", Width = 520, SizeToContent = SizeToContent.Height, Background = B(CardBg), WindowStartupLocation = WindowStartupLocation.CenterOwner };
+        if (owner is not Shell w) { return; }
         var extra = new StackPanel { Spacing = 8, Margin = new Thickness(0, 10, 0, 0) };
-        extra.Children.Add(Ghost(firstRun ? "Not now" : "Cancel", w.Close));
+        extra.Children.Add(Ghost(firstRun ? "Not now" : "Cancel", w.CloseDrawer));
         if (firstRun)
         {
             extra.Children.Add(W(Hint("Optional. Without it IBOX works as usual with any subscription you add. You can sign in or out later from your profile.")));
         }
 
-        w.Content = SignIn(ibox.Account.Login, "Signing in adds your IBOX music library and lets you manage your subscription inside IBOX: usage, expiry, servers and renewals.", r =>
+        var content = SignIn(ibox.Account.Login, "Signing in adds your IBOX music library and lets you manage your subscription inside IBOX: usage, expiry, servers and renewals.", r =>
         {
             ibox.SignIn(r);
-            w.Close();
+            w.CloseDrawer();
             then?.Invoke();
         }, extra);
-        w.Closed += (_, _) =>
+        w.ShowDrawer("Sign in with Telegram", content, () =>
         {
             ibox.MarkSignInOffered();
             _signIn = null;
-        };
+        });
         _signIn = w;
-        w.Show(owner);
     }
 
     private static Control SignIn(TelegramLogin login, string why, Action<LoginResult> done, Control? extra)
@@ -147,12 +144,14 @@ internal static class AccountWindow
         async Task Go(bool official)
         {
             cts?.Cancel();
+            cts?.Dispose();
             cts = new CancellationTokenSource();
+            var ct = cts.Token;
             button!.IsEnabled = viaBot!.IsEnabled = false;
             try
             {
                 var device = IboxServices.DeviceName("Linux");
-                var c = (official ? await login.StartOfficialAsync(device, cts.Token) : null) ?? await login.StartAsync(device, cts.Token);
+                var c = (official ? await login.StartOfficialAsync(device, ct) : null) ?? await login.StartAsync(device, ct);
                 state.Text = c.Official
                     ? $"Your browser opens Telegram's sign-in page. Sign in there, then come back: IBOX continues by itself.\nIf the browser did not open: {c.Link}"
                     : $"Telegram opens with the IBOX bot. Check that it shows the code {c.Code}, then press Approve there.\nIf Telegram did not open: {c.Link}";
@@ -171,10 +170,11 @@ internal static class AccountWindow
                     {
                         state.Text = c.Official ? "Checking your Telegram sign-in…" : $"Code {c.Code}: now press Approve in Telegram.";
                     }
-                }), cts.Token));
+                }), ct));
             }
             catch (Exception e) when (e is LoginFailedException or ServiceUnreachableException or OperationCanceledException)
             {
+                login.ReportFailure(e is OperationCanceledException);
                 state.Text = e is OperationCanceledException ? string.Empty : e.Message;
             }
             finally
@@ -192,6 +192,7 @@ internal static class AccountWindow
             col.Children.Add(extra);
         }
 
+        col.DetachedFromVisualTree += (_, _) => { cts?.Cancel(); cts?.Dispose(); cts = null; };
         return col;
     }
 

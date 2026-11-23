@@ -68,7 +68,7 @@ public partial class DashboardView : UserControl
     /// </summary>
     private void Arrange(double width)
     {
-        var layout = width >= 1200 ? 0 : width >= 900 ? 1 : 2;
+        var layout = width >= 1050 ? 0 : 1;
         if (layout == _layout)
         {
             return;
@@ -91,7 +91,7 @@ public partial class DashboardView : UserControl
                 break;
             case 1:
                 Place(TrafficCard, 0, 0, 5);
-                Place(SpeedCard, 1, 0, 1);
+                Place(SpeedCard, 1, 0, 2);
                 Place(ServerCard, 1, 2, 3);
                 break;
             default:

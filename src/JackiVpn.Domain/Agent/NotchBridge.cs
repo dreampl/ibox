@@ -128,7 +128,7 @@ public static class NotchBridge
         _ => null,
     };
 
-    public static string AppName(string source) => source switch { NotchSources.Codex => "Codex", "plugin" => "IBAR", "chat" => "IBAR chat", _ => "Claude Code" };
+    public static string AppName(string source) => source switch { NotchSources.Telegram => "Telegram", NotchSources.Codex => "Codex", "plugin" => "IBAR", "chat" => "IBAR chat", _ => "Claude Code" };
 
     private static string AskTitle(string tool) => tool switch
     {
@@ -321,6 +321,7 @@ public static class NotchSources
 {
     public const string Claude = "claude";
     public const string Codex = "codex";
+    public const string Telegram = "telegram";
 }
 
 /// <summary>One line from a hook to the notch.</summary>

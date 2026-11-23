@@ -14,6 +14,10 @@ namespace JackiVpn.Desktop.Views;
 
 public partial class MainWindow : Window
 {
+    public static MainWindow? Current { get; private set; }
+    private Action? _drawerClosed;
+    private readonly System.Collections.Generic.Dictionary<object, ContentControl> _retainedDrawers = new();
+    private FrameworkElement? _profile;
     private readonly MainViewModel _vm;
     private readonly System.Collections.Generic.Dictionary<object, ContentPresenter> _pages = new(System.Collections.Generic.ReferenceEqualityComparer.Instance);
 
@@ -21,6 +25,16 @@ public partial class MainWindow : Window
     {
         _vm = vm;
         InitializeComponent();
+        Current = this;
+        PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key == System.Windows.Input.Key.Escape && DrawerLayer.IsVisible)
+            {
+                CloseDrawer();
+                e.Handled = true;
+            }
+        };
+        Closed += (_, _) => { CloseDrawer(); if (Current == this) { Current = null; } };
         DataContext = vm;
         SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(this);
         vm.PropertyChanged += OnVmChanged;
@@ -33,6 +47,77 @@ public partial class MainWindow : Window
             ScheduleRelease();
         };
         IsVisibleChanged += (_, _) => UpdateOnScreen();
+    }
+
+    public void OpenDrawer(string title, object content, Action? closed = null, bool retain = false, bool edgeToEdge = false, double width = 560)
+    {
+        CloseDrawer();
+        DrawerTitle.Text = title;
+        DrawerFrame.Margin = edgeToEdge ? new Thickness(0) : new Thickness(20);
+        DrawerPanel.Width = width;
+        DrawerHeading.Margin = edgeToEdge ? new Thickness(20,16,20,12) : new Thickness(0,0,0,16);
+        if (retain)
+        {
+            if (!_retainedDrawers.TryGetValue(content, out var host))
+            {
+                host = new ContentControl { Content = content, HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch };
+                _retainedDrawers.Add(content, host);
+                DrawerHosts.Children.Add(host);
+            }
+            host.Visibility = Visibility.Visible;
+        }
+        else { DrawerContent.Content = content; }
+        _drawerClosed = closed;
+        DrawerLayer.Visibility = Visibility.Visible;
+        DrawerLayer.MoveFocus(new System.Windows.Input.TraversalRequest(System.Windows.Input.FocusNavigationDirection.First));
+    }
+
+    public void CloseDrawer()
+    {
+        DrawerLayer.Visibility = Visibility.Collapsed;
+        DrawerContent.Content = null;
+        foreach (var host in _retainedDrawers.Values) { host.Visibility = Visibility.Collapsed; }
+        var closed = _drawerClosed;
+        _drawerClosed = null;
+        closed?.Invoke();
+        PageHost.MoveFocus(new System.Windows.Input.TraversalRequest(System.Windows.Input.FocusNavigationDirection.First));
+    }
+
+    public void OpenDialog(string title, object content, Action closed)
+    {
+        var previousTitle = DrawerTitle.Text;
+        var previousWidth = DrawerPanel.Width;
+        var previousContent = DrawerContent.Content;
+        var previousRetained = System.Linq.Enumerable.FirstOrDefault(_retainedDrawers, pair => pair.Value.Visibility == Visibility.Visible).Key;
+        var previousCallback = _drawerClosed;
+        var wasOpen = DrawerLayer.Visibility == Visibility.Visible;
+        var edgeToEdge = DrawerFrame.Margin.Left == 0;
+        _drawerClosed = null;
+        OpenDrawer(title, content, () =>
+        {
+            if (wasOpen && (previousContent ?? previousRetained) is { } previous)
+            {
+                OpenDrawer(previousTitle, previous, previousCallback, previousRetained is not null, edgeToEdge, previousWidth);
+            }
+            closed();
+        });
+    }
+
+    public void ReleaseDrawer(object content)
+    {
+        if (_retainedDrawers.Remove(content, out var host)) { host.Content = null; DrawerHosts.Children.Remove(host); }
+    }
+
+    private void OnCloseDrawer(object sender, RoutedEventArgs e) => CloseDrawer();
+
+    public void ShowProfile(FrameworkElement content)
+    {
+        CloseDrawer();
+        _vm.Selected = null;
+        if (_profile is not null) { PageHost.Children.Remove(_profile); }
+        foreach (var presenter in _pages.Values) { presenter.Visibility = Visibility.Collapsed; }
+        _profile = content;
+        PageHost.Children.Add(content);
     }
 
     /// <summary>The window is on screen (not minimized, not hidden in the tray).</summary>
@@ -106,6 +191,12 @@ public partial class MainWindow : Window
     /// </summary>
     private void ShowPage(object? page)
     {
+        if (_profile is not null)
+        {
+            PageHost.Children.Remove(_profile);
+            _profile = null;
+        }
+        CloseDrawer();
         if (page is null)
         {
             return;

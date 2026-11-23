@@ -50,7 +50,7 @@ public sealed partial class SettingsViewModel : SettingsPageViewModel
         ];
     }
 
-    public IReadOnlyList<AppTheme> Themes { get; } = [AppTheme.System, AppTheme.Light, AppTheme.Dark];
+    public IReadOnlyList<AppTheme> Themes { get; } = [AppTheme.System, AppTheme.Light, AppTheme.Gray, AppTheme.Black, AppTheme.Blue];
 
     public IReadOnlyList<AppLogLevel> LogLevels { get; } = Choices.Of<AppLogLevel>();
 
@@ -229,7 +229,7 @@ public sealed partial class SettingsViewModel : SettingsPageViewModel
 
     public AppTheme Theme
     {
-        get => S.Ui.Theme;
+        get => S.Ui.Theme == AppTheme.Dark ? AppTheme.Gray : S.Ui.Theme;
         set
         {
             Set(s => s with { Ui = s.Ui with { Theme = value } });

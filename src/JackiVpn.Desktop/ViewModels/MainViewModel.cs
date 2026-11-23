@@ -43,10 +43,11 @@ public sealed partial class MainViewModel : ObservableObject
         services.Accounts.Changed += (_, _) => Ui.Post(() =>
         {
             OnPropertyChanged(nameof(ActiveAccount));
-            OnPropertyChanged(nameof(ActivePicture));
+            OnPropertyChanged(nameof(ActiveName)); OnPropertyChanged(nameof(ActivePicture));
             OnPropertyChanged(nameof(ProfileTip));
         });
-        services.Ibox.SignInChanged += (_, _) => Ui.Post(() => OnPropertyChanged(nameof(IboxSignedIn)));
+        services.Ibox.SignInChanged += (_, _) => Ui.Post(() => { OnPropertyChanged(nameof(IboxSignedIn)); OnPropertyChanged(nameof(ActiveName)); OnPropertyChanged(nameof(ActivePicture)); });
+        services.Ibox.AvatarChanged += (_, _) => Ui.Post(() => OnPropertyChanged(nameof(ActivePicture)));
         Dashboard = new DashboardViewModel(services, dialogs, this);
         Servers = new ServersViewModel(services, dialogs);
         Subscriptions = new SubscriptionsViewModel(services, dialogs);
@@ -69,17 +70,10 @@ public sealed partial class MainViewModel : ObservableObject
 
         Pages =
         [
-            new NavItem("Dashboard", "", Dashboard),
+            new NavItem("Home", "", new WorkspaceViewModel(new("Connection", Dashboard), new("Usage", Usage))),
             new NavItem("Servers", "", Servers),
-            new NavItem("Subscriptions", "", Subscriptions),
-            new NavItem("Usage", ((char)0xE9D9).ToString(), Usage),
-            new NavItem("Routing", "", Routing),
-            new NavItem("DNS", "", Dns),
-            new NavItem("Network", "", Network),
-            new NavItem("Advanced", "", Advanced),
-            new NavItem("Logs", "", Logs),
-            new NavItem("Settings", "", Settings),
-            new NavItem("About", "", About),
+            new NavItem("Routing", "", new WorkspaceViewModel(new("Rules", Routing), new("DNS", Dns), new("Network", Network), new("Workplace", new Views.UsageView(true) { DataContext = Usage }))),
+            new NavItem("Settings", "", new WorkspaceViewModel(new("General", Settings), new("Advanced", Advanced), new("Logs", Logs), new("Sync devices", Ecosystem), new("About", About))),
         ];
         _selected = Pages[0];
 
@@ -125,11 +119,24 @@ public sealed partial class MainViewModel : ObservableObject
 
     public void Navigate(ObservableObject page)
     {
+        if (ReferenceEquals(page, Subscriptions)) { ManageSubscriptionsCommand.Execute(null); return; }
         foreach (var p in Pages)
         {
             if (ReferenceEquals(p.Page, page))
             {
                 Selected = p;
+            }
+            else if (p.Page is WorkspaceViewModel workspace)
+            {
+                foreach (var tab in workspace.Tabs)
+                {
+                    if (ReferenceEquals(tab.Page, page))
+                    {
+                        workspace.SelectedTab = tab;
+                        Selected = p;
+                        return;
+                    }
+                }
             }
         }
     }
@@ -185,29 +192,32 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>The first-start tour (also from About); ending it with nothing set up opens Subscriptions.</summary>
     [CommunityToolkit.Mvvm.Input.RelayCommand]
-    public async Task ShowTourAsync()
+    public Task ShowTourAsync()
     {
-        var servers = (await _services.Profiles.GetAllAsync(_services.Lifetime)).Count;
-        var addFirst = Views.TourWindow.Run(servers > 0);
-        _services.Settings.Update(s => s with { Ui = s.Ui with { TourSeen = true } });
-        if (addFirst)
-        {
-            Navigate(Subscriptions);
-        }
+        Views.EasySetupView.Show(_services, this);
+        return Task.CompletedTask;
     }
 
     /// <summary>The active profile, for the rail avatar.</summary>
     public Application.Accounts.LocalAccount? ActiveAccount => _services.Accounts.Active;
 
-    public string? ActivePicture => ActiveAccount is { } a ? _services.Accounts.PicturePath(a) : null;
+    public string ActiveName => _services.Ibox.SignedIn && _services.Ibox.User is { } user ? (string.IsNullOrWhiteSpace(user.FirstName) ? user.Display : user.FirstName) : ActiveAccount?.Name ?? "Profile";
 
-    public string ProfileTip => ActiveAccount is { } a ? "Profile: " + a.Name : "Profile";
+    public string? ActivePicture => _services.Ibox.PhotoPath ?? (ActiveAccount is { } a ? _services.Accounts.PicturePath(a) : null);
+
+    public string ProfileTip => "Profile: " + ActiveName;
 
     /// <summary>The top bar's light/dark switch (leaves "System" for the shown opposite).</summary>
+    private AppTheme _lastDarkTheme = AppTheme.Gray;
+
     [CommunityToolkit.Mvvm.Input.RelayCommand]
     private void ToggleTheme()
     {
-        var next = Services.ThemeManager.IsLight ? AppTheme.Dark : AppTheme.Light;
+        if (!Services.ThemeManager.IsLight)
+        {
+            _lastDarkTheme = _services.Settings.Current.Ui.Theme is AppTheme.Black or AppTheme.Blue ? _services.Settings.Current.Ui.Theme : AppTheme.Gray;
+        }
+        var next = Services.ThemeManager.IsLight ? _lastDarkTheme : AppTheme.Light;
         _services.Settings.Update(x => x with { Ui = x.Ui with { Theme = next } });
         OnPropertyChanged(nameof(ThemeGlyph));
     }
@@ -276,6 +286,14 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>Signed in with Telegram: only then the music and subscription buttons show.</summary>
     public bool IboxSignedIn => _services.Ibox.SignedIn;
+
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    private async Task ManageSubscriptionsAsync()
+    {
+        var view = new Views.SubscriptionsView { DataContext = Subscriptions };
+        Views.MainWindow.Current?.OpenDrawer("Subscriptions", view, width: 1000);
+        await Subscriptions.LoadAsync();
+    }
 
     [CommunityToolkit.Mvvm.Input.RelayCommand]
     private void OpenSubscription() => Views.AccountWindow.Open(_services.Ibox, Views.AccountWindow.SubscriptionTab);

@@ -348,7 +348,7 @@
                 </Grid.RowDefinitions>
 
                 <!-- Live traffic -->
-                <v:ClaySurface x:Name="TrafficCard" CornerRadius="26" Padding="22,20">
+                <v:ClaySurface x:Name="TrafficCard" CornerRadius="26" Padding="20,18" VerticalAlignment="Stretch">
                     <DockPanel>
                         <DockPanel DockPanel.Dock="Top" Margin="0,0,0,18">
                             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
@@ -389,7 +389,7 @@
                 </v:ClaySurface>
 
                 <!-- Speed test -->
-                <v:ClaySurface x:Name="SpeedCard" Grid.Column="2" CornerRadius="26" Padding="22,20">
+                <v:ClaySurface x:Name="SpeedCard" Grid.Column="2" CornerRadius="26" Padding="20,18" VerticalAlignment="Stretch">
                     <StackPanel>
                         <DockPanel Margin="0,0,0,8">
                             <k:OrbView DockPanel.Dock="Right" State="Listening" Width="26" Height="26" IsRunning="{Binding IsSpeedTesting}" Visibility="{Binding IsSpeedTesting, Converter={StaticResource Bool2Vis}}" />
@@ -443,7 +443,7 @@
                 </v:ClaySurface>
 
                 <!-- Server -->
-                <v:ClaySurface x:Name="ServerCard" Grid.Column="4" CornerRadius="26" Padding="22,20">
+                <v:ClaySurface x:Name="ServerCard" Grid.Column="4" CornerRadius="26" Padding="20,18" VerticalAlignment="Stretch">
                     <StackPanel>
                         <DockPanel Margin="0,0,0,16">
                             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
@@ -463,7 +463,7 @@
                                     <v:FlagView DockPanel.Dock="Left" Width="46" Height="46" CountryCode="{Binding ServerFlag}" Margin="0,0,14,0" />
                                     <StackPanel VerticalAlignment="Center">
                                         <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="{Binding ServerTitle}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Foreground="{DynamicResource B.Text}" Text="{Binding ServerTitle}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                                             <Border Style="{StaticResource NexBadge}" Visibility="{Binding ServerIsNex, Converter={StaticResource Bool2Vis}}"><TextBlock Text="Nex" FontSize="11" FontWeight="SemiBold" Foreground="#F2F2FF" /></Border>
                                         </StackPanel>
                                         <TextBlock Text="{Binding ServerSubtitle}" FontSize="12" Foreground="{DynamicResource B.TextSecondary}" TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />

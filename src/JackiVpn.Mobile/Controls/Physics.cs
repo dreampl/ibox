@@ -77,6 +77,8 @@ public sealed class Spring
 {
     private readonly Action<double> _apply;
     private bool _running;
+    private double _from;
+    private double _elapsed;
 
     public Spring(Action<double> apply, double value = 0, double stiffness = 380, double damping = 26)
     {
@@ -104,11 +106,10 @@ public sealed class Spring
 
     public void To(double target, double? velocity = null)
     {
+        _from = Value;
+        _elapsed = 0;
         Target = target;
-        if (velocity is { } v)
-        {
-            Velocity = v;
-        }
+        Velocity = 0;
 
         if (Motion.Reduced)
         {
@@ -126,6 +127,8 @@ public sealed class Spring
     /// <summary>Jumps without animation.</summary>
     public void Snap(double value)
     {
+        FrameTicker.Remove(Step);
+        _running = false;
         Value = value;
         Target = value;
         Velocity = 0;
@@ -135,31 +138,16 @@ public sealed class Spring
     /// <summary>Kick: adds velocity (taps, bounces) and lets the spring bring it back.</summary>
     public void Impulse(double velocity)
     {
-        Velocity += velocity;
         To(Target);
     }
 
     private bool Step(double dt)
     {
-        // Semi-implicit Euler in small sub-steps: stable for stiff springs at 60 fps.
-        const int steps = 4;
-        var h = dt / steps;
-        for (var i = 0; i < steps; i++)
-        {
-            var force = (-Stiffness * (Value - Target)) - (Damping * Velocity);
-            Velocity += force * h;
-            Value += Velocity * h;
-        }
-
-        var settled = Math.Abs(Velocity) < 0.01 && Math.Abs(Value - Target) < 0.001 * Math.Max(1, Math.Abs(Target));
-        if (settled)
-        {
-            Value = Target;
-            Velocity = 0;
-        }
-
+        _elapsed += dt;
+        var progress = Math.Clamp(_elapsed / 0.16, 0, 1);
+        Value = _from + (Target - _from) * (1 - Math.Pow(1 - progress, 3));
         _apply(Value);
-        _running = !settled;
+        _running = progress < 1;
         return _running;
     }
 }

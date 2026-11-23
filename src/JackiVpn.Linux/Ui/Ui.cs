@@ -238,7 +238,9 @@ public static class Ui
             panel.Children.Add(r);
         }
 
-        return Card(panel);
+        var card = Card(panel);
+        card.Tag = title;
+        return card;
     }
 
     /// <summary>Label (and hint) on the left, control on the right.</summary>

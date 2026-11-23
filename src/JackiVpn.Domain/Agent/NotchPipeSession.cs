@@ -45,7 +45,8 @@ public static class NotchPipeSession
             // answered below
         }
 
-        if (message is null || message.V != NotchBridge.Version || message.Source is not (NotchSources.Claude or NotchSources.Codex))
+        if (message is null || message.V != NotchBridge.Version || message.Source is not (NotchSources.Claude or NotchSources.Codex or NotchSources.Telegram)
+            || message.Source == NotchSources.Telegram && message.Kind != NotchMessage.Tell)
         {
             await ReplyAsync(writer, NotchBridge.AskThere).ConfigureAwait(false);
             return null;

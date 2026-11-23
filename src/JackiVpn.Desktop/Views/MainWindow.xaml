@@ -10,6 +10,7 @@
         UseLayoutRounding="True" TextOptions.TextFormattingMode="Ideal"
         Icon="pack://application:,,,/IBOX;component/Assets/jacki.ico">
     <Window.Resources>
+        <DataTemplate DataType="{x:Type vm:WorkspaceViewModel}"><v:WorkspaceView /></DataTemplate>
         <DataTemplate DataType="{x:Type vm:DashboardViewModel}"><v:DashboardView /></DataTemplate>
         <DataTemplate DataType="{x:Type vm:ServersViewModel}"><v:ServersView /></DataTemplate>
         <DataTemplate DataType="{x:Type vm:SubscriptionsViewModel}"><v:SubscriptionsView /></DataTemplate>
@@ -34,8 +35,9 @@
         <Rectangle Grid.Column="1" Fill="{DynamicResource B.WindowGlow}" IsHitTestVisible="False" />
 
         <!-- Icon rail: logo, page tiles (selected = blue with a soft glow), profile at the bottom. -->
-        <DockPanel Width="112">
-            <Viewbox DockPanel.Dock="Top" Width="78" Margin="0,26,0,18" Stretch="Uniform" HorizontalAlignment="Center" AutomationProperties.Name="IBOX">
+        <Border Width="188" Margin="14,14,0,14" Background="{DynamicResource B.Sidebar}" CornerRadius="24">
+        <DockPanel>
+            <Viewbox DockPanel.Dock="Top" Width="96" Margin="0,26,0,24" Stretch="Uniform" HorizontalAlignment="Center" AutomationProperties.Name="IBOX">
                 <!-- IBOX wordmark (vector, same geometry as assets/brand/ibox-wordmark.svg). -->
                 <Canvas Width="515" Height="127">
                     <Path Fill="{DynamicResource B.Text}" Data="M1,0H13V127H1Z M19,0H29V127H19Z M38,0H45V127H38Z M62,0H68V127H62Z" />
@@ -45,21 +47,30 @@
                     <Rectangle Canvas.Left="309" Canvas.Top="53" Width="22" Height="22" Fill="#FF3D9BFF" />
                 </Canvas>
             </Viewbox>
-            <v:ClaySurface CornerRadius="28" Padding="0,16,0,12" Margin="16,0,16,18">
+            <Border CornerRadius="22" Padding="12,8,12,12" Background="{DynamicResource B.Sidebar}">
                 <DockPanel>
                     <!-- Profile (local profiles: phase 4) -->
-                    <Button DockPanel.Dock="Bottom" Style="{StaticResource Button.Ghost}" HorizontalAlignment="Center" Margin="0,8,0,0" Padding="6,6"
+                    <Button DockPanel.Dock="Bottom" Style="{StaticResource Button.Ghost}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Margin="0,14,0,0" Padding="10,12"
                             ToolTip="{Binding ProfileTip}" AutomationProperties.Name="Profile" Command="{Binding OpenProfilesCommand}">
                         <StackPanel Orientation="Horizontal">
                             <v:AvatarView Width="34" Height="34" Initials="{Binding ActiveAccount.Initials, FallbackValue=''}" ColorIndex="{Binding ActiveAccount.Color, FallbackValue=0}" AvatarId="{Binding ActiveAccount.Avatar, FallbackValue={x:Null}}"
                                           PicturePath="{Binding ActivePicture}" />
-                            <TextBlock Style="{StaticResource Icon}" Text="&#xE70D;" FontSize="9" Margin="6,0,0,0" Foreground="{DynamicResource B.TextMuted}" />
+                            <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding ActiveName, FallbackValue=Profile}" FontWeight="SemiBold" MaxWidth="92" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="Profile" FontSize="11" Foreground="{DynamicResource B.TextSecondary}" Margin="0,3,0,0" />
+                            </StackPanel>
                         </StackPanel>
                     </Button>
-                    <ScrollViewer VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+                    <Border DockPanel.Dock="Bottom" Padding="12,14" Background="{DynamicResource B.CardFill}" CornerRadius="12" Margin="0,12,0,0">
+                        <StackPanel>
+                            <TextBlock Text="{Binding PillText}" FontWeight="SemiBold" FontSize="12" />
+                            <TextBlock Text="{Binding StatusLine}" Foreground="{DynamicResource B.TextSecondary}" FontSize="11" TextWrapping="Wrap" Margin="0,5,0,0" />
+                        </StackPanel>
+                    </Border>
+                    <Grid>
                         <ListBox x:Name="Nav" ItemsSource="{Binding Pages}" SelectedItem="{Binding Selected}" Background="Transparent" BorderThickness="0"
-                                 ItemContainerStyle="{StaticResource RailItem}" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                 ScrollViewer.VerticalScrollBarVisibility="Disabled" AutomationProperties.Name="Navigation" HorizontalAlignment="Center">
+                                 ItemContainerStyle="{StaticResource WorkspaceNavItem}" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 ScrollViewer.VerticalScrollBarVisibility="Disabled" AutomationProperties.Name="Navigation" VerticalAlignment="Center" HorizontalAlignment="Stretch">
                             <ListBox.Template>
                                 <ControlTemplate TargetType="ListBox">
                                     <ItemsPresenter />
@@ -67,14 +78,18 @@
                             </ListBox.Template>
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
-                                    <TextBlock Text="{Binding Glyph}" Style="{StaticResource Icon}" FontSize="18" />
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding Glyph}" Style="{StaticResource Icon}" FontSize="19" Width="24" />
+                                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center" Margin="14,0,0,0" />
+                                    </StackPanel>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
-                    </ScrollViewer>
+                    </Grid>
                 </DockPanel>
-            </v:ClaySurface>
+            </Border>
         </DockPanel>
+        </Border>
 
         <Grid Grid.Column="1">
             <Grid.RowDefinitions>
@@ -158,13 +173,12 @@
                             ToolTip="Light / dark" AutomationProperties.Name="Light or dark theme" />
                     <Button Style="{StaticResource Button.Round}" Content="&#xE8C7;" Command="{Binding OpenSubscriptionCommand}" Margin="12,0,0,0" Visibility="{Binding IboxSignedIn, Converter={StaticResource Bool2Vis}}"
                             ToolTip="My subscription (Telegram account)" AutomationProperties.Name="My subscription" />
-                    <Button Style="{StaticResource Button.Round}" Content="&#xE8D6;" Command="{Binding OpenMusicCommand}" Margin="12,0,0,0" Visibility="{Binding IboxSignedIn, Converter={StaticResource Bool2Vis}}"
-                            ToolTip="Music" AutomationProperties.Name="Music" />
+                    <v:MusicHeader x:Name="MusicHeader" Margin="12,0,0,0" Visibility="{Binding IboxSignedIn, Converter={StaticResource Bool2Vis}}" />
                     <Button Style="{StaticResource Button.Round}" Content="&#xE73F;" Command="{Binding ShowMiniCommand}" Margin="12,0,0,0"
                             ToolTip="Mini view" AutomationProperties.Name="Mini view" />
                 </StackPanel>
                 <StackPanel Margin="12,0,0,0">
-                    <TextBlock Text="{Binding Selected.Title}" FontSize="30" FontWeight="SemiBold" k:Motion.FadeOnChange="True" />
+                    <TextBlock Text="{Binding Selected.Title, TargetNullValue=Profile, FallbackValue=Profile}" FontSize="30" FontWeight="SemiBold" k:Motion.FadeOnChange="True" />
                     <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                         <Ellipse x:Name="TaglineDot" Width="9" Height="9" Margin="1,0,9,0" Fill="{DynamicResource B.TextMuted}" VerticalAlignment="Center" />
                         <TextBlock Text="{Binding Tagline}" FontSize="14" Foreground="{DynamicResource B.TextSecondary}" k:Motion.FadeOnChange="True" />
@@ -263,5 +277,18 @@
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>
+        <Grid x:Name="DrawerLayer" Grid.ColumnSpan="2" Visibility="Collapsed" Panel.ZIndex="100">
+            <Button Background="#66000000" BorderThickness="0" Click="OnCloseDrawer" AutomationProperties.Name="Close side panel" />
+            <Border x:Name="DrawerPanel" HorizontalAlignment="Right" Width="560" MaxWidth="{Binding ActualWidth, ElementName=PageHost}"
+                    Background="{DynamicResource B.Card}" BorderBrush="{DynamicResource B.Border}" BorderThickness="1,0,0,0">
+                <DockPanel x:Name="DrawerFrame" Margin="20">
+                    <DockPanel x:Name="DrawerHeading" DockPanel.Dock="Top" Margin="0,0,0,16">
+                        <Button DockPanel.Dock="Right" Content="Close" Click="OnCloseDrawer" />
+                        <TextBlock x:Name="DrawerTitle" FontSize="22" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    </DockPanel>
+                    <Grid x:Name="DrawerHosts"><ContentControl x:Name="DrawerContent" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" /></Grid>
+                </DockPanel>
+            </Border>
+        </Grid>
     </Grid>
 </Window>

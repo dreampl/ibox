@@ -11,6 +11,60 @@ namespace JackiVpn.UnitTests.Application;
 
 public sealed class IboxAccountTests
 {
+    [Theory]
+    [InlineData("""{"id":"123456789012","given_name":"Ali","preferred_username":"ali","picture":"https://cdn4.telesco.pe/file/avatar.jpg"}""")]
+    [InlineData("""{"id":123456789012,"first_name":"Ali","username":"ali","photo_url":"https://cdn4.telesco.pe/file/avatar.jpg"}""")]
+    public void Telegram_identity_accepts_both_login_formats_and_retains_the_photo(string json)
+    {
+        var user = TelegramUser.From(JsonNode.Parse(json));
+        user.Should().NotBeNull();
+        user!.Id.Should().Be(123456789012);
+        user.FirstName.Should().Be("Ali");
+        user.Display.Should().Be("@ali");
+        user.PhotoUrl.Should().Be("https://cdn4.telesco.pe/file/avatar.jpg");
+    }
+
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("""{"id":"broken"}""")]
+    [InlineData("""{"id":-1}""")]
+    public void Invalid_telegram_identity_does_not_crash_or_sign_in(string json) =>
+        TelegramUser.From(JsonNode.Parse(json)).Should().BeNull();
+
+    [Fact]
+    public async Task Malformed_login_challenge_reports_a_login_error()
+    {
+        var (account, server, _) = Panel();
+        server.Answer = (_, _) => Json(HttpStatusCode.OK, """{"url":"https://t.me/Jacki_core_bot"}""");
+        await account.Invoking(a => a.Login.StartAsync("phone")).Should().ThrowAsync<LoginFailedException>().WithMessage("*challenge*");
+    }
+
+    [Fact]
+    public async Task Polling_recovers_from_a_transient_gateway_error_with_the_same_verifier()
+    {
+        var (account, server, _) = Panel();
+        var calls = 0;
+        server.Answer = (_, _) => ++calls == 1
+            ? Json(HttpStatusCode.BadGateway, "{}")
+            : Json(HttpStatusCode.OK, """{"token":"ibx1.secret","user":{"id":"7","name":"Ali"}}""");
+        var challenge = new LoginChallenge("N", "42", new Uri("https://t.me/bot"), null, TimeSpan.FromSeconds(30), "verifier");
+        var result = await account.Login.WaitAsync(challenge);
+        result.User.Id.Should().Be(7);
+        server.Seen.Should().HaveCount(2);
+        server.Seen.Select(s => s.Body["v"]!.GetValue<string>()).Should().OnlyContain(v => v == "verifier");
+    }
+
+    [Fact]
+    public async Task Cancelling_sign_in_stops_polling_during_a_network_retry()
+    {
+        var (account, server, _) = Panel();
+        using var stop = new CancellationTokenSource();
+        server.Answer = (_, _) => { stop.Cancel(); return Json(HttpStatusCode.ServiceUnavailable, "{}"); };
+        var challenge = new LoginChallenge("N", "42", new Uri("https://t.me/bot"), null, TimeSpan.FromSeconds(30), "v");
+        await account.Invoking(a => a.Login.WaitAsync(challenge, ct: stop.Token)).Should().ThrowAsync<OperationCanceledException>();
+        server.Seen.Should().HaveCount(1);
+    }
+
     /// <summary>Answers by path; records what the app sent.</summary>
     private sealed class FakeServer : HttpMessageHandler
     {
@@ -57,6 +111,8 @@ public sealed class IboxAccountTests
     public async Task Telegram_login_sends_only_the_verifier_hash_then_trades_the_verifier_for_a_token()
     {
         var (account, server, tokens) = Panel();
+        var stages = new List<TelegramSignInStage>();
+        account.Login.StateChanged += (_, state) => stages.Add(state.Stage);
         var polls = 0;
         server.Answer = (path, body) => path switch
         {
@@ -78,6 +134,8 @@ public sealed class IboxAccountTests
         account.Accept(result);
         tokens.Get(IboxAccount.TokenName).Should().Be("ibx1.secret");
         account.SignedIn.Should().BeTrue();
+        stages.Should().Equal(TelegramSignInStage.Preparing, TelegramSignInStage.OpeningTelegram,
+            TelegramSignInStage.Waiting, TelegramSignInStage.Confirm, TelegramSignInStage.Verified);
     }
 
     [Fact]

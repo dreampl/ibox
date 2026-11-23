@@ -6,6 +6,7 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="32,26,32,26" k:Motion.StaggerChildren="True">
             <DockPanel>
+                <Button DockPanel.Dock="Right" VerticalAlignment="Top" Content="Add subscription" Style="{StaticResource Button.Primary}" Click="OnAddClick" Margin="8,0,0,0" />
                 <Button DockPanel.Dock="Right" Content="Update all" Command="{Binding RefreshAllCommand}" VerticalAlignment="Top" />
                 <Button DockPanel.Dock="Right" Style="{StaticResource Button.Primary}" Click="OnSyncDeviceClick" VerticalAlignment="Top" Margin="0,0,8,0"
                         ToolTip="Send subscriptions to your phone or other PC on this network">
@@ -21,7 +22,7 @@
             </DockPanel>
 
             <!-- Add -->
-            <v:ClaySurface>
+            <v:ClaySurface x:Name="AddSection">
                 <StackPanel>
                     <DockPanel>
                         <k:OrbView DockPanel.Dock="Right" State="Weaving" Width="24" Height="24" IsRunning="{Binding IsBusy}" Visibility="{Binding IsBusy, Converter={StaticResource Bool2Vis}}" />
@@ -52,7 +53,7 @@
             <ItemsControl ItemsSource="{Binding Items}" Tag="{Binding}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate DataType="{x:Type vm:SubscriptionItem}">
-                        <v:ClaySurface>
+                        <Border Background="{DynamicResource B.Input}" BorderBrush="{DynamicResource B.SubscriptionEdge}" BorderThickness="1" CornerRadius="20" Padding="20" Margin="0,0,0,16">
                             <StackPanel>
                                 <WrapPanel Margin="0,0,0,8" Visibility="{Binding IsNex, Converter={StaticResource Bool2Vis}}">
                                     <Button Content="Manage Nex subscription" Click="OnNexManagementClick" Margin="0,0,6,0" />
@@ -179,7 +180,7 @@
                                     </StackPanel>
                                 </DockPanel>
                             </StackPanel>
-                        </v:ClaySurface>
+                        </Border>
                         <DataTemplate.Triggers>
                             <DataTrigger Binding="{Binding DeviceProblem}" Value="True">
                                 <Setter TargetName="DeviceLine" Property="Foreground" Value="{DynamicResource B.Danger}" />

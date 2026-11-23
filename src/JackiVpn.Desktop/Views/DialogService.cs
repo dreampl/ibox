@@ -97,9 +97,9 @@ public sealed class DialogService : IDialogService
         return result;
     }
 
-    internal static Window CreateWindow(string title, double width)
+    internal static DrawerDialog CreateWindow(string title, double width)
     {
-        var w = new Window
+        var w = new DrawerDialog
         {
             Title = title,
             Width = width,

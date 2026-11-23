@@ -21,6 +21,7 @@ public sealed class IboxAccountPage : ContentPage
 
     private readonly bool _firstRun;
     private Grid? _tabs;
+    private CancellationTokenSource? _login;
 
     /// <summary>Signed out, the page is only the (optional) Telegram sign-in: music and the subscription manager need it.</summary>
     public IboxAccountPage(MobileServices services, bool music = false, bool firstRun = false)
@@ -81,6 +82,7 @@ public sealed class IboxAccountPage : ContentPage
 
     protected override void OnDisappearing()
     {
+        _login?.Cancel();
         _s.Ibox.Watcher.Updated -= OnUpdated;
         _s.Ibox.SignInChanged -= OnSignedOut;
         if (_firstRun)
@@ -149,11 +151,16 @@ public sealed class IboxAccountPage : ContentPage
         // Official first: Telegram's own sign-in page in the browser. Falls back to the bot when the server has none.
         async Task Go(bool official)
         {
+            _login?.Cancel();
+            _login?.Dispose();
+            _login = new CancellationTokenSource();
+            var ct = _login.Token;
             button!.IsEnabled = viaBot!.IsEnabled = false;
             try
             {
                 var device = IboxServices.DeviceName("Android");
-                var c = (official ? await login.StartOfficialAsync(device) : null) ?? await login.StartAsync(device);
+                state.Text = Tx("Preparing sign-in…", "در حال آماده‌سازی ورود…");
+                var c = (official ? await login.StartOfficialAsync(device, ct) : null) ?? await login.StartAsync(device, ct);
                 state.Text = c.Official
                     ? Tx("The browser opens Telegram's sign-in page. Sign in there, then come back to IBOX: it continues by itself.",
                          "مرورگر صفحهٔ ورود رسمی تلگرام را باز می‌کند. آنجا وارد شو و به IBOX برگرد؛ خودش ادامه می‌دهد.")
@@ -161,18 +168,37 @@ public sealed class IboxAccountPage : ContentPage
                          $"تلگرام با ربات IBOX باز می‌شود. ببین کد {c.Code} را نشان می‌دهد، بعد آنجا «تایید» را بزن.");
                 try
                 {
-                    await Launcher.Default.OpenAsync(c.TelegramLink ?? c.Link);
+                    var opened = c.TelegramLink is not null && await Launcher.Default.CanOpenAsync(c.TelegramLink)
+                        && await Launcher.Default.OpenAsync(c.TelegramLink);
+                    if (!opened && !await Launcher.Default.OpenAsync(c.Link))
+                    {
+                        throw new LoginFailedException(Tx("No app could open the sign-in link. Install a browser or Telegram and try again.",
+                            "لینک ورود باز نشد. مرورگر یا تلگرام را نصب کن و دوباره تلاش کن."));
+                    }
                 }
                 catch (Exception e) when (e is InvalidOperationException or NotSupportedException or global::Android.Content.ActivityNotFoundException)
                 {
-                    await Launcher.Default.OpenAsync(c.Link);
+                    if (!await Launcher.Default.OpenAsync(c.Link))
+                    {
+                        throw new LoginFailedException(Tx("The sign-in link could not be opened. Try again.", "لینک ورود باز نشد. دوباره تلاش کن."));
+                    }
                 }
 
-                done(await login.WaitAsync(c));
+                var progress = new Progress<string>(s =>
+                {
+                    if (s == "retry")
+                    {
+                        state.Text = Tx("Connection interrupted. Retrying your sign-in…", "ارتباط قطع شد؛ در حال تلاش دوباره برای تکمیل ورود…");
+                    }
+                });
+                var result = await login.WaitAsync(c, progress, ct);
+                ct.ThrowIfCancellationRequested();
+                done(result);
             }
-            catch (Exception e) when (e is LoginFailedException or ServiceUnreachableException or OperationCanceledException)
+            catch (Exception e) when (e is LoginFailedException or ServiceUnreachableException or OperationCanceledException or InvalidOperationException or HttpRequestException)
             {
-                state.Text = e.Message;
+                login.ReportFailure(e is OperationCanceledException);
+                state.Text = e is OperationCanceledException ? Tx("Sign-in cancelled.", "ورود لغو شد.") : Security.SecretRedactor.Redact(e.Message);
             }
             finally
             {
@@ -185,6 +211,7 @@ public sealed class IboxAccountPage : ContentPage
         col.Add(button);
         col.Add(viaBot);
         col.Add(state);
+        col.Add(Btn(Tx("Cancel sign-in", "لغو ورود"), () => { _login?.Cancel(); return Task.CompletedTask; }));
         if (extra is not null)
         {
             col.Add(extra);

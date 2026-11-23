@@ -59,7 +59,7 @@ if (Test-Path $xrDir) { [IO.Directory]::Delete($xrDir, $true) }
 Expand-Archive $xrArchive $xrDir
 
 Write-Step 'Publishing jackivpn (self-contained linux-x64)'
-Invoke-Dotnet publish src\JackiVpn.Linux\JackiVpn.Linux.csproj -c Release -p:PublishReadyToRun=true --nologo -o $app
+Invoke-Dotnet publish src\JackiVpn.Linux\JackiVpn.Linux.csproj -c Release '-p:PublishReadyToRun=true' --nologo -o $app
 Get-ChildItem $app -Filter *.pdb | ForEach-Object { [IO.File]::Delete($_.FullName) }
 
 $cores = Join-Path $app 'cores'

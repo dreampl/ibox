@@ -18,7 +18,8 @@ public sealed class ServerCell : ContentView
     private readonly Border _flagBubble;
     private readonly SignalBars _bars = new();
     private readonly Icon _star = new() { Name = "star", Size = 20 };
-    private readonly OrbView _testing = new() { State = Domain.Visuals.OrbState.Searching, WidthRequest = 22, HeightRequest = 22, IsVisible = false };
+    private readonly ActivityIndicator _testing = new() { WidthRequest = 22, HeightRequest = 22, IsVisible = false };
+    private bool _applyQueued;
     private readonly NexBadge _badge;
     private readonly Border _officialBadge;
     private readonly Icon _more = new() { Name = "more", Size = 20, StrokeThickness = 3 };
@@ -39,7 +40,7 @@ public sealed class ServerCell : ContentView
             IsVisible = false,
             Content = new Label { Text = Localization.L.Get("Badge_Official"), FontSize = 10, TextColor = Rtl.Res("Primary2"), FontFamily = "OpenSansSemibold" },
         };
-        var starHit = new Grid { WidthRequest = 36, HeightRequest = 36, Children = { _star } };
+        var starHit = new Grid { WidthRequest = 44, HeightRequest = 44, Children = { _star } };
         var starTap = new TapGestureRecognizer();
         starTap.Tapped += async (_, _) =>
         {
@@ -56,7 +57,7 @@ public sealed class ServerCell : ContentView
             ColumnDefinitions = [new(GridLength.Auto), new(GridLength.Star), new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Auto)],
             ColumnSpacing = 10,
         };
-        _moreHit = new Grid { WidthRequest = 30, HeightRequest = 36, Children = { _more } };
+        _moreHit = new Grid { WidthRequest = 44, HeightRequest = 44, Children = { _more } };
         grid.Add(_flagBubble, 0, 0);
 
         // Name and badge share the row in a grid (a horizontal stack gives the name unlimited width, so long
@@ -107,7 +108,7 @@ public sealed class ServerCell : ContentView
             }
         };
         _moreHit.GestureRecognizers.Add(moreTap);
-        Motion.SetAppear(this, true);
+        HeightRequest = 76;
     }
 
     protected override void OnBindingContextChanged()
@@ -126,7 +127,16 @@ public sealed class ServerCell : ContentView
         }
     }
 
-    private void OnItemChanged(object? sender, PropertyChangedEventArgs e) => MainThread.BeginInvokeOnMainThread(() => Apply(animate: e.PropertyName is nameof(ServerItem.IsSelected) or nameof(ServerItem.IsFavorite) or ""));
+    private void OnItemChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_applyQueued) { return; }
+        _applyQueued = true;
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            _applyQueued = false;
+            Apply(animate: false);
+        });
+    }
 
     private void Apply(bool animate)
     {
@@ -141,7 +151,8 @@ public sealed class ServerCell : ContentView
         _flag.Text = i.Flag;
         _bars.Level = i.SignalLevel;
         _testing.IsVisible = i.IsTesting;
-        _testing.Tint = selected ? Color.FromArgb("#2A3550") : Rtl.Res("Text");
+        _testing.Color = selected ? Color.FromArgb("#2A3550") : Rtl.Res("Text");
+        _testing.IsRunning = i.IsTesting;
         _bars.IsVisible = !i.IsTesting;
         _badge.IsVisible = i.IsNex;
         _officialBadge.IsVisible = i.IsOfficial && !i.IsNex;

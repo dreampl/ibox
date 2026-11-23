@@ -137,9 +137,13 @@ internal sealed class ProfilesWindow
 
     public void Show()
     {
-        _window = DialogService.CreateWindow("Profiles", 460);
+        _window = MainWindow.Current;
+        if (_window is not MainWindow main) { return; }
         var root = new StackPanel { Margin = new Thickness(24, 20, 24, 20) };
-        root.Children.Add(new TextBlock { Text = "Profiles", FontSize = 17, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) });
+        var photo = AvatarView.For(_s.Accounts, _s.Accounts.Active, 76);
+        photo.PicturePath = _s.Ibox.PhotoPath ?? photo.PicturePath;
+        root.Children.Add(photo);
+        root.Children.Add(new TextBlock { Text = _s.Ibox.SignedIn && _s.Ibox.User is { } user ? user.FirstName : "Your IBOX profile", FontSize = 28, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 16, 0, 6) });
         root.Children.Add(DialogService.Styled(new TextBlock { Text = "Each profile has its own settings (routing, DNS, modes, theme…), stored encrypted. Servers and subscriptions are shared.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 14) }, "Text.Hint"));
         root.Children.Add(_list);
         var add = DialogService.Styled(new Button { Content = "Add profile", HorizontalAlignment = HorizontalAlignment.Stretch, Margin = new Thickness(0, 12, 0, 0), Padding = new Thickness(0, 9, 0, 9) }, "Button.Outline");
@@ -170,7 +174,7 @@ internal sealed class ProfilesWindow
             tgState.Text = _s.Ibox.SignedIn
                 ? "Signed in. Music and your subscription are in the top bar."
                 : "Not signed in. Sign in to get your music library and manage your subscription inside IBOX.";
-            tgButton.Content = _s.Ibox.SignedIn ? "Sign out of Telegram" : "Sign in with Telegram";
+            ButtonIcons.Apply(tgButton, "telegram", _s.Ibox.SignedIn ? "Sign out of Telegram" : "Sign in with Telegram");
         }
 
         tgButton.Click += async (_, _) =>
@@ -193,16 +197,19 @@ internal sealed class ProfilesWindow
         };
         EventHandler tgChanged = (_, _) => _window?.Dispatcher.BeginInvoke(RenderTelegram);
         _s.Ibox.SignInChanged += tgChanged;
-        _window.Closed += (_, _) => _s.Ibox.SignInChanged -= tgChanged;
         RenderTelegram();
         root.Children.Add(tgState);
         root.Children.Add(tgButton);
-        var close = new Button { Content = "Close", IsCancel = true, MinWidth = 90, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
-        close.Click += (_, _) => _window.Close();
-        root.Children.Add(close);
-        _window.Content = new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        var page = new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxWidth = 800, HorizontalAlignment = HorizontalAlignment.Stretch };
+        EventHandler avatarChanged = (_, _) => main.Dispatcher.BeginInvoke(() =>
+        {
+            photo.PicturePath = _s.Ibox.PhotoPath ?? (_s.Accounts.Active is { } account ? _s.Accounts.PicturePath(account) : null);
+            Render();
+        });
+        _s.Ibox.AvatarChanged += avatarChanged;
+        page.Unloaded += (_, _) => { _s.Ibox.SignInChanged -= tgChanged; _s.Ibox.AvatarChanged -= avatarChanged; };
         Render();
-        _window.ShowDialog();
+        main.ShowProfile(page);
     }
 
     private async Task ExportAsync()
@@ -303,6 +310,7 @@ internal sealed class ProfilesWindow
             var active = account.Id == _s.Accounts.Active?.Id;
             var row = new DockPanel { Margin = new Thickness(0, 0, 0, 8) };
             var avatar = AvatarView.For(_s.Accounts, account, 38);
+            if (active && _s.Ibox.PhotoPath is { } telegramPhoto) { avatar.PicturePath = telegramPhoto; }
             avatar.Margin = new Thickness(0, 0, 12, 0);
             DockPanel.SetDock(avatar, Dock.Left);
             row.Children.Add(avatar);
@@ -320,7 +328,7 @@ internal sealed class ProfilesWindow
             buttons.Children.Add(edit);
             row.Children.Add(buttons);
             var name = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-            name.Children.Add(new TextBlock { Text = account.Name, FontSize = 14, FontWeight = FontWeights.SemiBold });
+            name.Children.Add(new TextBlock { Text = account.Id == _s.Accounts.Active?.Id && _s.Ibox.SignedIn && _s.Ibox.User is { } tg ? tg.FirstName : account.Name, FontSize = 14, FontWeight = FontWeights.SemiBold });
             name.Children.Add(DialogService.Styled(new TextBlock { Text = (active ? "Active" : "Saved") + (account.IsLocked ? " · PIN" : string.Empty) }, "Text.Hint"));
             row.Children.Add(name);
             _list.Children.Add(row);

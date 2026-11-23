@@ -15,7 +15,7 @@ namespace JackiVpn.Desktop.Views;
 /// The first-start tour: a clay card over the main window, one step at a time (picture, title, plain text), with
 /// Back / Next, step dots and Skip. Keyboard: arrows or Enter to move on, Esc to skip.
 /// </summary>
-internal sealed class TourWindow : Window
+internal sealed class TourWindow : DrawerDialog
 {
     private readonly Border _picture = new() { Width = 96, Height = 96, HorizontalAlignment = HorizontalAlignment.Center };
     private readonly TextBlock _title = new() { FontSize = 22, FontWeight = FontWeights.SemiBold, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 18, 0, 8) };
@@ -93,19 +93,6 @@ internal sealed class TourWindow : Window
                     Go(_step - 1);
                     break;
             }
-        };
-        MouseLeftButtonDown += (_, e) =>
-        {
-            // Drag by the card, never by a button (its text or border is the click's source).
-            for (var d = e.OriginalSource as DependencyObject; d is not null; d = d is Visual or System.Windows.Media.Media3D.Visual3D ? VisualTreeHelper.GetParent(d) : LogicalTreeHelper.GetParent(d))
-            {
-                if (d is System.Windows.Controls.Primitives.ButtonBase)
-                {
-                    return;
-                }
-            }
-
-            DragMove();
         };
         Go(0, animate: false);
     }

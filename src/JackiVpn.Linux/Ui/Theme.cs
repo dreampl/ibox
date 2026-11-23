@@ -83,6 +83,23 @@ public sealed record Palette
         ShadowLightOpacity = 0.6,
     };
 
+    public static Palette Gray { get; } = Dark with
+    {
+        Window = Color.Parse("#202124"), Window2 = Color.Parse("#242529"), Sidebar = Color.Parse("#27282D"),
+        Card = Color.Parse("#2B2C31"), Card2 = Color.Parse("#26272C"), CardHover = Color.Parse("#35363D"),
+        Tile = Color.Parse("#36373F"), Input = Color.Parse("#32333A"), Border = Color.Parse("#45464E"),
+        Text = Color.Parse("#F3F3F5"), TextSecondary = Color.Parse("#C0C1C9"), TextMuted = Color.Parse("#A6A7B1"),
+        Idle = Color.Parse("#41424A"), Idle2 = Color.Parse("#303137"), MapDot = Color.Parse("#4D4E57"),
+    };
+
+    public static Palette Black { get; } = Gray with
+    {
+        Window = Color.Parse("#08090B"), Window2 = Color.Parse("#0C0D10"), Sidebar = Color.Parse("#111215"),
+        Card = Color.Parse("#151619"), Card2 = Color.Parse("#111215"), CardHover = Color.Parse("#202125"),
+        Tile = Color.Parse("#202125"), Input = Color.Parse("#1B1C20"), Border = Color.Parse("#303137"),
+        Idle = Color.Parse("#28292F"), Idle2 = Color.Parse("#1A1B20"), MapDot = Color.Parse("#35363E"),
+    };
+
     public static Palette Light { get; } = new()
     {
         IsLight = true,
@@ -155,10 +172,10 @@ public static class Look
         var light = choice switch
         {
             AppTheme.Light => true,
-            AppTheme.Dark => false,
-            _ => platform?.GetColorValues().ThemeVariant == PlatformThemeVariant.Light,
+            AppTheme.System => platform?.GetColorValues().ThemeVariant == PlatformThemeVariant.Light,
+            _ => false,
         };
-        var next = light ? Palette.Light : Palette.Dark;
+        var next = light ? Palette.Light : choice == AppTheme.Blue ? Palette.Dark : choice == AppTheme.Black ? Palette.Black : Palette.Gray;
         if (app is not null)
         {
             app.RequestedThemeVariant = light ? ThemeVariant.Light : ThemeVariant.Dark;

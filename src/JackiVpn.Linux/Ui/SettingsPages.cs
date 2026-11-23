@@ -772,8 +772,8 @@ public sealed class SettingsPage(Shell shell) : OptionsPage(shell)
             Row("Account", null, Outline("Open account", () => { if (TopLevel.GetTopLevel(this) is Window w) { AccountWindow.Open(w, S.Ibox); } }))),
         Section("Appearance", null,
             Row("Theme", "System follows the desktop's light or dark setting. Changes apply at once.", Combo(
-                [(AppTheme.System, "System"), (AppTheme.Light, "Light"), (AppTheme.Dark, "Dark")],
-                Cur.Ui.Theme,
+                [(AppTheme.System, "System"), (AppTheme.Light, "Light"), (AppTheme.Gray, "Gray"), (AppTheme.Black, "Black"), (AppTheme.Blue, "Blue")],
+                Cur.Ui.Theme == AppTheme.Dark ? AppTheme.Gray : Cur.Ui.Theme,
                 v => S.Settings.Update(x => x with { Ui = x.Ui with { Theme = v } })))),
         Section("Notch", "A small island on the top edge with the connection state, ping and what is playing; hover for more, drag along the edge.",
             Row("Show the notch", null, Toggle(Cur.Ui.Notch.Enabled, v => S.Settings.Update(x => x with { Ui = x.Ui with { Notch = x.Ui.Notch with { Enabled = v } } }))),

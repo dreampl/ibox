@@ -133,7 +133,7 @@ public sealed partial class NotchWindow
     {
         var hwnd = new WindowInteropHelper(this).Handle;
         var front = IsLoaded ? FullScreenWatcher.Front(hwnd) : FrontWindow.Normal;
-        var presence = NotchPresenceRules.For(front, _settings.HideInFullScreen, _settings.LineWhenMaximized);
+        var presence = _shortcutVisible ? NotchPresence.Normal : NotchPresenceRules.For(front, _settings.HideInFullScreen, _settings.LineWhenMaximized);
         if (presence == _presence)
         {
             return;

@@ -19,6 +19,25 @@ public sealed class NotchApprovalFlowTests
 
     private static string NewPipe() => "ibox-notch-test-" + Guid.NewGuid().ToString("N")[..12];
 
+    [Theory]
+    [InlineData(NotchMessage.Tell, "ok", 1)]
+    [InlineData(NotchMessage.Ask, "ask", 0)]
+    public async Task Telegram_status_is_informational_and_cannot_request_a_decision(string kind, string expected, int count)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var pipe = NewPipe();
+        var ready = new TaskCompletionSource();
+        var told = new List<NotchMessage>();
+        var asked = false;
+        var serving = ServeOnceAsync(pipe, (_, _) => { asked = true; return Task.FromResult(NotchBridge.Allow); }, ready, ct, told: told);
+        await ready.Task;
+        var response = await NotchHook.SendAsync(new NotchMessage { Source = NotchSources.Telegram, Kind = kind, Title = "Telegram sign-in" }, pipe, ct);
+        response.Should().Be(expected);
+        await serving;
+        told.Should().HaveCount(count);
+        asked.Should().BeFalse();
+    }
+
     /// <summary>Listens once on <paramref name="pipe"/> and serves one hook connection.</summary>
     private static async Task<string?> ServeOnceAsync(string pipe, Func<NotchMessage, CancellationToken, Task<string>> ask, TaskCompletionSource ready, CancellationToken ct, TimeSpan? window = null, List<NotchMessage>? told = null)
     {

@@ -22,6 +22,7 @@ public static partial class ThemeManager
     private const int DwmCaptionColor = 35;
     private static ResourceDictionary? _current;
     private static bool _listening;
+    private static string? _paletteName;
 
     /// <summary>The theme the user chose (may be <see cref="AppTheme.System"/>).</summary>
     public static AppTheme Current { get; private set; } = AppTheme.System;
@@ -60,13 +61,34 @@ public static partial class ThemeManager
             AppTheme.System => WindowsUsesLightApps(),
             _ => false,
         };
-        if (_current is not null && light == IsLight)
+        var paletteName = light ? "Light" : theme == AppTheme.Blue ? "Blue" : theme == AppTheme.Black ? "Black" : "Gray";
+        if (_current is not null && paletteName == _paletteName)
         {
             return;
         }
 
         IsLight = light;
         var palette = new ResourceDictionary { Source = new Uri($"pack://application:,,,/IBOX;component/Themes/Colors.{(light ? "Light" : "Dark")}.xaml", UriKind.Absolute) };
+        if (!light && paletteName != "Blue")
+        {
+            var black = paletteName == "Black";
+            var neutral = new (string Key, string Gray, string Black)[]
+            {
+                ("Window", "#202124", "#08090B"), ("Window2", "#242529", "#0C0D10"),
+                ("Sidebar", "#27282D", "#111215"), ("Card", "#2B2C31", "#151619"),
+                ("Card2", "#26272C", "#111215"), ("CardHover", "#35363D", "#202125"),
+                ("Tile", "#36373F", "#202125"), ("Input", "#32333A", "#1B1C20"),
+                ("Border", "#45464E", "#303137"), ("Shadow", "#111113", "#000000"),
+                ("Text", "#F3F3F5", "#F3F3F5"), ("TextSecondary", "#C0C1C9", "#BFC0C8"),
+                ("TextMuted", "#A6A7B1", "#9B9DA8"), ("Idle", "#41424A", "#28292F"),
+                ("Idle2", "#303137", "#1A1B20"), ("MapDot", "#4D4E57", "#35363E"),
+            };
+            foreach (var (key, gray, dark) in neutral)
+            {
+                palette["C." + key] = (Color)ColorConverter.ConvertFromString(black ? dark : gray);
+            }
+        }
+        _paletteName = paletteName;
         var dict = new ResourceDictionary();
         foreach (DictionaryEntry entry in palette)
         {
@@ -107,6 +129,7 @@ public static partial class ThemeManager
         // and two soft shadows (dark below-right, light above-left).
         dict["B.CardFill"] = Frozen(new SolidColorBrush(C("C.Card")));
         dict["B.CardEdge"] = Brushes.Transparent;
+        dict["B.SubscriptionEdge"] = Frozen(new SolidColorBrush(WithAlpha(C("C.TextMuted"), 0x55)));
         dict["B.TileFill"] = Frozen(new SolidColorBrush(C("C.Tile")));
         dict["B.OrbOn"] = Frozen(new RadialGradientBrush
         {

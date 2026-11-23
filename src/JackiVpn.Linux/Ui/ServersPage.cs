@@ -205,16 +205,25 @@ public sealed class ServersPage(Shell shell) : Page(shell)
 
         var st = S.Orchestrator.Status;
         var selected = S.Settings.Current.Connection.SelectedProfileId;
+        var columns = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), ColumnSpacing = 16, RowSpacing = 16 };
+        _list.Children.Add(columns);
+        var groupIndex = 0;
         foreach (var group in visible.GroupBy(p => p.Origin.SubscriptionId ?? string.Empty))
         {
+            var groupPanel = new StackPanel { Spacing = 4 };
+            if (groupIndex % 2 == 0) { columns.RowDefinitions.Add(new RowDefinition(GridLength.Auto)); }
+            Grid.SetColumn(groupPanel, groupIndex % 2);
+            Grid.SetRow(groupPanel, groupIndex / 2);
+            columns.Children.Add(groupPanel);
+            groupIndex++;
             var (name, official, nex) = group.Key.Length > 0 && _subs.TryGetValue(group.Key, out var sub) ? sub : ("Manual", false, false);
             var collapsed = _collapsed.Contains(group.Key);
-            _list.Children.Add(GroupHeader(group.Key, name, official, group.Count(), collapsed));
+            groupPanel.Children.Add(GroupHeader(group.Key, name, official, group.Count(), collapsed));
             if (!collapsed)
             {
                 foreach (var p in group)
                 {
-                    _list.Children.Add(ServerRow(p, nex, p.Id == selected, st.State == ConnectionState.Connected && st.ProfileId == p.Id));
+                    groupPanel.Children.Add(ServerRow(p, nex, p.Id == selected, st.State == ConnectionState.Connected && st.ProfileId == p.Id));
                 }
             }
         }
