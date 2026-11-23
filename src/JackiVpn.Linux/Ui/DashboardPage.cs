@@ -205,6 +205,7 @@ public sealed class DashboardPage(Shell shell) : Page(shell)
     private TextBlock _ip = new();
     private TextBlock _reason = new();
     private TextBlock _error = new();
+    private TextBlock _ourServer = new();
     private Border _modeTun = new();
     private Border _modeProxy = new();
     private ToggleSwitch? _smart;
@@ -243,7 +244,8 @@ public sealed class DashboardPage(Shell shell) : Page(shell)
     private DispatcherTimer? _clock;
     private TextBlock _duration = new();
 
-    public override string Title => "Dashboard";
+    public override string Title => "Connection";
+    protected override bool ScrollContent => false;
 
     public override string Glyph => Icons.Home;
 
@@ -252,14 +254,9 @@ public sealed class DashboardPage(Shell shell) : Page(shell)
         _orb = new ConnectOrb { VerticalAlignment = VerticalAlignment.Center };
         _orb.PointerPressed += async (_, _) => await ToggleAsync();
         var hero = BuildHero();
-        var cards = new Grid { ColumnDefinitions = new ColumnDefinitions("1.32*,20,*,20,*"), Margin = new Thickness(0, 20, 0, 0) };
-        cards.Children.Add(BuildTraffic());
+        var traffic = BuildTraffic();
         var speed = BuildSpeed();
-        Grid.SetColumn(speed, 2);
-        cards.Children.Add(speed);
         var server = BuildServer();
-        Grid.SetColumn(server, 4);
-        cards.Children.Add(server);
         _plan = new Panel();
 
         EventHandler<ConnectionStatus> status = (_, st) => Dispatcher.UIThread.Post(() => Apply(st));
@@ -272,6 +269,9 @@ public sealed class DashboardPage(Shell shell) : Page(shell)
         Track(() => S.DualVpn.Changed -= dualChanged);
         S.Orchestrator.StatusChanged += status;
         Track(() => S.Orchestrator.StatusChanged -= status);
+        EventHandler<Application.Privacy.OurServerFinding?> ours = (_, f) => Dispatcher.UIThread.Post(() => ShowOurServer(f));
+        S.Privacy.Detector.Changed += ours;
+        Track(() => S.Privacy.Detector.Changed -= ours);
         EventHandler<Domain.Settings.AppSettings> settings = (_, _) => Dispatcher.UIThread.Post(() => _ = RefreshSelectionAsync());
         S.Settings.Changed += settings;
         Track(() => S.Settings.Changed -= settings);
@@ -279,7 +279,26 @@ public sealed class DashboardPage(Shell shell) : Page(shell)
         _clock = clock;
         Track(clock.Stop);
         Apply(S.Orchestrator.Status);
-        return new StackPanel { Children = { hero, cards, _plan } };
+        ShowOurServer(S.Privacy.Detector.Current);
+        var cards = new Grid { ColumnDefinitions = new ColumnDefinitions("1.1*,*,1.1*"), ColumnSpacing = 16 };
+        traffic.VerticalAlignment = speed.VerticalAlignment = server.VerticalAlignment = VerticalAlignment.Stretch;
+        cards.Children.Add(traffic);
+        Grid.SetColumn(speed, 1);
+        cards.Children.Add(speed);
+        Grid.SetColumn(server, 2);
+        cards.Children.Add(server);
+        return new ScrollViewer { Content = new StackPanel { Spacing = 18, Margin = new Thickness(20, 8, 24, 24), Children = { hero, cards, _plan } } };
+    }
+
+    private void ShowOurServer(Application.Privacy.OurServerFinding? f)
+    {
+        _ourServer.Text = f?.Via switch
+        {
+            null => string.Empty,
+            Application.Privacy.OurServerPath.Router => "You're already connected to our servers through your router — no need to turn IBOX on (optional).",
+            _ => "You're already connected to our servers through another app — no need to turn IBOX on (optional).",
+        };
+        _ourServer.IsVisible = f is not null;
     }
 
     public override void OnShown()
@@ -335,7 +354,8 @@ public sealed class DashboardPage(Shell shell) : Page(shell)
         _reason = new TextBlock { FontSize = 12, Foreground = B(Muted), Margin = new Thickness(0, 8, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis };
         _error = new TextBlock { FontSize = 12, Foreground = B(Danger), Margin = new Thickness(0, 8, 0, 0), TextWrapping = TextWrapping.Wrap };
         _duration = new TextBlock { FontFamily = new FontFamily("monospace"), FontSize = 12, Foreground = B(Text), VerticalAlignment = VerticalAlignment.Center };
-        var statusBlock = new StackPanel { Margin = new Thickness(2, 10, 360, 0), VerticalAlignment = VerticalAlignment.Center, Children = { _title, _detail, _chips, _ip, _reason, _error } };
+        _ourServer = new TextBlock { FontSize = 12, Foreground = B(Success), Margin = new Thickness(0, 8, 0, 0), TextWrapping = TextWrapping.Wrap };
+        var statusBlock = new StackPanel { Margin = new Thickness(2, 10, 360, 0), VerticalAlignment = VerticalAlignment.Center, Children = { _title, _detail, _chips, _ip, _reason, _error, _ourServer } };
         Grid.SetRow(statusBlock, 1);
 
         var middle = new Grid { RowDefinitions = new RowDefinitions("Auto,*"), Margin = new Thickness(24, 6, 0, 0), Children = { location, tiles, statusBlock } };
@@ -820,7 +840,7 @@ public sealed class DashboardPage(Shell shell) : Page(shell)
     {
         var subs = await S.Subscriptions.GetAllAsync(Shell.Lifetime.Token);
         _plan.Children.Clear();
-        var sub = subs.FirstOrDefault(x => x.Enabled);
+        var sub = subs.FirstOrDefault(x => x.Enabled && x.IsNex) ?? subs.FirstOrDefault(x => x.Enabled);
         if (sub is null)
         {
             return;
@@ -868,10 +888,47 @@ public sealed class DashboardPage(Shell shell) : Page(shell)
                 },
             },
         };
+        if (sub.IsNex)
+        {
+            info.Children.Insert(0, Badge("NEX", Color.Parse("#9A8CEB")));
+            info.Children.Add(new TextBlock { Text = "3 locations · Higher speed · Iranian sites and apps · V2Ray and AmneziaWG", FontSize = 12, Foreground = B(Text2), Margin = new Thickness(0, 4, 0, 0), TextWrapping = TextWrapping.Wrap });
+        }
+
         var strip = Clay(new DockPanel { Children = { chevron, pill, tile, info } }, new Thickness(18, 14), 24);
+        if (sub.IsNex)
+        {
+            // Static gradient trim, matching the Desktop/Mobile Nex badge (no repaint timer).
+            strip.BorderThickness = new Thickness(1);
+            strip.BorderBrush = new LinearGradientBrush
+            {
+                StartPoint = new RelativePoint(0, 0.5, RelativeUnit.Relative),
+                EndPoint = new RelativePoint(1, 0.5, RelativeUnit.Relative),
+                GradientStops = { new GradientStop(Color.Parse("#887EC8F0"), 0), new GradientStop(Color.Parse("#889A8CEB"), 1) },
+            };
+        }
         strip.Margin = new Thickness(0, 20, 0, 0);
         strip.Cursor = new Cursor(StandardCursorType.Hand);
-        strip.PointerPressed += (_, _) => Shell.Navigate(Shell.Subscriptions);
+        strip.PointerPressed += (_, _) =>
+        {
+            if (sub.IsNex)
+            {
+                _ = Guard(async () =>
+                {
+                    var uri = await S.SubscriptionService.GetNexManagementUriAsync(sub.Id, Shell.Lifetime.Token);
+                    if (uri is null)
+                    {
+                        Shell.Toast("NEX", "Management link is unavailable.", warning: true);
+                        return;
+                    }
+
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("xdg-open", uri.AbsoluteUri) { UseShellExecute = false })?.Dispose();
+                });
+            }
+            else
+            {
+                Shell.Navigate(Shell.Subscriptions);
+            }
+        };
         _plan.Children.Add(strip);
     }
 

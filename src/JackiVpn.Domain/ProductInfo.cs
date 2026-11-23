@@ -28,11 +28,24 @@ public static class ProductInfo
     public const string DefaultProviderMarkerValue = "v1";
     public const string DefaultProviderManifestHeader = "X-Jacki-Manifest";
 
-    /// <summary>Name given to the TUN adapter created by sing-box (shown in the system's network list).</summary>
-    public const string TunInterfaceName = "IBOX";
+    /// <summary>
+    /// Windows name of the TUN adapter created by sing-box (shown in the system's network list). Generic on purpose:
+    /// apps that list adapters should not see a VPN brand. Windows never gives a real adapter this name, and the
+    /// stale-adapter sweep removes an adapter by this name only when it is a Wintun device.
+    /// </summary>
+    public const string WindowsTunInterfaceName = "LAN Connection";
+
+    /// <summary>Linux/other name of the TUN interface (no spaces allowed there).</summary>
+    public const string UnixTunInterfaceName = "IBOX";
+
+    /// <summary>Name given to the TUN adapter on this operating system.</summary>
+    public static string TunInterfaceName => OperatingSystem.IsWindows() ? WindowsTunInterfaceName : UnixTunInterfaceName;
 
     /// <summary>Adapter name of versions before 1.3 (still swept if a crash left one behind).</summary>
     public const string LegacyTunInterfaceName = "JackiVpn";
+
+    /// <summary>Windows adapter name of versions 1.3 to 2.3 (still swept if a crash left one behind).</summary>
+    public const string PreviousTunInterfaceName = "IBOX";
 
     /// <summary>AppUserModelID used for toast notifications.</summary>
     public const string AppUserModelId = "Jacki.JackiVpn.Desktop";

@@ -41,6 +41,28 @@ public sealed class Notch : Window
         VerticalAlignment = VerticalAlignment.Top,
     };
     private readonly EyeMarkView _eye = new() { Width = 19, Height = 19, VerticalAlignment = VerticalAlignment.Center };
+    private readonly Border _telegram = TelegramIcon();
+    private readonly Border _telegramExpanded = TelegramIcon();
+    private Application.Account.TelegramSignInState? _loginState;
+    private readonly DispatcherTimer _loginTimer = new() { Interval = TimeSpan.FromSeconds(5) };
+
+    private static Border TelegramIcon() => new()
+    {
+        Width = 22, Height = 22, CornerRadius = new CornerRadius(11), Background = new SolidColorBrush(Color.Parse("#2AABEE")),
+        VerticalAlignment = VerticalAlignment.Center, IsVisible = false,
+        Child = new Viewbox { Width = 16, Height = 16, Child = new Avalonia.Controls.Shapes.Path { Data = Geometry.Parse("M4,11 L20,5 L17,20 L11,15 L8,18 L9,13 L17,8 L10,13 Z"), Fill = Brushes.White } },
+    };
+
+    public void ShowLoginState(Application.Account.TelegramSignInState state)
+    {
+        _loginState = state;
+        _loginTimer.Stop();
+        _fade.Stop();
+        _pill.Opacity = 1;
+        SetExpanded(true);
+        Render();
+        _loginTimer.Start();
+    }
     private readonly TextBlock _line = new() { FontSize = 12.5, FontWeight = FontWeight.SemiBold, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _title = new() { FontSize = 13, FontWeight = FontWeight.SemiBold, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _ping = new() { FontSize = 20, FontWeight = FontWeight.SemiBold, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Right };
@@ -64,6 +86,17 @@ public sealed class Notch : Window
     private double _center = 0.5;
     private string? _display;
     private Size _pillSize;
+    private IslandShortcut? _shortcut;
+
+    private void ToggleFromKeyboard()
+    {
+        _fade.Stop();
+        _pill.Opacity = 1;
+        SetExpanded(!_expanded);
+        Topmost = false;
+        Topmost = true;
+        RestartFade();
+    }
 
     public Notch(Shell shell)
     {
@@ -88,7 +121,7 @@ public sealed class Notch : Window
             Margin = new Thickness(16, 0, 18, 0),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Top,
-            Children = { _eye, _line },
+            Children = { _telegram, _eye, _line },
         };
         _playPause = MediaButton("M8 5v14l11-7z", () => _shell.Services.NowPlaying.PlayPauseAsync());
         var controls = new StackPanel
@@ -110,7 +143,8 @@ public sealed class Notch : Window
         _musicRow.Children.Add(_music);
         Grid.SetColumn(controls, 2);
         _musicRow.Children.Add(controls);
-        var head = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Children = { _title } };
+        var titleRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { _telegramExpanded, _title } };
+        var head = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Children = { titleRow } };
         Grid.SetColumn(_ping, 1);
         head.Children.Add(_ping);
         _expandedView = new StackPanel
@@ -173,10 +207,21 @@ public sealed class Notch : Window
         _pill.ContextMenu = menu;
         Opened += (_, _) =>
         {
+            _shortcut = new IslandShortcut(ToggleFromKeyboard);
+            _shortcut.Start();
             Resize(animate: false);
             Place();
             RestartFade();
         };
+        _loginTimer.Tick += (_, _) =>
+        {
+            _loginTimer.Stop();
+            _loginState = null;
+            SetExpanded(false);
+            Render();
+            RestartFade();
+        };
+        Closed += (_, _) => { _shortcut?.Dispose(); _loginTimer.Stop(); };
     }
 
     public void Apply(NotchSettings settings)
@@ -305,6 +350,18 @@ public sealed class Notch : Window
             _playPause.Content = Icon(np.IsPlaying ? "M8 5v14 M16 5v14" : "M8 5v14l11-7z", 11, Colors.White, 2.2);
         }
 
+        _eye.IsVisible = _loginState is null;
+        _telegram.IsVisible = _telegramExpanded.IsVisible = _loginState is not null;
+        if (_loginState is { } login)
+        {
+            _line.Inlines.Clear();
+            _line.Inlines.Add(new Avalonia.Controls.Documents.Run(login.Title) { Foreground = Brushes.White });
+            _title.Inlines.Clear();
+            _title.Inlines.Add(new Avalonia.Controls.Documents.Run(login.Title) { Foreground = Brushes.White });
+            _server.Text = login.Detail;
+            _where.IsVisible = _speed.IsVisible = _musicRow.IsVisible = false;
+            _ping.Text = string.Empty;
+        }
         Dispatcher.UIThread.Post(() => Resize(animate: true), DispatcherPriority.Background);
     }
 

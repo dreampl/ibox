@@ -19,6 +19,7 @@ public partial class App : Microsoft.Maui.Controls.Application
     private static async Task StartAsync(MobileServices app)
     {
         await app.InitializeAsync();
+        _ = app.Privacy.StartAsync(CancellationToken.None);
         MainThread.BeginInvokeOnMainThread(() => L.Instance.Apply(app.Settings.Current.Ui.Language));
     }
 

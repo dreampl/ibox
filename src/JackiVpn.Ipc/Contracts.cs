@@ -41,10 +41,16 @@ public static class IpcMethods
     /// <summary>New DNS servers for one network adapter (<see cref="Domain.Network.AdapterDnsChange"/>; empty = automatic).</summary>
     public const string SetAdapterDns = "adapter.dns.set";
 
+    /// <summary>Match the machine time zone to the exit (<see cref="TimeZoneApplyRequest"/>); the original is journaled.</summary>
+    public const string ApplyTimeZone = "timezone.apply";
+
+    /// <summary>Put the journaled original time zone back (no-op when nothing was changed).</summary>
+    public const string RestoreTimeZone = "timezone.restore";
+
     public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.Ordinal)
     {
         Hello, GetStatus, StartTunnel, StopTunnel, KillTunnel, RepairNetwork, ReleaseKillSwitch, GetCoreInfo, ApplyWinHttpProxy, RestoreWinHttpProxy, Subscribe,
-        GetConnections, SetTrafficLimits, SetAdapterDns,
+        GetConnections, SetTrafficLimits, SetAdapterDns, ApplyTimeZone, RestoreTimeZone,
     };
 }
 
@@ -105,7 +111,7 @@ public sealed record TunnelStartRequest
     public RoutingSettings Routing { get; init; } = new();
     public IReadOnlyList<RuleSetPayload> RuleSets { get; init; } = [];
     public KillSwitchSettings KillSwitch { get; init; } = new();
-    public int Mtu { get; init; } = 9000;
+    public int Mtu { get; init; } = Domain.Settings.ConnectionSettings.DefaultTunMtu;
     public bool MuxEnabled { get; init; }
     public bool DebugLogging { get; init; }
     public PerformanceSettings Performance { get; init; } = new();
@@ -126,6 +132,9 @@ public sealed record TunnelStartResponse(bool Started, CoreKind Core, bool Chain
 }
 
 public sealed record WinHttpApplyRequest(int Port, string Bypass);
+
+/// <summary>An IANA zone id such as "Europe/Berlin"; the service converts it to the Windows id itself.</summary>
+public sealed record TimeZoneApplyRequest(string IanaId);
 
 [JsonConverter(typeof(JsonStringEnumConverter<TunnelState>))]
 public enum TunnelState

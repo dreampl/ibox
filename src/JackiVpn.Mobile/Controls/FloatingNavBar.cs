@@ -107,13 +107,12 @@ public sealed class FloatingNavBar : ContentView
         {
             Children =
             {
-                new BlurBackdrop(),
                 new Border
                 {
                     StrokeShape = new RoundRectangle { CornerRadius = 32 },
                     StrokeThickness = 1,
                     Stroke = (Brush)Microsoft.Maui.Controls.Application.Current!.Resources["GlassRim"],
-                    BackgroundColor = Color.FromArgb("#B8101521"),
+                    BackgroundColor = Color.FromArgb("#101521"),
                 },
                 _track,
             },

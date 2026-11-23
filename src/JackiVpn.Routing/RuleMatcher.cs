@@ -16,6 +16,9 @@ public sealed record RouteRequest
     public string? Protocol { get; init; }
     public string? ProcessName { get; init; }
     public string? ProcessPath { get; init; }
+
+    /// <summary>Android package that opened the connection (app rules).</summary>
+    public string? AppPackage { get; init; }
 }
 
 public sealed record RouteDecision(RoutingRule? Rule, RuleAction Action, bool Indeterminate, string Explanation);
@@ -118,6 +121,7 @@ public sealed class RuleMatcher
                 RuleConditionType.ProcessName => req.ProcessName is not null && c.Values.Contains(req.ProcessName, StringComparer.OrdinalIgnoreCase),
                 RuleConditionType.ProcessPath => req.ProcessPath is not null && c.Values.Any(v => string.Equals(Path.GetFullPath(v), Path.GetFullPath(req.ProcessPath), StringComparison.OrdinalIgnoreCase)),
                 RuleConditionType.NetworkType => false,
+                RuleConditionType.AppPackage => req.AppPackage is not null && c.Values.Contains(req.AppPackage, StringComparer.Ordinal),
                 _ => true,
             };
             if (!ok)

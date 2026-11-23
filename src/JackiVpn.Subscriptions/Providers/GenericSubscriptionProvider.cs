@@ -36,6 +36,9 @@ public sealed class GenericSubscriptionProvider(IHttpFetcher fetcher, IConfigPar
         var metadata = SubscriptionMetadataParser.FromHeaders(response.Headers, now);
         var providerHeaders = ProviderSupport.CaptureProviderHeaders(response.Headers, request.Ownership);
         var https = response.FinalUrl.Scheme == Uri.UriSchemeHttps;
+        var isNex = response.Redirects == 0
+            && NexSubscriptionUrl.TryParse(request.Url, out var comboUrl)
+            && comboUrl == response.FinalUrl;
         var deviceLimit = ProviderSupport.ReadDeviceLimit(response, request.DeviceHeaders is not null);
         if (deviceLimit is { Failure: not FetchFailureKind.None } refused)
         {
@@ -58,6 +61,7 @@ public sealed class GenericSubscriptionProvider(IHttpFetcher fetcher, IConfigPar
                 ResolvedEndpoint = "base",
                 ProviderHeaders = providerHeaders,
                 WasHttps = https,
+                IsNex = isNex,
                 DeviceLimit = deviceLimit?.State,
             };
         }
@@ -89,6 +93,7 @@ public sealed class GenericSubscriptionProvider(IHttpFetcher fetcher, IConfigPar
             Format = parsed!.Format,
             ProviderHeaders = providerHeaders,
             WasHttps = https,
+            IsNex = isNex,
             HttpStatus = response.StatusCode,
             DeviceLimit = deviceLimit?.State,
         };

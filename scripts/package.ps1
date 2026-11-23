@@ -19,7 +19,9 @@
 param(
     [switch]$SkipWindows,
     [switch]$SkipAndroid,
-    [switch]$SkipTests
+    [switch]$SkipTests,
+    [string]$OutputRoot,
+    [string]$AndroidSdkDirectory
 )
 
 $ErrorActionPreference = 'Stop'
@@ -28,8 +30,10 @@ $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Initialize-Dotnet
 
 $version = ([xml](Get-Content (Join-Path $root 'Directory.Build.props') -Raw)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
-$release = Join-Path $root "artifacts\release\$version"
-$publish = Join-Path $root "artifacts\publish\$version"
+if (-not $OutputRoot) { $OutputRoot = Join-Path $root 'artifacts' }
+$OutputRoot = [IO.Path]::GetFullPath($OutputRoot)
+$release = Join-Path $OutputRoot "release\$version"
+$publish = Join-Path $OutputRoot "publish\$version"
 New-Item -ItemType Directory -Force $release | Out-Null
 
 Push-Location $root
@@ -71,18 +75,18 @@ try {
         if (Test-Path $ibarPayload) { Remove-Item -Recurse -Force $ibarPayload }
         foreach ($project in 'src\JackiVpn.Bar\JackiVpn.Bar.csproj', 'src\JackiVpn.BarCtl\JackiVpn.BarCtl.csproj') {
             Write-Step "Publishing $project (self-contained win-x64, ReadyToRun)"
-            Invoke-Dotnet publish $project -c Release -r win-x64 --self-contained true -p:PublishReadyToRun=true -o $ibarPayload --nologo
+            Invoke-Dotnet publish $project -c Release -r win-x64 --self-contained true '-p:PublishReadyToRun=true' -o $ibarPayload --nologo
         }
 
         Write-Step 'Building the IBAR MSI (per-user)'
-        Invoke-Dotnet build installer\ibar\IBAR.Installer.wixproj -c Release --nologo "-p:PayloadDir=$ibarPayload" "-p:ProductVersion=$version" -o (Join-Path $publish 'ibar-msi')
+        Invoke-Dotnet build installer\ibar\IBAR.Installer.wixproj '-t:Rebuild' -c Release --nologo "-p:PayloadDir=$ibarPayload" "-p:ProductVersion=$version" -o (Join-Path $publish 'ibar-msi')
         $ibarMsi = Join-Path $publish "ibar-msi\IBAR-$version-win-x64.msi"
         Copy-Item $ibarMsi $release -Force
         New-Item -ItemType Directory -Force (Join-Path $payload 'IBAR') | Out-Null
         Copy-Item $ibarMsi (Join-Path $payload 'IBAR\IBAR-setup.msi') -Force
 
         Write-Step 'Building the MSI'
-        Invoke-Dotnet build installer\JackiVpn.Installer.wixproj -c Release --nologo "-p:PayloadDir=$payload" "-p:ProductVersion=$version" -o (Join-Path $publish 'msi')
+        Invoke-Dotnet build installer\JackiVpn.Installer.wixproj '-t:Rebuild' -c Release --nologo "-p:PayloadDir=$payload" "-p:ProductVersion=$version" -o (Join-Path $publish 'msi')
         Copy-Item (Join-Path $publish "msi\IBOX-$version-win-x64.msi") $release -Force
     }
 
@@ -112,7 +116,8 @@ try {
         }
 
         # One APK per CPU type (each carries only its own ~75 MB sing-box), built as separate single-RID publishes.
-        $apksigner = Join-Path (Get-ChildItem (Join-Path $env:LOCALAPPDATA 'Android\Sdk\build-tools') -Directory | Sort-Object Name | Select-Object -Last 1).FullName 'lib\apksigner.jar'
+        if (-not $AndroidSdkDirectory) { $AndroidSdkDirectory = Join-Path $env:LOCALAPPDATA 'Android\Sdk' }
+        $apksigner = Join-Path (Get-ChildItem (Join-Path $AndroidSdkDirectory 'build-tools') -Directory | Sort-Object Name | Select-Object -Last 1).FullName 'lib\apksigner.jar'
         $java = Join-Path $env:USERPROFILE '.jdk\jdk21\bin\java.exe'
         foreach ($target in @(@{ Rid = 'android-arm64'; Abi = 'arm64-v8a' }, @{ Rid = 'android-arm'; Abi = 'armeabi-v7a' }, @{ Rid = 'android-x64'; Abi = 'x86_64' })) {
             Write-Step "Building the signed Android APK for $($target.Abi)"
@@ -124,7 +129,7 @@ try {
                 if (Test-Path $dir) { Remove-Item -Recurse -Force $dir }
             }
             Invoke-Dotnet publish src\JackiVpn.Mobile\JackiVpn.Mobile.csproj -f net10.0-android -c Release --nologo -o $apkOut `
-                "-p:JackiAbiRid=$($target.Rid)" "-p:JackiSigningKeyStore=$keystore" "-p:JackiSigningPasswordFile=$passwordFile"
+                "-p:AndroidSdkDirectory=$AndroidSdkDirectory" "-p:JackiAbiRid=$($target.Rid)" "-p:JackiSigningKeyStore=$keystore" "-p:JackiSigningPasswordFile=$passwordFile"
 
             $apk = Join-Path $apkOut 'com.jacki.vpn-Signed.apk'
             & $java -jar $apksigner verify $apk

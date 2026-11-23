@@ -23,7 +23,7 @@ public enum SessionKind
 public sealed record TunOptions
 {
     public string InterfaceName { get; init; } = Domain.ProductInfo.TunInterfaceName;
-    public int Mtu { get; init; } = 9000;
+    public int Mtu { get; init; } = Domain.Settings.ConnectionSettings.DefaultTunMtu;
     public string AddressV4 { get; init; } = "172.19.0.1/30";
     public string AddressV6 { get; init; } = "fdfe:dcba:9876::1/126";
 

@@ -42,6 +42,10 @@ public static partial class BarApp
     private static IboxLink _ibox = null!;
     private static PluginHost _plugins = null!;
     private static MediaSessionSource _media = null!;
+    private static readonly BluetoothBatterySource Batteries = new();
+    private static readonly LowBatteryWarnings BatteryWarnings = new();
+    private static readonly HashSet<string> NewsSeen = new(StringComparer.Ordinal);
+    private const string NewsChip = "ibox-news";
     private static TrayIcon? _tray;
     private static ControlPanel? _panel;
     private static ChatWindow? _chat;
@@ -98,6 +102,7 @@ public static partial class BarApp
             _ibox.Start();
             _plugins.Start();
             _media.Start();
+            SyncBatteries(_settings.Current);
             _assistants.Assistants = _settings.Current.AiAssistants;
             _assistants.Sync(_settings.Current.AiAssistants || _settings.Current.WindowsNotifications);
             Chime.Enabled = _settings.Current.Sounds;
@@ -144,6 +149,7 @@ public static partial class BarApp
         app.Exit += (_, _) =>
         {
             _tray?.Dispose();
+            Batteries.Dispose();
             _ = _assistants.DisposeAsync();
         };
         return app.Run();
@@ -182,12 +188,16 @@ public static partial class BarApp
             notch.CustomizeRequested += (_, _) => ShowPanel();
             notch.HideRequested += (_, _) => _settings.Update(s => s with { HiddenMonitors = [.. s.HiddenMonitors, m.Key] });
             notch.MediaCommand += (_, c) => _ = c switch { < 0 => _media.PreviousAsync(), > 0 => _media.NextAsync(), _ => _media.PlayPauseAsync() };
+            notch.SeekRequested += (_, t) => _ = _media.SeekAsync(t);
             notch.PluginAction += (_, a) => RunAction(a.Plugin, a.Action);
+            notch.NewsRead += (_, id) => _ = ReadNewsAsync(id);
             notch.MenuExtras = MenuItems;
             notch.MouseEnter += (_, _) => ArmTrim();
             Notches[m.Key] = notch;
             notch.Apply(NotchSettingsFrom(_settings.Current));
             notch.SetNowPlaying(_media.Current);
+            notch.SetBatteries(_settings.Current.BluetoothBattery ? Batteries.Current : []);
+            notch.SetNews(_ibox.Current?.News ?? []);
             Mirror(notch, _ibox.Current);
             notch.Show();
             notch.SetGlass(_settings.Current.Glass, _settings.Current.GlassStrength);
@@ -207,6 +217,11 @@ public static partial class BarApp
         HideInFullScreen = s.HideInFullScreen,
         ShowNowPlaying = s.ShowNowPlaying,
         Sound = false,
+        Style = s.Island ? NotchStyle.Island : NotchStyle.Classic,
+        PeekThrough = s.PeekThrough,
+        LineWhenMaximized = s.LineWhenMaximized,
+        FocusTimer = s.FocusTimer,
+        Vitals = s.Vitals,
     };
 
     private static void Apply(BarSettings s)
@@ -215,6 +230,7 @@ public static partial class BarApp
         Chime.Enabled = s.Sounds;
         Chime.Volume = s.SoundVolume;
         _sources?.Sync(s);
+        SyncBatteries(s);
         _assistants.Assistants = s.AiAssistants;
         _assistants.Sync(s.AiAssistants || s.WindowsNotifications);
         Banners.Sync(s.WindowsNotifications ? s.QuietBanners : [], s.SeenApps.Select(a => a.Id));
@@ -244,9 +260,85 @@ public static partial class BarApp
             ?? Notches.Values.FirstOrDefault();
     }
 
+    /// <summary>
+    /// Where a request goes: the notch under the pointer if it can show one, else any notch that can (a full-screen
+    /// app on one monitor must not send every request back to the terminal).
+    /// </summary>
+    private static NotchWindow? Asker() =>
+        Active() is { CanAsk: true } active ? active : Notches.Values.FirstOrDefault(n => n.CanAsk) ?? Active();
+
+    /// <summary>Bluetooth batteries: watched only while the setting is on.</summary>
+    private static void SyncBatteries(BarSettings s)
+    {
+        if (s.BluetoothBattery && !Batteries.Running)
+        {
+            Batteries.Start();
+        }
+        else if (!s.BluetoothBattery && Batteries.Running)
+        {
+            Batteries.Stop();
+        }
+    }
+
+    private static void OnBatteries(IReadOnlyList<BatteryDevice> devices)
+    {
+        foreach (var n in Notches.Values)
+        {
+            n.SetBatteries(devices);
+        }
+
+        // One warning per device as it falls low (again only after it charged).
+        foreach (var d in BatteryWarnings.Update(devices))
+        {
+            Active()?.ShowAlert(new AiAlert("plugin", "Bluetooth", $"{T.S("Battery low")} · {d.Percent}%", d.Name, null, null));
+        }
+    }
+
+    /// <summary>The provider's news: on every island, a chip with the unread count, and an alert when one arrives.</summary>
+    private static void OnNews(IReadOnlyList<AgentNews> unread)
+    {
+        foreach (var n in Notches.Values)
+        {
+            n.SetNews(unread);
+        }
+
+        var had = Chips.ContainsKey(NewsChip);
+        if (unread.Count > 0)
+        {
+            Chips[NewsChip] = (Color.FromRgb(0x5E, 0xB8, 0xFF), unread.Count > 9 ? "9+" : unread.Count.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
+        else
+        {
+            Chips.Remove(NewsChip);
+        }
+
+        if (had || unread.Count > 0)
+        {
+            foreach (var n in Notches.Values)
+            {
+                n.SetChips(Chips.Values.ToList());
+            }
+        }
+
+        foreach (var item in unread.Where(i => NewsSeen.Add(i.Id)).Take(2))
+        {
+            Active()?.ShowAlert(new AiAlert("plugin", "IBOX", item.Title ?? "News · خبر", NotchBridge.Clean(item.Text, 220, lines: 3), null, null));
+        }
+    }
+
+    /// <summary>"Mark as read": IBOX tells the provider; the next eco.status no longer has the message.</summary>
+    private static async Task ReadNewsAsync(string id)
+    {
+        if (await _ibox.CallAsync(AgentMethods.NewsRead, new { ids = new[] { id } }).ConfigureAwait(false) is { } problem)
+        {
+            Debug.WriteLine("news.read: " + problem);
+        }
+    }
+
     private static void Wire()
     {
         var ui = System.Windows.Application.Current.Dispatcher;
+        Batteries.Changed += (_, devices) => ui.BeginInvoke(() => OnBatteries(devices));
         _shelf.Changed += (_, _) => ArmTrim();
         _media.Changed += (_, item) => ui.BeginInvoke(() =>
         {
@@ -298,7 +390,7 @@ public static partial class BarApp
             }
         });
         _assistants.Ask = (message, icon, ct) =>
-            ui.InvokeAsync(() => Active()?.AskAsync(message, icon, ct) ?? Task.FromResult(NotchBridge.AskThere)).Task.Unwrap();
+            ui.InvokeAsync(() => Asker()?.AskAsync(message, icon, ct) ?? Task.FromResult(NotchBridge.AskThere)).Task.Unwrap();
 
         _ibox.Changed += (_, eco) => ui.BeginInvoke(() =>
         {
@@ -306,6 +398,8 @@ public static partial class BarApp
             {
                 Mirror(n, eco);
             }
+
+            OnNews(eco?.News ?? []);
 
             ArmTrim();
         });
@@ -323,7 +417,7 @@ public static partial class BarApp
                 Detail = NotchBridge.Clean("Notifications, a status chip and a small dashboard. Actions: " + actions, 600, lines: 4),
                 Note = manifest.Publisher is { } p ? "From " + p : null,
             };
-            var decision = await ui.InvokeAsync(() => Active()?.AskAsync(message, icon, ct) ?? Task.FromResult(NotchBridge.AskThere)).Task.Unwrap();
+            var decision = await ui.InvokeAsync(() => Asker()?.AskAsync(message, icon, ct) ?? Task.FromResult(NotchBridge.AskThere)).Task.Unwrap();
             return decision == NotchBridge.Allow;
         };
         _plugins.Message += (_, m) => ui.BeginInvoke(() => OnPlugin(m.Plugin, m.Request));

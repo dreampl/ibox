@@ -78,7 +78,7 @@ public sealed class BottomSheetHost : Grid
         _sheet.TranslationY = Math.Max(Height, 600);
         _sheet.Opacity = 1;
         _ = _backdrop.FadeToAsync(0.55, Motion.Ms(260), Easing.CubicOut);
-        await _sheet.TranslateToAsync(0, 0, Motion.Ms(620), Motion.Spring);
+        await _sheet.TranslateToAsync(0, 0, Motion.Ms(160), Motion.Spring);
         await _closed.Task;
     }
 
@@ -125,7 +125,7 @@ public sealed class BottomSheetHost : Grid
                 }
                 else
                 {
-                    _ = _sheet.TranslateToAsync(0, 0, Motion.Ms(520), Motion.Spring);
+                    _ = _sheet.TranslateToAsync(0, 0, Motion.Ms(140), Motion.Spring);
                     _ = _backdrop.FadeToAsync(0.55, Motion.Ms(200));
                 }
 

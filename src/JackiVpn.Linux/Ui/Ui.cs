@@ -43,7 +43,8 @@ public static class Ui
 
     public static IBrush B(Color c) => new SolidColorBrush(c);
 
-    public static IBrush B(Color c, double alpha) => new SolidColorBrush(Color.FromArgb((byte)(alpha * 255), c.R, c.G, c.B));
+    /// <summary>The colour at <paramref name="alpha"/> of its own opacity (a transparent colour stays transparent).</summary>
+    public static IBrush B(Color c, double alpha) => new SolidColorBrush(Color.FromArgb((byte)Math.Clamp(alpha * c.A, 0, 255), c.R, c.G, c.B));
 
     public static LinearGradientBrush Gradient(Color a, Color b) => new()
     {
@@ -237,7 +238,9 @@ public static class Ui
             panel.Children.Add(r);
         }
 
-        return Card(panel);
+        var card = Card(panel);
+        card.Tag = title;
+        return card;
     }
 
     /// <summary>Label (and hint) on the left, control on the right.</summary>
@@ -408,6 +411,7 @@ public static class Ui
         public const string Moon = "M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z";
         public const string User = "M12 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8z M4 21a8 8 0 0 1 16 0";
         public const string Play = "M7 5v14l11-7z";
+        public const string Music = "M9 18V5l12-2v13 M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0z M21 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0z";
         public const string Stats = "M5 20V10 M10 20V4 M15 20v-7 M20 20v-12";
         public const string Usage = "M4 20h16 M7 16v-4 M12 16V8 M17 16v-7";
         public const string Copy = "M9 9h11v11H9z M5 15H4V4h11v1";

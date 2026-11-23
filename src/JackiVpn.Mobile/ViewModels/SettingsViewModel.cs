@@ -161,6 +161,12 @@ public sealed partial class SettingsViewModel : ObservableObject
         set => _s.Settings.Update(x => x with { Connection = x.Connection with { SmartMode = value } });
     }
 
+    public bool DetectOtherApps
+    {
+        get => S.Privacy.DetectOtherApps;
+        set => _s.Settings.Update(x => x with { Privacy = x.Privacy with { DetectOtherApps = value } });
+    }
+
     // ------------------------------------------------------------------ connection
 
     public bool AutoTune
@@ -214,6 +220,16 @@ public sealed partial class SettingsViewModel : ObservableObject
         RoutingPreset.Global => "Set_RouteGlobal",
         _ => "Set_RouteCustom",
     });
+
+    public string RulesValue => S.Routing.Rules.Count(r => r.Enabled).ToString(System.Globalization.CultureInfo.CurrentCulture);
+
+    public string AutomationsValue => S.Automations.Enabled.Count.ToString(System.Globalization.CultureInfo.CurrentCulture);
+
+    [RelayCommand]
+    private static Task OpenRulesAsync() => Shell.Current.GoToAsync("rules");
+
+    [RelayCommand]
+    private static Task OpenAutomationsAsync() => Shell.Current.GoToAsync("automations");
 
     [RelayCommand]
     private async Task ChooseRoutingAsync()
@@ -433,6 +449,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     }
 
     // ------------------------------------------------------------------ account (to and from another device)
+
+    [RelayCommand]
+    private Task OpenIboxAccountAsync() => Shell.Current.Navigation.PushAsync(new Pages.IboxAccountPage(_s));
 
     [RelayCommand]
     private async Task ExportAccountAsync()

@@ -7,6 +7,20 @@
             <TextBlock Text="Look (light / dark), start-up, the notch, notifications and AI agents." Style="{StaticResource Text.PageSubtitle}" />
 
             <v:ClaySurface>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="IBOX account (Telegram)" Style="{StaticResource Text.Section}" />
+                        <TextBlock Text="Sign in with Telegram to manage your subscription here (usage, expiry, exit country, renewals) and to play your IBOX music library." Style="{StaticResource Text.Hint}" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="Open account" Command="{Binding OpenAccountCommand}" Padding="14,6" VerticalAlignment="Center" Margin="12,0,0,0" />
+                </Grid>
+            </v:ClaySurface>
+
+            <v:ClaySurface>
                 <StackPanel>
                     <TextBlock Text="Appearance" Style="{StaticResource Text.Section}" />
                     <Grid Style="{StaticResource Row}">
@@ -79,9 +93,31 @@
                         <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding NotchHideInFullScreen}" Margin="0,0,0,12">
                             <StackPanel>
                                 <TextBlock Text="Hide while a full-screen app is in front" Style="{StaticResource Text.Label}" />
-                                <TextBlock Text="Games, videos and presentations are never covered." Style="{StaticResource Text.Hint}" />
+                                <TextBlock Text="Games, videos and presentations are never covered: the notch becomes a thin line that clicks pass through." Style="{StaticResource Text.Hint}" TextWrapping="Wrap" />
                             </StackPanel>
                         </CheckBox>
+                        <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding NotchIsland}" Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Text="Floating island instead of the notch" Style="{StaticResource Text.Label}" />
+                                <TextBlock Text="A capsule just below the top edge that morphs as it opens. While music plays, the open island becomes the player." Style="{StaticResource Text.Hint}" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </CheckBox>
+                        <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding NotchPeekThrough}" Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Text="Let clicks through to what is under the notch" Style="{StaticResource Text.Label}" />
+                                <TextBlock Text="Hold Ctrl over it to see and click through it. A faded notch steps aside when the pointer only passes; rest on it for half a second to bring it back." Style="{StaticResource Text.Hint}" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </CheckBox>
+                        <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding NotchLineWhenMaximized}" Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Text="Thin line while a maximised window is in front" Style="{StaticResource Text.Label}" />
+                                <TextBlock Text="Keeps title bars and browser tabs free. Rest the pointer on the line to open it." Style="{StaticResource Text.Hint}" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </CheckBox>
+                        <WrapPanel Margin="0,0,0,10">
+                            <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding NotchFocusTimer}" Margin="0,0,24,8"><TextBlock Text="Focus timer (25 / 5 min)" Style="{StaticResource Text.Label}" /></CheckBox>
+                            <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding NotchVitals}" Margin="0,0,24,8"><TextBlock Text="CPU, memory, battery" Style="{StaticResource Text.Label}" /></CheckBox>
+                        </WrapPanel>
                         <CheckBox Style="{StaticResource Toggle}" IsChecked="{Binding NotchShelfEnabled}" Margin="0,0,0,12">
                             <StackPanel>
                                 <TextBlock Text="Shelf: drop things on the notch to keep them" Style="{StaticResource Text.Label}" />
@@ -114,6 +150,17 @@
                             <TextBlock Text="{Binding IbarNote}" Style="{StaticResource Text.Hint}" Foreground="{DynamicResource B.Accent}" TextWrapping="Wrap" Margin="0,4,0,0" />
                         </StackPanel>
                         <Button Grid.Column="1" Content="Install IBAR" Command="{Binding InstallIbarCommand}" Padding="14,6" VerticalAlignment="Center" Margin="12,0,0,0" />
+                    </Grid>
+                    <Grid Style="{StaticResource Row}" Margin="0,14,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="Automations" Style="{StaticResource Text.Label}" />
+                            <TextBlock Text="Switch away from a bad server, trusted Wi-Fi, nightly refresh and a quota watcher. Each one is off until you turn it on." Style="{StaticResource Text.Hint}" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="Automations…" Command="{Binding OpenAutomationsCommand}" Padding="14,6" VerticalAlignment="Center" Margin="12,0,0,0" />
                     </Grid>
                 </StackPanel>
             </v:ClaySurface>

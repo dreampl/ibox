@@ -6,6 +6,7 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="32,26,32,26" k:Motion.StaggerChildren="True">
             <DockPanel>
+                <Button DockPanel.Dock="Right" VerticalAlignment="Top" Content="Add subscription" Style="{StaticResource Button.Primary}" Click="OnAddClick" Margin="8,0,0,0" />
                 <Button DockPanel.Dock="Right" Content="Update all" Command="{Binding RefreshAllCommand}" VerticalAlignment="Top" />
                 <Button DockPanel.Dock="Right" Style="{StaticResource Button.Primary}" Click="OnSyncDeviceClick" VerticalAlignment="Top" Margin="0,0,8,0"
                         ToolTip="Send subscriptions to your phone or other PC on this network">
@@ -21,7 +22,7 @@
             </DockPanel>
 
             <!-- Add -->
-            <v:ClaySurface>
+            <v:ClaySurface x:Name="AddSection">
                 <StackPanel>
                     <DockPanel>
                         <k:OrbView DockPanel.Dock="Right" State="Weaving" Width="24" Height="24" IsRunning="{Binding IsBusy}" Visibility="{Binding IsBusy, Converter={StaticResource Bool2Vis}}" />
@@ -40,6 +41,10 @@
                                 IsEnabled="{Binding IsBusy, Converter={StaticResource InvBool}}" MinWidth="80" />
                     </Grid>
                     <TextBlock Text="Paste the subscription link from your panel (https). Name is optional." Style="{StaticResource Text.Hint}" />
+                    <Button Content="From my Telegram account…" HorizontalAlignment="Left" Margin="0,10,0,0" Padding="14,6" Click="OnFromAccountClick"
+                            IsEnabled="{Binding IsBusy, Converter={StaticResource InvBool}}"
+                            Visibility="{Binding IboxSignedIn, Converter={StaticResource Bool2Vis}}"
+                            ToolTip="Pick from the subscriptions you bought with your Telegram account" />
                     <TextBlock Text="{Binding Message}" Style="{StaticResource Text.Hint}" Foreground="{DynamicResource B.TextSecondary}" Margin="0,8,0,0"
                                Visibility="{Binding Message, Converter={StaticResource Null2Vis}}" />
                 </StackPanel>
@@ -48,8 +53,12 @@
             <ItemsControl ItemsSource="{Binding Items}" Tag="{Binding}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate DataType="{x:Type vm:SubscriptionItem}">
-                        <v:ClaySurface>
+                        <Border Background="{DynamicResource B.Input}" BorderBrush="{DynamicResource B.SubscriptionEdge}" BorderThickness="1" CornerRadius="20" Padding="20" Margin="0,0,0,16">
                             <StackPanel>
+                                <WrapPanel Margin="0,0,0,8" Visibility="{Binding IsNex, Converter={StaticResource Bool2Vis}}">
+                                    <Button Content="Manage Nex subscription" Click="OnNexManagementClick" Margin="0,0,6,0" />
+                                    <Button Content="AmneziaWG" Click="OnNexAmneziaClick" />
+                                </WrapPanel>
                                 <DockPanel>
                                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
                                         <Button Content="Update" Margin="0,0,6,0"
@@ -62,6 +71,7 @@
                                     <StackPanel>
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" />
+                                            <Border Style="{StaticResource NexBadge}" Margin="10,0,0,0" Visibility="{Binding IsNex, Converter={StaticResource Bool2Vis}}"><TextBlock Text="Nex" FontSize="11" FontWeight="SemiBold" Foreground="#F2F2FF" /></Border>
                                             <Border Background="{DynamicResource B.AccentGradient}" CornerRadius="8" Padding="8,1" Margin="10,0,0,0" VerticalAlignment="Center"
                                                     Visibility="{Binding IsOfficial, Converter={StaticResource Bool2Vis}}" ToolTip="Official Jacki subscription (verified over HTTPS)">
                                                 <TextBlock Text="✓ Official" FontSize="11" FontWeight="SemiBold" Foreground="White" />
@@ -170,7 +180,7 @@
                                     </StackPanel>
                                 </DockPanel>
                             </StackPanel>
-                        </v:ClaySurface>
+                        </Border>
                         <DataTemplate.Triggers>
                             <DataTrigger Binding="{Binding DeviceProblem}" Value="True">
                                 <Setter TargetName="DeviceLine" Property="Foreground" Value="{DynamicResource B.Danger}" />

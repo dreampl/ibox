@@ -54,6 +54,9 @@ public sealed partial class DashboardViewModel : ObservableObject
     [ObservableProperty] private bool _jackiSmartActive;
     [ObservableProperty] private string? _serviceBanner;
     [ObservableProperty] private string? _proxyBanner;
+
+    /// <summary>IBOX is off, but this device already goes out through one of our servers (another app / the router).</summary>
+    [ObservableProperty] private string? _ourServerBanner;
     [ObservableProperty] private bool _canFixProxy;
     [ObservableProperty] private string _selectionText = "Smart: best server";
     [ObservableProperty] private string? _selectionReason;
@@ -82,6 +85,9 @@ public sealed partial class DashboardViewModel : ObservableObject
 
     // Subscription plan
     [ObservableProperty] private string? _planName;
+    [ObservableProperty] private bool _planIsNex;
+    [ObservableProperty] private bool _serverIsNex;
+    private string? _nexProfileId;
     [ObservableProperty] private string _planUsage = Format.Unknown;
     [ObservableProperty] private double? _planPercent;
     [ObservableProperty] private string _planExpiry = Format.Unknown;
@@ -149,6 +155,73 @@ public sealed partial class DashboardViewModel : ObservableObject
         DualVpnTip = d.KindLabel + ": " + _s.DualVpn.Describe(_s.Orchestrator.State) + ". Click to manage it on the Servers page.";
     }
 
+    [ObservableProperty]
+    private bool _amneziaShown;
+
+    [ObservableProperty]
+    private string _amneziaText = string.Empty;
+
+    [ObservableProperty]
+    private string _amneziaTip = string.Empty;
+
+    private bool _amneziaSwitching;
+
+    private void RefreshAmnezia()
+    {
+        var state = _s.Amnezia.State;
+        AmneziaShown = state != Application.Amnezia.AmneziaLinkState.None;
+        AmneziaText = _amneziaSwitching
+            ? "AmneziaVPN · disconnect it there, IBOX connects next"
+            : state == Application.Amnezia.AmneziaLinkState.OnOurServer
+                ? "Connected via AmneziaVPN to our server · switch to IBOX"
+                : "AmneziaVPN is connected · switch to IBOX";
+        AmneziaTip = "AmneziaVPN cannot be turned off by other apps. IBOX opens it: click Disconnect there, and IBOX connects as soon as the Amnezia tunnel is down.";
+    }
+
+    /// <summary>
+    /// AmneziaVPN exposes no way for another app to disconnect it, so: open it, wait (up to two minutes) for its tunnel
+    /// to go down, then connect IBOX.
+    /// </summary>
+    [RelayCommand]
+    private async Task SwitchFromAmneziaAsync()
+    {
+        if (_amneziaSwitching)
+        {
+            return;
+        }
+
+        _amneziaSwitching = true;
+        RefreshAmnezia();
+        try
+        {
+            Services.AmneziaWindows.Show();
+            var deadline = DateTimeOffset.UtcNow.AddMinutes(2);
+            while (Services.AmneziaWindows.TunnelUp())
+            {
+                if (DateTimeOffset.UtcNow > deadline)
+                {
+                    return;
+                }
+
+                await Task.Delay(TimeSpan.FromSeconds(1), _s.Lifetime);
+            }
+
+            await _s.Amnezia.CheckAsync(_s.Lifetime);
+            if (ConnectionStateRules.IsIdle(_s.Orchestrator.State))
+            {
+                await ToggleAsync();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            _amneziaSwitching = false;
+            RefreshAmnezia();
+        }
+    }
+
     /// <summary>Server card and location button follow the connection or the selection.</summary>
     private void RefreshServerCard()
     {
@@ -172,6 +245,17 @@ public sealed partial class DashboardViewModel : ObservableObject
         OnPropertyChanged(nameof(LocationFlag));
         OnPropertyChanged(nameof(ModeTile));
         OnPropertyChanged(nameof(CoverageTile));
+    }
+
+    private async Task RefreshNexProfileAsync(string? profileId, bool force = false)
+    {
+        if (!force && _nexProfileId == profileId) return;
+        _nexProfileId = profileId;
+        var profile = profileId is null ? null : await _s.Profiles.GetAsync(profileId, _s.Lifetime);
+        var subscriptionId = profile?.Origin.SubscriptionId;
+        var subs = subscriptionId is null ? null : await _s.Subscriptions.GetAllAsync(_s.Lifetime);
+        if (_nexProfileId == profileId)
+            ServerIsNex = subs?.Any(s => s.Id == subscriptionId && s.IsNex) == true;
     }
 
     public DashboardViewModel(AppServices services, IDialogService dialogs, MainViewModel main)
@@ -204,9 +288,17 @@ public sealed partial class DashboardViewModel : ObservableObject
             OnPropertyChanged(nameof(ReduceMotion));
             _ = RefreshSelectionAsync();
         });
-        services.SubscriptionService.Updated += (_, _) => Ui.Post(() => _ = RefreshPlanAsync());
+        services.SubscriptionService.Updated += (_, _) => Ui.Post(() =>
+        {
+            _ = RefreshPlanAsync();
+            _ = RefreshNexProfileAsync(_nexProfileId, true);
+        });
         services.DualVpn.Changed += (_, _) => Ui.Post(RefreshDualVpn);
+        services.Privacy.Detector.Changed += (_, f) => Ui.Post(() => OurServerBanner = OurServerText(f));
+        OurServerBanner = OurServerText(services.Privacy.Detector.Current);
         RefreshDualVpn();
+        services.Amnezia.Changed += (_, _) => Ui.Post(RefreshAmnezia);
+        RefreshAmnezia();
         services.Traffic.Changed += (_, _) => Ui.Post(() =>
         {
             if (IsConnected)
@@ -420,8 +512,44 @@ public sealed partial class DashboardViewModel : ObservableObject
     [RelayCommand]
     private void OpenServers() => _main.Navigate(_main.Servers);
 
+    /// <summary>
+    /// Smart mode (the best server) from the Mini view's picker: connects when off; when connected, reconnects so
+    /// the smart pick takes over (a connect while connected is ignored by the orchestrator).
+    /// </summary>
+    [RelayCommand]
+    private async Task UseSmartAsync()
+    {
+        var wasSmart = SmartMode;
+        SmartMode = true;
+        var state = _s.Orchestrator.State;
+        if (state == ConnectionState.Connected && !_s.Orchestrator.Status.DualOnly)
+        {
+            if (wasSmart)
+            {
+                return;
+            }
+
+            await _s.Orchestrator.DisconnectAsync();
+            await _s.Orchestrator.ConnectAsync(new ConnectRequest { Smart = true }, _s.Lifetime);
+        }
+        else if (ConnectionStateRules.IsIdle(state) || _s.Orchestrator.Status.DualOnly)
+        {
+            await ToggleAsync();
+        }
+    }
+
     [RelayCommand]
     private void DismissBanner() => ServiceBanner = null;
+
+    [RelayCommand]
+    private void DismissOurServer() => _s.Privacy.Detector.Clear();
+
+    private static string? OurServerText(Application.Privacy.OurServerFinding? f) => f?.Via switch
+    {
+        null => null,
+        Application.Privacy.OurServerPath.Router => "You're already connected to our servers through your router — no need to turn IBOX on (optional).",
+        _ => "You're already connected to our servers through another app — no need to turn IBOX on (optional).",
+    };
 
     [RelayCommand]
     private void CopyIp()
@@ -653,6 +781,7 @@ public sealed partial class DashboardViewModel : ObservableObject
         }
 
         RefreshServerCard();
+        _ = RefreshNexProfileAsync(st.State == ConnectionState.Connected ? st.ProfileId : _s.Settings.Current.Connection.SmartMode ? null : _s.Settings.Current.Connection.SelectedProfileId);
     }
 
     private static void Push(double[] buffer, double value)
@@ -666,6 +795,7 @@ public sealed partial class DashboardViewModel : ObservableObject
         var c = _s.Settings.Current.Connection;
         if (c.SmartMode)
         {
+            if (!IsConnected) _ = RefreshNexProfileAsync(null);
             SelectionText = "Smart: picks the fastest working server";
             _selectedName = null;
             _selectedCountry = null;
@@ -675,6 +805,7 @@ public sealed partial class DashboardViewModel : ObservableObject
         }
 
         var p = c.SelectedProfileId is { } id ? await _s.Profiles.GetAsync(id, _s.Lifetime) : null;
+        if (!IsConnected) _ = RefreshNexProfileAsync(p?.Id);
         SelectionText = p is null ? "No server selected — choose one on the Servers page" : "Selected: " + p.DisplayName;
         _selectedName = p?.DisplayName;
         _selectedCountry = p is null ? null : _s.Insights.Get(p.Fingerprint)?.Exit?.CountryCode ?? Domain.Visuals.CountryGuess.FromName(p.DisplayName);
@@ -685,15 +816,17 @@ public sealed partial class DashboardViewModel : ObservableObject
     private async Task RefreshPlanAsync()
     {
         var subs = await _s.Subscriptions.GetAllAsync(_s.Lifetime);
-        var sub = subs.FirstOrDefault(x => x.Enabled);
+        var sub = subs.FirstOrDefault(x => x.Enabled && x.IsNex) ?? subs.FirstOrDefault(x => x.Enabled);
         if (sub is null)
         {
             PlanName = null;
+            PlanIsNex = false;
             return;
         }
 
         var m = sub.Metadata;
         PlanName = sub.Name;
+        PlanIsNex = sub.IsNex;
         PlanPercent = m.UsedPercent;
         PlanUsage = m.IsUnlimitedTraffic == true
             ? $"{Format.Bytes(m.UsedBytes)} used · Unlimited"

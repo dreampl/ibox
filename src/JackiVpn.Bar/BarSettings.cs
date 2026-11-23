@@ -33,6 +33,22 @@ public sealed record BarSettings
 
     public bool ShowNowPlaying { get; init; } = true;
 
+    /// <summary>A floating island below the top edge instead of the notch hanging from it.</summary>
+    public bool Island { get; init; }
+
+    /// <summary>Ctrl over the notch, or a faded notch under a passing pointer: clicks go to what is below.</summary>
+    public bool PeekThrough { get; init; } = true;
+
+    /// <summary>A thin line while a maximised window is in front.</summary>
+    public bool LineWhenMaximized { get; init; } = true;
+
+    public bool FocusTimer { get; init; } = true;
+
+    public bool Vitals { get; init; } = true;
+
+    /// <summary>Batteries of connected Bluetooth devices in the open island (and a warning when one runs low).</summary>
+    public bool BluetoothBattery { get; init; } = true;
+
     /// <summary>The fixed folder chat works in.</summary>
     public string? ChatFolder { get; init; }
 
@@ -155,6 +171,11 @@ public static class T
         ["May propose changes (each asks Allow / Deny)"] = "اجازهٔ پیشنهاد تغییر (هر تغییر Allow / Deny می‌خواهد)",
         ["Start with Windows"] = "شروع همراه ویندوز",
         ["Hide while a full-screen app is in front"] = "پنهان هنگام برنامهٔ تمام‌صفحه",
+        ["Floating island instead of the notch"] = "جزیرهٔ شناور به جای ناچ",
+        ["Let clicks through (hold Ctrl over it; a faded notch steps aside)"] = "عبور کلیک (Ctrl را روی آن نگه دارید؛ ناچِ کم‌رنگ کنار می‌رود)",
+        ["Thin line while a maximised window is in front"] = "خطِ باریک وقتی پنجرهٔ بزرگ‌شده جلوست",
+        ["Focus timer in the open notch"] = "زمان‌سنجِ تمرکز در ناچِ باز",
+        ["CPU, memory and battery in the open notch"] = "پردازنده، حافظه و باتری در ناچِ باز",
         ["Language"] = "زبان",
         ["Light panel"] = "پنل روشن",
         ["Quit IBAR"] = "خروج از IBAR",
@@ -168,6 +189,8 @@ public static class T
         ["Not found on this computer"] = "روی این کامپیوتر پیدا نشد",
         ["Real glass bends what is behind the open notch, on the GPU, only when it changes."] = "شیشهٔ واقعی پشتِ ناچِ باز را با GPU خم می‌کند، فقط وقتی تصویر عوض شود.",
         ["Tasks on the notch"] = "کارها روی ناچ",
+        ["Bluetooth batteries of headphones, mice, keyboards and controllers on the notch"] = "باتری هدفون، ماوس، کیبورد و دسته‌های بلوتوثی روی ناچ",
+        ["Battery low"] = "باتری کم است",
         ["One circle beside the notch shows how far a task is; click it for the others."] = "یک دایره کنار ناچ نشان می‌دهد کار چقدر پیش رفته؛ با کلیک، بقیه می‌آیند.",
         ["Browser downloads and download managers"] = "دانلودهای مرورگر و دانلود منیجرها",
         ["Copying and moving files (Explorer)"] = "کپی و انتقال فایل (اکسپلورر)",

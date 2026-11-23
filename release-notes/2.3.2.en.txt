@@ -1,0 +1,6 @@
+IBOX 2.3.2
+
+IBOX account (Telegram)
+- Official "Log In with Telegram": the main button opens Telegram's own sign-in page. "Use the IBOX bot instead" keeps the bot sign-in.
+- One sign-in for everything: music opens with your IBOX account, with no second Telegram sign-in and no required music password.
+- My subscription and Music now show the same pages as the Telegram mini apps, inside IBOX (Windows and Android).

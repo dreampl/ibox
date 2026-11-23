@@ -54,15 +54,16 @@ public enum AppTheme
 {
     Dark = 0,
 
-    /// <summary>Legacy palette; shown as Dark.</summary>
+    /// <summary>Neutral black surfaces.</summary>
     Black,
 
-    /// <summary>Legacy palette; shown as Dark.</summary>
+    /// <summary>The original navy palette.</summary>
     Blue,
     Light,
 
     /// <summary>Follows the Windows app theme (light or dark), live.</summary>
     System,
+    Gray,
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<AppLogLevel>))]
@@ -243,7 +244,13 @@ public sealed record ConnectionSettings
 
     public string ProxyBypassList { get; init; } = "localhost;127.*;10.*;172.16.*;172.17.*;172.18.*;172.19.*;172.20.*;172.21.*;172.22.*;172.23.*;172.24.*;172.25.*;172.26.*;172.27.*;172.28.*;172.29.*;172.30.*;172.31.*;192.168.*;<local>";
 
-    public int TunMtu { get; init; } = 9000;
+    /// <summary>
+    /// Ordinary Ethernet size: a jumbo MTU on the adapter is a well-known sign of a VPN tunnel. Older installs that
+    /// kept the earlier 9000 default are moved to this value (schema 6).
+    /// </summary>
+    public int TunMtu { get; init; } = DefaultTunMtu;
+
+    public const int DefaultTunMtu = 1500;
 
     public MuxMode Mux { get; init; } = MuxMode.Auto;
 
@@ -427,7 +434,19 @@ public sealed record UiSettings
     public NotchSettings Notch { get; init; } = new();
 
     public IslandSettings Island { get; init; } = new();
+
+    /// <summary>Windows: the compact Mini view is shown instead of the full (Pro) window.</summary>
+    public bool MiniView { get; init; }
+
+    /// <summary>Windows: where the Mini view was last placed (null = near the tray).</summary>
+    public WindowBounds? MiniBounds { get; init; }
+
+    /// <summary>Windows: the Mini view stays on top of other windows.</summary>
+    public bool MiniOnTop { get; init; }
 }
+
+/// <summary>A window's last position and size, in device-independent pixels.</summary>
+public sealed record WindowBounds(double Left, double Top, double Width, double Height);
 
 /// <summary>
 /// Android: a floating "dynamic island" over other apps (needs "Display over other apps") with the IBOX eye, the
@@ -494,6 +513,35 @@ public sealed record NotchSettings
 
     /// <summary>Claude and ChatGPT notifications, and Claude Code / Codex permission requests, on the notch.</summary>
     public bool AiAssistants { get; init; } = true;
+
+    /// <summary>Classic notch hanging from the top edge, or a floating island (Dynamic Island style).</summary>
+    public NotchStyle Style { get; init; } = NotchStyle.Classic;
+
+    /// <summary>
+    /// Clicks reach what is under the notch: hold Ctrl over it to see and click through, and a faded notch steps
+    /// aside when the pointer only passes over it.
+    /// </summary>
+    public bool PeekThrough { get; init; } = true;
+
+    /// <summary>Shrinks to a thin line while a maximised window is in front (its title bar and tabs stay free).</summary>
+    public bool LineWhenMaximized { get; init; } = true;
+
+    /// <summary>The focus timer (25 min work, 5 min break) in the open notch.</summary>
+    public bool FocusTimer { get; init; } = true;
+
+    /// <summary>CPU, memory and battery in the open notch (read only while it is open).</summary>
+    public bool Vitals { get; init; } = true;
+}
+
+/// <summary>How the notch sits on the screen.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<NotchStyle>))]
+public enum NotchStyle
+{
+    /// <summary>Hangs from the top edge with curved "ears" into it.</summary>
+    Classic = 0,
+
+    /// <summary>A capsule floating just below the top edge that morphs as it opens.</summary>
+    Island,
 }
 
 public sealed record LoggingSettings
@@ -508,6 +556,19 @@ public sealed record PrivacySettings
     public bool TelemetryEnabled { get; init; }
 
     public bool CrashReportsEnabled { get; init; }
+
+    /// <summary>
+    /// While connected, the clock's time zone follows the exit server's location (from the exit lookup), so the
+    /// local time apps and sites see matches the exit IP. Restored on disconnect, after a crash and on uninstall.
+    /// On for new installs; installs from before schema 6 keep it off. Windows (through the service) and Linux.
+    /// </summary>
+    public bool MatchTimeZone { get; init; } = true;
+
+    /// <summary>
+    /// While IBOX is off, check (at start and when the network changes) whether this device already goes out
+    /// through one of the user's servers — another app or the router uses the same configs.
+    /// </summary>
+    public bool DetectOtherApps { get; init; } = true;
 }
 
 public sealed record SubscriptionSettings
@@ -624,7 +685,7 @@ public sealed record DeviceSettings
 
 public sealed record AppSettings
 {
-    public const int CurrentSchemaVersion = 5;
+    public const int CurrentSchemaVersion = 6;
 
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
     public ConnectionSettings Connection { get; init; } = new();
@@ -662,6 +723,9 @@ public sealed record AppSettings
 
     /// <summary>Control by the command line and AI agents (MCP). Off by default.</summary>
     public AgentSettings Agent { get; init; } = new();
+
+    /// <summary>Opt-in automations (server watchdog, trusted Wi-Fi, nightly refresh, quota watcher).</summary>
+    public AutomationSettings Automations { get; init; } = new();
 }
 
 /// <summary>

@@ -48,6 +48,7 @@ public sealed record SubscriptionFetchResult
     public IReadOnlyDictionary<string, string> ProviderHeaders { get; init; } = new Dictionary<string, string>();
 
     public bool WasHttps { get; init; }
+    public bool IsNex { get; init; }
     public FetchFailureKind Failure { get; init; }
     public int? HttpStatus { get; init; }
 

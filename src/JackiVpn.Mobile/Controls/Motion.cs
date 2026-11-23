@@ -9,7 +9,7 @@ namespace JackiVpn.Mobile.Controls;
 public static class Motion
 {
     /// <summary>A soft spring with a little overshoot (Easing.SpringOut is too bouncy for UI chrome).</summary>
-    public static readonly Easing Spring = new(t => 1 - (Math.Cos(t * Math.PI * 2.4) * Math.Exp(-6.2 * t)));
+    public static readonly Easing Spring = Easing.CubicOut;
 
     /// <summary>Snappy ease-out (exponential).</summary>
     public static readonly Easing Snap = new(t => t >= 1 ? 1 : 1 - Math.Pow(2, -10 * t));
@@ -19,15 +19,31 @@ public static class Motion
     {
         get
         {
-            try
+            // Read on every animation call; the system setting is a JNI round trip, so keep it for 2 s.
+            var now = Environment.TickCount64;
+            if (now - _reducedAt < 2000)
             {
-                var resolver = global::Android.App.Application.Context.ContentResolver;
-                return global::Android.Provider.Settings.Global.GetFloat(resolver, global::Android.Provider.Settings.Global.AnimatorDurationScale, 1f) == 0f;
+                return _reduced;
             }
-            catch (global::Android.Provider.Settings.SettingNotFoundException)
-            {
-                return false;
-            }
+
+            _reducedAt = now;
+            return _reduced = ReadReduced();
+        }
+    }
+
+    private static long _reducedAt = long.MinValue / 2;
+    private static bool _reduced;
+
+    private static bool ReadReduced()
+    {
+        try
+        {
+            var resolver = global::Android.App.Application.Context.ContentResolver;
+            return global::Android.Provider.Settings.Global.GetFloat(resolver, global::Android.Provider.Settings.Global.AnimatorDurationScale, 1f) == 0f;
+        }
+        catch (global::Android.Provider.Settings.SettingNotFoundException)
+        {
+            return false;
         }
     }
 
@@ -47,7 +63,7 @@ public static class Motion
         element.Opacity = 0;
         element.TranslationY = rise;
         return Task.Delay((int)delay).ContinueWith(
-            _ => Task.WhenAll(element.FadeToAsync(1, 320, Easing.CubicOut), element.TranslateToAsync(0, 0, 520, Spring)),
+            _ => Task.WhenAll(element.FadeToAsync(1, 140, Easing.CubicOut), element.TranslateToAsync(0, 0, 140, Spring)),
             TaskScheduler.FromCurrentSynchronizationContext()).Unwrap();
     }
 
@@ -69,7 +85,7 @@ public static class Motion
         await Task.WhenAll(label.FadeToAsync(0, 110, Easing.CubicIn), label.TranslateToAsync(0, -8, 110, Easing.CubicIn));
         label.Text = text;
         label.TranslationY = 8;
-        await Task.WhenAll(label.FadeToAsync(1, 220, Easing.CubicOut), label.TranslateToAsync(0, 0, 420, Spring));
+        await Task.WhenAll(label.FadeToAsync(1, 120, Easing.CubicOut), label.TranslateToAsync(0, 0, 120, Spring));
     }
 
     /// <summary>Press feedback: a quick squeeze and a springy release.</summary>
@@ -81,8 +97,8 @@ public static class Motion
             return;
         }
 
-        await element.ScaleToAsync(0.92, 90, Easing.CubicOut);
-        await element.ScaleToAsync(1, 520, Spring);
+        await element.ScaleToAsync(0.98, 50, Easing.CubicOut);
+        await element.ScaleToAsync(1, 90, Spring);
     }
 
     /// <summary>Stretchy feedback: squash wide, then spring back (tab icons, toggles).</summary>
@@ -94,8 +110,7 @@ public static class Motion
             return;
         }
 
-        await Task.WhenAll(element.ScaleXToAsync(1.28, 110, Easing.CubicOut), element.ScaleYToAsync(0.78, 110, Easing.CubicOut));
-        await Task.WhenAll(element.ScaleXToAsync(1, 620, Spring), element.ScaleYToAsync(1, 620, Spring));
+        await TapAsync(element);
     }
 
     // ------------------------------------------------------------------ attached: Appear
@@ -113,9 +128,6 @@ public static class Motion
             }
         });
 
-    private static long _lastAppearTicks;
-    private static int _appearSequence;
-
     public static bool GetAppear(BindableObject view) => (bool)view.GetValue(AppearProperty);
 
     public static void SetAppear(BindableObject view, bool value) => view.SetValue(AppearProperty, value);
@@ -127,19 +139,9 @@ public static class Motion
             return;
         }
 
-        var now = Environment.TickCount64;
-        _appearSequence = now - _lastAppearTicks > 250 ? 0 : _appearSequence + 1;
-        _lastAppearTicks = now;
-        var delay = (uint)Math.Min(_appearSequence * 40, 320);
-        element.Opacity = 0;
-        element.TranslationY = 18;
-        element.Scale = 0.97;
-        element.Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(delay), () =>
-        {
-            _ = element.FadeToAsync(1, 280, Easing.CubicOut);
-            _ = element.TranslateToAsync(0, 0, 560, Spring);
-            _ = element.ScaleToAsync(1, 560, Spring);
-        });
+        element.Opacity = 1;
+        element.TranslationY = 0;
+        element.Scale = 1;
     }
 
     // ------------------------------------------------------------------ attached: Press
@@ -161,7 +163,7 @@ public static class Motion
                 {
                     if (!Reduced)
                     {
-                        _ = button.ScaleToAsync(1, 560, Spring);
+                        _ = button.ScaleToAsync(1, 90, Spring);
                     }
                 };
             }

@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input.Platform;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -16,6 +17,7 @@ public sealed class SubscriptionsPage(Shell shell) : Page(shell)
     private readonly TextBox _name = new() { PlaceholderText = "Name (optional)", Width = 220 };
     private readonly HashSet<string> _updating = new(StringComparer.Ordinal);
     private Button? _add;
+    private readonly StackPanel _fromAccount = new() { Spacing = 8 };
 
     public override string Title => "Subscriptions";
 
@@ -30,10 +32,24 @@ public sealed class SubscriptionsPage(Shell shell) : Page(shell)
         addRow.Children.Add(_name);
         Grid.SetColumn(_add, 2);
         addRow.Children.Add(_add);
+        // Signed in with Telegram: the subscriptions bought with that account, each added with one click.
+        var fromAccount = Ghost("From my Telegram account…", () => _ = ShowAccountAsync());
+        fromAccount.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left;
+        fromAccount.IsVisible = S.Ibox.SignedIn;
+        EventHandler signIn = (_, _) => Dispatcher.UIThread.Post(() =>
+        {
+            fromAccount.IsVisible = S.Ibox.SignedIn;
+            if (!S.Ibox.SignedIn)
+            {
+                _fromAccount.Children.Clear();
+            }
+        });
+        S.Ibox.SignInChanged += signIn;
+        Track(() => S.Ibox.SignInChanged -= signIn);
         var addCard = Card(new StackPanel
         {
             Spacing = 10,
-            Children = { T("Add subscription", 15, FontWeight.SemiBold), addRow, Hint("Paste the subscription link from your panel (https). Name is optional.") },
+            Children = { T("Add subscription", 15, FontWeight.SemiBold), addRow, Hint("Paste the subscription link from your panel (https). Name is optional."), fromAccount, _fromAccount },
         });
         EventHandler<Application.Subscriptions.SubscriptionUpdateReport> updated = (_, _) => Dispatcher.UIThread.Post(() => _ = LoadAsync());
         S.SubscriptionService.Updated += updated;
@@ -47,7 +63,7 @@ public sealed class SubscriptionsPage(Shell shell) : Page(shell)
             Children =
             {
                 Header("Subscriptions", "Paste the link your provider gave you; IBOX adds its servers and keeps them up to date. Links are stored encrypted.", Ghost("Update all", () => _ = UpdateAllAsync())),
-                addCard,
+                Ghost("Add subscription", () => Shell.ShowDrawer("Add subscription", addCard)),
                 _list,
             },
         };
@@ -79,6 +95,11 @@ public sealed class SubscriptionsPage(Shell shell) : Page(shell)
         if (s.IsOfficial)
         {
             title.Children.Add(Badge("✓ Official", Accent));
+        }
+
+        if (s.IsNex)
+        {
+            title.Children.Add(Badge("NEX", Color.Parse("#9A8CEB")));
         }
 
         if (_updating.Contains(s.Id))
@@ -179,6 +200,46 @@ public sealed class SubscriptionsPage(Shell shell) : Page(shell)
         panel.Children.Add(options);
 
         var links = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        if (s.IsNex)
+        {
+            links.Children.Add(Ghost("Manage NEX", () => _ = Guard(async () =>
+            {
+                var uri = await S.SubscriptionService.GetNexManagementUriAsync(s.Id, Shell.Lifetime.Token);
+                if (uri is null)
+                {
+                    Shell.Toast("NEX", "Management link is unavailable.", warning: true);
+                }
+                else
+                {
+                    Open(uri.AbsoluteUri);
+                }
+            })));
+            var configsPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+            links.Children.Add(Ghost("AmneziaWG configs", () => _ = Guard(async () =>
+            {
+                var configs = await S.SubscriptionService.GetNexAmneziaConfigsAsync(s.Id, Shell.Lifetime.Token);
+                configsPanel.Children.Clear();
+                if (configs.Count == 0)
+                {
+                    configsPanel.Children.Add(Caption("No AmneziaWG configs available."));
+                    return;
+                }
+
+                var selector = new ComboBox { ItemsSource = configs.Select(c => $"{c.Label} ({c.Location})").ToArray(), SelectedIndex = 0, MinWidth = 180 };
+                configsPanel.Children.Add(selector);
+                configsPanel.Children.Add(Ghost("Copy selected config", () => _ = Guard(async () =>
+                {
+                    var index = selector.SelectedIndex;
+                    if (index >= 0 && index < configs.Count && TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
+                    {
+                        await clipboard.SetTextAsync(configs[index].Key);
+                        Shell.Toast("AmneziaWG", "Config copied.");
+                    }
+                })));
+            })));
+            panel.Children.Add(configsPanel);
+        }
+
         if (m.SupportUrl is { Length: > 0 } support)
         {
             links.Children.Add(Ghost("Support", () => Open(support)));
@@ -202,6 +263,62 @@ public sealed class SubscriptionsPage(Shell shell) : Page(shell)
         var item = new MenuItem { Header = header };
         item.Click += (_, _) => _ = Guard(action);
         return item;
+    }
+
+    private async Task ShowAccountAsync()
+    {
+        _fromAccount.Children.Clear();
+        _fromAccount.Children.Add(Hint("Loading your subscriptions…"));
+        IReadOnlyList<Application.Account.AccountLink> links;
+        try
+        {
+            links = await S.AccountImport.ListAsync(Shell.Lifetime.Token);
+        }
+        catch (Exception e) when (e is InvalidOperationException or Application.Account.ServiceUnreachableException)
+        {
+            _fromAccount.Children.Clear();
+            _fromAccount.Children.Add(Hint(e.Message));
+            return;
+        }
+
+        _fromAccount.Children.Clear();
+        if (links.Count == 0)
+        {
+            _fromAccount.Children.Add(Hint("No subscriptions with a link on this Telegram account yet."));
+            return;
+        }
+
+        foreach (var l in links)
+        {
+            var c = l.Card;
+            var used = c.Unlimited ? "unlimited" : $"{c.UsedBytes / 1073741824.0:0.#} / {c.LimitBytes / 1073741824.0:0.#} GB";
+            var left = c.Left(DateTimeOffset.Now) is { } t ? (t.TotalDays >= 1 ? $" · {Math.Floor(t.TotalDays)} days left" : " · ends today") : string.Empty;
+            var status = Hint($"{c.Server} · {c.Status} · {used}{left}");
+            Button? add = null;
+            add = Primary(l.Added ? "Added" : "Add", () => _ = Guard(async () =>
+            {
+                add!.IsEnabled = false;
+                add.Content = "Adding…";
+                try
+                {
+                    await S.AccountImport.AddChosenAsync(c, Shell.Lifetime.Token);
+                    add.Content = "Added";
+                    await LoadAsync();
+                }
+                catch
+                {
+                    add.Content = "Add";
+                    add.IsEnabled = true;
+                    throw;
+                }
+            }));
+            add.IsEnabled = !l.Added;
+            var row = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
+            row.Children.Add(new StackPanel { Children = { T(string.IsNullOrWhiteSpace(c.Username) ? "Subscription" : c.Username, 13, FontWeight.SemiBold), status } });
+            Grid.SetColumn(add, 1);
+            row.Children.Add(add);
+            _fromAccount.Children.Add(row);
+        }
     }
 
     private async Task AddAsync()

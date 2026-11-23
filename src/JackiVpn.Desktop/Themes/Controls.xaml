@@ -154,6 +154,7 @@
 
     <!-- ============================================================ buttons -->
     <Style x:Key="Button.Base" TargetType="Button">
+        <Setter Property="v:ButtonIcons.Enabled" Value="True" />
         <Setter Property="Foreground" Value="{DynamicResource B.Text}" />
         <Setter Property="Background" Value="{DynamicResource B.Input}" />
         <Setter Property="BorderBrush" Value="{DynamicResource B.Border}" />
@@ -894,5 +895,98 @@
     <!-- Settings row: label + hint on the left, control on the right. -->
     <Style x:Key="Row" TargetType="Grid">
         <Setter Property="Margin" Value="0,0,0,14" />
+    </Style>
+    <!-- Nex service badge: a static gradient pill (no looping animation, so it costs nothing while shown). -->
+    <Style x:Key="NexBadge" TargetType="Border">
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="8,1" />
+        <Setter Property="Margin" Value="8,0,0,0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="ToolTip" Value="Nex: 3 locations, faster speeds, Iranian sites and apps, V2Ray + AmneziaWG" />
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+                    <GradientStop Color="#663E618A" Offset="0" />
+                    <GradientStop Color="#C04C99D8" Offset="0.5" />
+                    <GradientStop Color="#A05C4C9B" Offset="1" />
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <Style x:Key="WorkspaceNavItem" TargetType="ListBoxItem">
+        <Setter Property="AutomationProperties.Name" Value="{Binding Title}" />
+        <Setter Property="Foreground" Value="{DynamicResource B.TextSecondary}" />
+        <Setter Property="Margin" Value="0,5" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                    <Border x:Name="NavSurface" CornerRadius="13" Padding="14,18" Background="Transparent" BorderBrush="Transparent" BorderThickness="1">
+                        <ContentPresenter />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="NavSurface" Property="Background" Value="{DynamicResource B.HoverOverlay}" /></Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="NavSurface" Property="Background" Value="{DynamicResource B.AccentSoft}" />
+                            <Setter Property="Foreground" Value="{DynamicResource B.Text}" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="NavSurface" Property="BorderBrush" Value="{DynamicResource B.Accent}" /></Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <Style TargetType="TabControl">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource B.Text}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TabControl">
+                    <Grid KeyboardNavigation.TabNavigation="Local">
+                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Padding="3,3,8,4" Margin="0,0,0,8" Focusable="False">
+                            <StackPanel IsItemsHost="True" Orientation="Horizontal" KeyboardNavigation.TabIndex="0" />
+                        </ScrollViewer>
+                        <Border Grid.Row="1" Background="{TemplateBinding Background}" KeyboardNavigation.TabIndex="1">
+                            <ContentPresenter x:Name="PART_SelectedContentHost" ContentSource="SelectedContent" />
+                        </Border>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <Style TargetType="TabItem">
+        <Setter Property="Foreground" Value="{DynamicResource B.TextSecondary}" />
+        <Setter Property="Padding" Value="12,10" />
+        <Setter Property="Margin" Value="0,0,8,0" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TabItem">
+                    <Grid Background="Transparent">
+                        <Border x:Name="TabSurface" Background="Transparent" CornerRadius="6" Padding="{TemplateBinding Padding}" BorderThickness="1" BorderBrush="Transparent">
+                            <ContentPresenter ContentSource="Header" RecognizesAccessKey="True" />
+                        </Border>
+                        <Border x:Name="Underline" Height="2" Margin="12,0" VerticalAlignment="Bottom" Background="Transparent" CornerRadius="1" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter Property="Foreground" Value="{DynamicResource B.Text}" />
+                            <Setter TargetName="Underline" Property="Background" Value="{DynamicResource B.Accent}" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="TabSurface" Property="Background" Value="{DynamicResource B.HoverOverlay}" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="TabSurface" Property="BorderBrush" Value="{DynamicResource B.Accent}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45" /></Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 </ResourceDictionary>

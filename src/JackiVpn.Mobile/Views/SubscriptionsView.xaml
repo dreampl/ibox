@@ -2,6 +2,7 @@
 <ContentView x:Class="JackiVpn.Mobile.Views.SubscriptionsView"
              xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:views="clr-namespace:JackiVpn.Mobile.Views"
              xmlns:controls="clr-namespace:JackiVpn.Mobile.Controls"
              xmlns:loc="clr-namespace:JackiVpn.Mobile.Localization"
              xmlns:vm="clr-namespace:JackiVpn.Mobile.ViewModels"
@@ -48,6 +49,7 @@
                         </Border>
                     </Grid>
                 </Border>
+                <Button Style="{StaticResource Pill}" Text="{loc:T Subs_FromAccount}" Command="{Binding FromAccountCommand}" IsVisible="{Binding IboxSignedIn}" HorizontalOptions="Start" />
                 <Label Text="{Binding Message}" Style="{StaticResource Hint}" Margin="4,0" />
 
                 <VerticalStackLayout x:Name="Cards" BindableLayout.ItemsSource="{Binding Items}" Spacing="12">
@@ -67,6 +69,7 @@
                                         <VerticalStackLayout Grid.Column="1" VerticalOptions="Center">
                                             <HorizontalStackLayout Spacing="6">
                                                 <Label Text="{Binding Name}" Style="{StaticResource Value}" LineBreakMode="TailTruncation" />
+                                                <views:NexBadge IsVisible="{Binding IsNex}" VerticalOptions="Center" />
                                                 <Border StrokeShape="RoundRectangle 7" StrokeThickness="0" Padding="7,1" Background="{StaticResource PrimaryGradient}" IsVisible="{Binding IsOfficial}" VerticalOptions="Center">
                                                     <Label Text="{loc:T Badge_Official}" FontSize="10" TextColor="White" FontFamily="OpenSansSemibold" />
                                                 </Border>

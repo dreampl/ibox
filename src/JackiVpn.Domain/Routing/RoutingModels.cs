@@ -23,6 +23,9 @@ public enum RuleConditionType
 
     /// <summary>Physical network type (wifi/ethernet/cellular). Not supported by Windows cores — kept for model completeness.</summary>
     NetworkType,
+
+    /// <summary>Android app (package name, e.g. org.telegram.messenger). Applied through the VPN's per-app lists.</summary>
+    AppPackage,
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<RuleActionType>))]

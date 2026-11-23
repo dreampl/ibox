@@ -52,6 +52,7 @@ public sealed class LinuxServices : IAsyncDisposable
         var database = new JackiDatabase(Path.Combine(DataDir, "jackivpn.db"));
         var protector = new KeyFileSecretProtector(Path.Combine(DataDir, "secret.key"));
         Profiles = new SqliteProfileRepository(database, protector);
+        Ibox = new Application.Account.IboxServices(DataDir, protector, _loggerFactory.CreateLogger("JackiVpn.Account"));
         Subscriptions = new SqliteSubscriptionRepository(database, protector);
         var healthHistory = new SqliteHealthHistoryRepository(database);
         Settings = new SettingsStore(new SqliteSettingsRepository(database), _loggerFactory.CreateLogger("JackiVpn.Settings"));
@@ -137,6 +138,12 @@ public sealed class LinuxServices : IAsyncDisposable
         Traffic.DetectDual = DualVpn.Detect;
         DualVpn.Attach(Orchestrator);
         RoutingWatcher = new Application.Routing.RoutingWatcher(Settings, Orchestrator, _loggerFactory.CreateLogger("JackiVpn.Routing"));
+        // Opt-in automations (Settings › Automations): started and stopped to follow the settings.
+        Automations = new Application.Automations.AutomationManager(new Application.Automations.AppAutomationEnvironment(
+            Settings, Orchestrator, Health, SubscriptionService, Profiles, Subscriptions,
+            (c, t, m) => notifications.Notify(c, t, m),null));
+        Automations.Apply(Settings.Current.Automations);
+        Settings.Changed += (_, s) => Automations.Apply(s.Automations);
         RoutingEditor = new Application.Routing.RoutingEditorServer(Settings, _loggerFactory.CreateLogger("JackiVpn.RoutingEditor"));
         Agent = new Application.Agent.AgentPipeServer(
             new Application.Agent.AgentController(new Application.Agent.AgentDependencies
@@ -153,7 +160,22 @@ public sealed class LinuxServices : IAsyncDisposable
             () => Settings.Current.Agent,
             _loggerFactory.CreateLogger("JackiVpn.Agent"));
         RuleSets = ruleSets;
+
+        var privacyLog = _loggerFactory.CreateLogger("JackiVpn.Privacy");
+        Privacy = new Application.Privacy.PrivacyFeatures(
+            Orchestrator,
+            new Application.Privacy.TimeZoneSync(new LinuxTimeZoneControl(Path.Combine(DataDir, "state", "timezone-original.txt")), () => Settings.Current, privacyLog),
+            new Application.Privacy.OurServerDetector(
+                ct => Application.Privacy.OurServerDetector.LookupPublicIpAsync(Settings.Current.Probe, ct),
+                async ct => Application.Privacy.OurServerDetector.KnownIps(Insights, await Profiles.GetAllAsync(ct).ConfigureAwait(false)),
+                Application.Privacy.OurServerDetector.ForeignTunnelUp,
+                () => Settings.Current,
+                privacyLog));
+        Settings.Changed += (_, _) => Privacy.OnSettingsChanged();
     }
+
+    /// <summary>Time zone matching and the "already on our servers through another app / the router" check.</summary>
+    public Application.Privacy.PrivacyFeatures Privacy { get; }
 
     public Application.Workplace.WorkplaceService Workplace { get; }
 
@@ -180,6 +202,8 @@ public sealed class LinuxServices : IAsyncDisposable
     /// <summary>Applies routing changes to the running connection.</summary>
     public Application.Routing.RoutingWatcher RoutingWatcher { get; }
 
+    public Application.Automations.AutomationManager Automations { get; }
+
     /// <summary>The node-based routing editor in the browser (loopback, on demand).</summary>
     public Application.Routing.RoutingEditorServer RoutingEditor { get; }
 
@@ -202,6 +226,12 @@ public sealed class LinuxServices : IAsyncDisposable
 
     /// <summary>What the desktop's media players are playing (MPRIS), for the notch.</summary>
     public Application.Media.INowPlayingSource NowPlaying { get; } = new MprisNowPlaying();
+
+    /// <summary>IBOX account (Telegram): subscription management and music (its player is also an INowPlayingSource).</summary>
+    public Application.Account.IboxServices Ibox { get; }
+
+    /// <summary>Adds the Telegram account's subscriptions after sign-in.</summary>
+    public Application.Account.AccountSubscriptionImport AccountImport { get; private set; } = null!;
 
     /// <summary>What IBOX learned per server (last exit country, working fixes).</summary>
     public InsightStore Insights { get; }
@@ -239,6 +269,8 @@ public sealed class LinuxServices : IAsyncDisposable
         }
 
         await Health.LoadAsync(ct).ConfigureAwait(false);
+        AccountImport = new Application.Account.AccountSubscriptionImport(Ibox, SubscriptionService, Subscriptions, DataDir, _loggerFactory.CreateLogger("JackiVpn.Account"));
+        AccountImport.Attach(CancellationToken.None);
         GnomeProxy.RecoverStale(Logger);
         _ = Task.Run(Workplace.Refresh, CancellationToken.None);
         System.Net.NetworkInformation.NetworkChange.NetworkAddressChanged += (_, _) => _ = Task.Run(Workplace.Refresh, CancellationToken.None);
@@ -294,6 +326,7 @@ public sealed class LinuxServices : IAsyncDisposable
         LinuxPrivilege.Stop();
         await Accounts.SaveActiveAsync(CancellationToken.None).ConfigureAwait(false);
         await Agent.DisposeAsync().ConfigureAwait(false);
+        Ibox.Dispose();
         await RoutingEditor.DisposeAsync().ConfigureAwait(false);
         await Usage.DisposeAsync().ConfigureAwait(false);
         await Orchestrator.DisposeAsync().ConfigureAwait(false);

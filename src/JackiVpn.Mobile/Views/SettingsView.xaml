@@ -24,6 +24,12 @@
                         <controls:ToggleSwitch IsToggled="{Binding SmartMode}" />
                     </controls:SettingRow.Trailing>
                 </controls:SettingRow>
+                <controls:SettingRow Icon="search" Tint="{StaticResource Teal}" Title="{loc:T Set_DetectOtherApps}" Subtitle="{loc:T Set_DetectOtherAppsHint}">
+                    <controls:SettingRow.Trailing>
+                        <controls:ToggleSwitch IsToggled="{Binding DetectOtherApps}" />
+                    </controls:SettingRow.Trailing>
+                </controls:SettingRow>
+                <controls:SettingRow Icon="info" Tint="{StaticResource TextMuted}" Title="{loc:T Set_MatchTimeZone}" Subtitle="{loc:T Set_MatchTimeZoneAndroid}" />
             </controls:SettingGroup>
 
             <!-- Proxy-only details -->
@@ -44,6 +50,8 @@
 
             <controls:SettingGroup Header="{loc:T Set_Connection}">
                 <controls:SettingRow Icon="route" Tint="{StaticResource Teal}" Title="{loc:T Set_Routing}" Value="{Binding RoutingValue}" Command="{Binding ChooseRoutingCommand}" />
+                <controls:SettingRow Icon="route" Tint="{StaticResource Teal}" Title="{loc:T Set_Rules}" Value="{Binding RulesValue}" Command="{Binding OpenRulesCommand}" />
+                <controls:SettingRow Icon="route" Tint="{StaticResource Teal}" Title="{loc:T Set_Automations}" Value="{Binding AutomationsValue}" Command="{Binding OpenAutomationsCommand}" />
                 <controls:SettingRow Icon="search" Tint="{StaticResource Primary2}" Title="{loc:T Dns_Title}" Subtitle="{loc:T Dns_Hint}" Value="{Binding DnsValue}" Command="{Binding FindDnsCommand}" />
                 <controls:SettingRow Icon="globe" Tint="{StaticResource Primary2}" Title="{loc:T Dns_Auto}" Subtitle="{loc:T Dns_AutoHint}">
                     <controls:SettingRow.Trailing>
@@ -100,6 +108,7 @@
             </controls:SettingGroup>
 
             <controls:SettingGroup Header="{loc:T Set_Account}">
+                <controls:SettingRow Icon="devices" Tint="{StaticResource Primary}" Title="{loc:T Set_Ibox}" Subtitle="{loc:T Set_IboxHint}" Command="{Binding OpenIboxAccountCommand}" />
                 <controls:SettingRow Icon="up" Tint="{StaticResource Primary2}" Title="{loc:T Set_Export}" Subtitle="{loc:T Set_ExportHint}" Command="{Binding ExportAccountCommand}" />
                 <controls:SettingRow Icon="down" Tint="{StaticResource Teal}" Title="{loc:T Set_Import}" Subtitle="{loc:T Set_ImportHint}" Command="{Binding ImportAccountCommand}" />
             </controls:SettingGroup>

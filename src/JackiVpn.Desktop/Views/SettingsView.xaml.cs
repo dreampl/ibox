@@ -4,5 +4,9 @@ namespace JackiVpn.Desktop.Views;
 
 public partial class SettingsView : UserControl
 {
-    public SettingsView() => InitializeComponent();
+    public SettingsView()
+    {
+        InitializeComponent();
+        SectionTabs.Apply(this);
+    }
 }

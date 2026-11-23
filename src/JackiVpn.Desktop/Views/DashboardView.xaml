@@ -114,6 +114,15 @@
                     </StackPanel>
                 </DockPanel>
             </Border>
+            <Border Style="{StaticResource Banner.Info}" Visibility="{Binding OurServerBanner, Converter={StaticResource Null2Vis}}">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Style="{StaticResource Button.Icon}" Content="&#xE711;" Command="{Binding DismissOurServerCommand}" ToolTip="Dismiss" />
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource Icon}" Text="&#xE73E;" Foreground="{DynamicResource B.Success}" Margin="0,0,10,0" VerticalAlignment="Top" />
+                        <TextBlock Text="{Binding OurServerBanner}" TextWrapping="Wrap" MaxWidth="700" />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
             <Border Style="{StaticResource Banner.Danger}" Visibility="{Binding KillSwitchEngaged, Converter={StaticResource Bool2Vis}}">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Style="{StaticResource Icon}" Text="&#xEA18;" Foreground="{DynamicResource B.Danger}" Margin="0,0,10,0" />
@@ -223,7 +232,25 @@
                                     </Border>
                                 </Button>
 
+                                <!-- AmneziaVPN is connected (to one of our servers, or elsewhere) while IBOX is idle: one click switches. -->
+                                <Button Style="{StaticResource Button.Bare}" HorizontalAlignment="Left" Margin="0,0,0,8" Command="{Binding SwitchFromAmneziaCommand}"
+                                        Visibility="{Binding AmneziaShown, Converter={StaticResource Bool2Vis}}" ToolTip="{Binding AmneziaTip}" AutomationProperties.Name="Switch from AmneziaVPN to IBOX">
+                                    <Border Style="{StaticResource Chip}" Margin="0">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse Width="8" Height="8" Margin="0,0,7,0" Fill="{DynamicResource B.Success}" />
+                                            <TextBlock Text="{Binding AmneziaText}" Style="{StaticResource ChipText}" />
+                                        </StackPanel>
+                                    </Border>
+                                </Button>
+
                                 <WrapPanel Visibility="{Binding IsConnected, Converter={StaticResource Bool2Vis}}">
+                                    <!-- Nex service is carrying this connection: one quiet, clear pill. -->
+                                    <Border Style="{StaticResource NexBadge}" Margin="0,0,6,6" Padding="10,4" CornerRadius="11" Visibility="{Binding ServerIsNex, Converter={StaticResource Bool2Vis}}" AutomationProperties.Name="Nex service active">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse Width="7" Height="7" Fill="#9FE7FF" Margin="0,0,7,0" VerticalAlignment="Center" />
+                                            <TextBlock Text="Nex active" FontSize="12" FontWeight="SemiBold" Foreground="#F2F2FF" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Border>
                                     <Border Style="{StaticResource Chip}" ToolTip="{Binding LatencyTip}">
                                         <StackPanel Orientation="Horizontal">
                                             <Ellipse x:Name="LatencyDot" Width="8" Height="8" Margin="0,0,7,0" Fill="{DynamicResource B.TextMuted}" />
@@ -321,7 +348,7 @@
                 </Grid.RowDefinitions>
 
                 <!-- Live traffic -->
-                <v:ClaySurface x:Name="TrafficCard" CornerRadius="26" Padding="22,20">
+                <v:ClaySurface x:Name="TrafficCard" CornerRadius="26" Padding="20,18" VerticalAlignment="Stretch">
                     <DockPanel>
                         <DockPanel DockPanel.Dock="Top" Margin="0,0,0,18">
                             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
@@ -362,7 +389,7 @@
                 </v:ClaySurface>
 
                 <!-- Speed test -->
-                <v:ClaySurface x:Name="SpeedCard" Grid.Column="2" CornerRadius="26" Padding="22,20">
+                <v:ClaySurface x:Name="SpeedCard" Grid.Column="2" CornerRadius="26" Padding="20,18" VerticalAlignment="Stretch">
                     <StackPanel>
                         <DockPanel Margin="0,0,0,8">
                             <k:OrbView DockPanel.Dock="Right" State="Listening" Width="26" Height="26" IsRunning="{Binding IsSpeedTesting}" Visibility="{Binding IsSpeedTesting, Converter={StaticResource Bool2Vis}}" />
@@ -416,7 +443,7 @@
                 </v:ClaySurface>
 
                 <!-- Server -->
-                <v:ClaySurface x:Name="ServerCard" Grid.Column="4" CornerRadius="26" Padding="22,20">
+                <v:ClaySurface x:Name="ServerCard" Grid.Column="4" CornerRadius="26" Padding="20,18" VerticalAlignment="Stretch">
                     <StackPanel>
                         <DockPanel Margin="0,0,0,16">
                             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
@@ -435,7 +462,10 @@
                                     <TextBlock DockPanel.Dock="Right" Style="{StaticResource Icon}" Text="&#xE76C;" FontSize="13" Foreground="{DynamicResource B.TextSecondary}" />
                                     <v:FlagView DockPanel.Dock="Left" Width="46" Height="46" CountryCode="{Binding ServerFlag}" Margin="0,0,14,0" />
                                     <StackPanel VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding ServerTitle}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Foreground="{DynamicResource B.Text}" Text="{Binding ServerTitle}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                            <Border Style="{StaticResource NexBadge}" Visibility="{Binding ServerIsNex, Converter={StaticResource Bool2Vis}}"><TextBlock Text="Nex" FontSize="11" FontWeight="SemiBold" Foreground="#F2F2FF" /></Border>
+                                        </StackPanel>
                                         <TextBlock Text="{Binding ServerSubtitle}" FontSize="12" Foreground="{DynamicResource B.TextSecondary}" TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
                                     </StackPanel>
                                 </DockPanel>
@@ -487,7 +517,11 @@
                             <TextBlock Style="{StaticResource TileGlyph}" Text="&#xE8F1;" Foreground="{DynamicResource B.TextSecondary}" />
                         </Border>
                         <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="{Binding PlanName}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding PlanName}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                <Border Style="{StaticResource NexBadge}" Visibility="{Binding PlanIsNex, Converter={StaticResource Bool2Vis}}"><TextBlock Text="Nex" FontSize="11" FontWeight="SemiBold" Foreground="#F2F2FF" /></Border>
+                            </StackPanel>
+                            <TextBlock Text="3 locations · faster speeds · Iranian sites and apps · V2Ray + AmneziaWG" Visibility="{Binding PlanIsNex, Converter={StaticResource Bool2Vis}}" FontSize="11" Foreground="{DynamicResource B.TextSecondary}" Margin="0,2,0,0" />
                             <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
                                 <Ellipse x:Name="PlanDot" Width="8" Height="8" Fill="{DynamicResource B.Success}" Margin="0,0,7,0" VerticalAlignment="Center" />
                                 <TextBlock Text="{Binding PlanStatus}" FontSize="12.5" Foreground="{DynamicResource B.TextSecondary}" />

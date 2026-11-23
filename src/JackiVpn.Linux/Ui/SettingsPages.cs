@@ -288,6 +288,7 @@ public sealed class RoutingPage : OptionsPage
         RuleConditionType.ProcessName => "process",
         RuleConditionType.ProcessPath => "process path",
         RuleConditionType.Network => "network",
+        RuleConditionType.AppPackage => "app",
         _ => type.ToString(),
     };
 }
@@ -297,7 +298,7 @@ internal static class RuleEditorDialog
 {
     public static async Task<RoutingRule?> ShowAsync(Window owner, RoutingRule? original, IReadOnlyList<string> tags)
     {
-        var types = Enum.GetValues<RuleConditionType>().Where(t => t != RuleConditionType.NetworkType).ToArray();
+        var types = Enum.GetValues<RuleConditionType>().Where(t => t is not (RuleConditionType.NetworkType or RuleConditionType.AppPackage)).ToArray();
         var rows = new StackPanel { Spacing = 6 };
         void AddRow(RuleConditionType type, string values)
         {
@@ -698,6 +699,8 @@ public sealed class NetworkPage(Shell shell) : OptionsPage(shell)
                 Row("Mode", null, mode),
                 Row("IPv6", "Auto enables IPv6 only when the server is proven to carry it; otherwise IPv6 is blocked inside the tunnel so it cannot leak.", EnumCombo(Cur.Ipv6, v => Set(x => x with { Ipv6 = v }))),
                 Row("TUN MTU", "1280–9000. Lower it if some sites stall.", Number(c.TunMtu, 1280, 9000, v => Set(x => x with { Connection = x.Connection with { TunMtu = (int)v } }), 10)),
+                Row("Match time zone to server", "While connected, the system time zone follows the server's location; yours comes back on disconnect (timedatectl may ask for your password).", Toggle(Cur.Privacy.MatchTimeZone, v => Set(x => x with { Privacy = x.Privacy with { MatchTimeZone = v } }))),
+                Row("Notice our servers used by another app", "While IBOX is off, the public address is checked at start to see whether another app or the router already uses our servers.", Toggle(Cur.Privacy.DetectOtherApps, v => Set(x => x with { Privacy = x.Privacy with { DetectOtherApps = v } }))),
                 Row("Reconnect attempts", "Retries with backoff before giving up (smart mode switches server after the first).", Number(c.MaxReconnectAttempts, 0, 10, v => Set(x => x with { Connection = x.Connection with { MaxReconnectAttempts = (int)v } })))),
             Section("System proxy", null,
                 Row("Also set the desktop proxy in TUN mode", "Some apps (Claude, …) check the system proxy and treat \"no proxy\" as \"no VPN\". Their traffic is tunneled either way; this only satisfies the check (GNOME/Ubuntu).", Toggle(c.SystemProxyInTun, v => Set(x => x with { Connection = x.Connection with { SystemProxyInTun = v } }))),
@@ -765,10 +768,12 @@ public sealed class SettingsPage(Shell shell) : OptionsPage(shell)
 
     protected override Control Build() => Stack(
         Header("Settings", "Look (light / dark), start-up, the notch, notifications and AI agents."),
+        Section("IBOX account (Telegram)", "Sign in with Telegram to manage your subscription here (usage, expiry, exit country, renewals) and to play your IBOX music library.",
+            Row("Account", null, Outline("Open account", () => { if (TopLevel.GetTopLevel(this) is Window w) { AccountWindow.Open(w, S.Ibox); } }))),
         Section("Appearance", null,
             Row("Theme", "System follows the desktop's light or dark setting. Changes apply at once.", Combo(
-                [(AppTheme.System, "System"), (AppTheme.Light, "Light"), (AppTheme.Dark, "Dark")],
-                Cur.Ui.Theme,
+                [(AppTheme.System, "System"), (AppTheme.Light, "Light"), (AppTheme.Gray, "Gray"), (AppTheme.Black, "Black"), (AppTheme.Blue, "Blue")],
+                Cur.Ui.Theme == AppTheme.Dark ? AppTheme.Gray : Cur.Ui.Theme,
                 v => S.Settings.Update(x => x with { Ui = x.Ui with { Theme = v } })))),
         Section("Notch", "A small island on the top edge with the connection state, ping and what is playing; hover for more, drag along the edge.",
             Row("Show the notch", null, Toggle(Cur.Ui.Notch.Enabled, v => S.Settings.Update(x => x with { Ui = x.Ui with { Notch = x.Ui.Notch with { Enabled = v } } }))),

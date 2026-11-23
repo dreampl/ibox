@@ -50,7 +50,7 @@ public sealed partial class SettingsViewModel : SettingsPageViewModel
         ];
     }
 
-    public IReadOnlyList<AppTheme> Themes { get; } = [AppTheme.System, AppTheme.Light, AppTheme.Dark];
+    public IReadOnlyList<AppTheme> Themes { get; } = [AppTheme.System, AppTheme.Light, AppTheme.Gray, AppTheme.Black, AppTheme.Blue];
 
     public IReadOnlyList<AppLogLevel> LogLevels { get; } = Choices.Of<AppLogLevel>();
 
@@ -147,6 +147,10 @@ public sealed partial class SettingsViewModel : SettingsPageViewModel
         private set => SetProperty(ref _ibarNote, value);
     }
 
+    /// <summary>The IBOX account window (Telegram sign-in, subscription, music).</summary>
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    private void OpenAccount() => Views.AccountWindow.Open(_s.Ibox);
+
     /// <summary>Runs IBAR's own per-user installer (shipped with IBOX) silently, then starts IBAR.</summary>
     [CommunityToolkit.Mvvm.Input.RelayCommand]
     private async System.Threading.Tasks.Task InstallIbar()
@@ -196,6 +200,16 @@ public sealed partial class SettingsViewModel : SettingsPageViewModel
 
     public bool NotchHideInFullScreen { get => S.Ui.Notch.HideInFullScreen; set => SetNotch(n => n with { HideInFullScreen = value }); }
 
+    public bool NotchIsland { get => S.Ui.Notch.Style == NotchStyle.Island; set => SetNotch(n => n with { Style = value ? NotchStyle.Island : NotchStyle.Classic }); }
+
+    public bool NotchPeekThrough { get => S.Ui.Notch.PeekThrough; set => SetNotch(n => n with { PeekThrough = value }); }
+
+    public bool NotchLineWhenMaximized { get => S.Ui.Notch.LineWhenMaximized; set => SetNotch(n => n with { LineWhenMaximized = value }); }
+
+    public bool NotchFocusTimer { get => S.Ui.Notch.FocusTimer; set => SetNotch(n => n with { FocusTimer = value }); }
+
+    public bool NotchVitals { get => S.Ui.Notch.Vitals; set => SetNotch(n => n with { Vitals = value }); }
+
     public bool NotchSound
     {
         get => S.Ui.Notch.Sound;
@@ -215,7 +229,7 @@ public sealed partial class SettingsViewModel : SettingsPageViewModel
 
     public AppTheme Theme
     {
-        get => S.Ui.Theme;
+        get => S.Ui.Theme == AppTheme.Dark ? AppTheme.Gray : S.Ui.Theme;
         set
         {
             Set(s => s with { Ui = s.Ui with { Theme = value } });
@@ -288,6 +302,9 @@ public sealed partial class SettingsViewModel : SettingsPageViewModel
 
     /// <summary>Telemetry stays off: nothing is collected or sent. Shown for transparency only.</summary>
     public bool Telemetry => S.Privacy.TelemetryEnabled;
+
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    private void OpenAutomations() => Views.AutomationsWindow.Show(_s);
 
     public string DataFolder => _s.Paths.UserDataRoot;
 

@@ -3,6 +3,7 @@
              xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:controls="clr-namespace:JackiVpn.Mobile.Controls"
+             xmlns:views="clr-namespace:JackiVpn.Mobile.Views"
              xmlns:loc="clr-namespace:JackiVpn.Mobile.Localization"
              xmlns:vm="clr-namespace:JackiVpn.Mobile.ViewModels"
              x:DataType="vm:HomeViewModel">
@@ -15,8 +16,12 @@
 
         <!-- Top bar -->
         <Grid ColumnDefinitions="Auto,*,Auto" HeightRequest="52">
-            <Border WidthRequest="38" HeightRequest="38" StrokeShape="RoundRectangle 12" StrokeThickness="0" BackgroundColor="Black" VerticalOptions="Center">
-                <controls:EyeMarkView State="Awake" Animated="False" WidthRequest="21" HeightRequest="21" HorizontalOptions="Center" VerticalOptions="Center" />
+            <Border WidthRequest="44" HeightRequest="44" StrokeShape="RoundRectangle 22" StrokeThickness="0" BackgroundColor="Black" VerticalOptions="Center">
+                <Grid>
+                    <controls:EyeMarkView State="Awake" Animated="False" WidthRequest="21" HeightRequest="21" HorizontalOptions="Center" VerticalOptions="Center" />
+                    <Image x:Name="AccountPhoto" Aspect="AspectFill" IsVisible="False" />
+                </Grid>
+                <Border.GestureRecognizers><TapGestureRecognizer Tapped="OnAccountTapped" /></Border.GestureRecognizers>
             </Border>
             <Label Grid.Column="1" Text="IBOX" FontFamily="OpenSansSemibold" FontSize="18" VerticalOptions="Center" Margin="12,0" />
             <Border Grid.Column="2" Style="{StaticResource Chip}" Padding="12,2,6,2" VerticalOptions="Center">
@@ -49,11 +54,31 @@
         </VerticalStackLayout>
 
         <!-- Error -->
-        <Border x:Name="ErrorCard" Grid.Row="2" IsVisible="{Binding HasError}" BackgroundColor="{StaticResource DangerSoft}" Stroke="#66FB5C7C"
+        <VerticalStackLayout Grid.Row="2">
+        <Border IsVisible="{Binding HasOurServer}" BackgroundColor="{StaticResource Surface}" Stroke="#6622C55E"
+                StrokeShape="RoundRectangle 18" Padding="14,10" Margin="0,0,0,10">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                <controls:Icon Name="info" Size="18" Color="{StaticResource Success}" />
+                <Label Grid.Column="1" Text="{Binding OurServerText}" FontSize="12.5" LineBreakMode="WordWrap" MaxLines="4" />
+                <Button Grid.Column="2" Text="✕" FontSize="12" Padding="8,0" BackgroundColor="Transparent" TextColor="{StaticResource TextMuted}" Command="{Binding DismissOurServerCommand}" />
+            </Grid>
+        </Border>
+        <Border x:Name="ErrorCard" IsVisible="{Binding HasError}" BackgroundColor="{StaticResource DangerSoft}" Stroke="#66FB5C7C"
                 StrokeShape="RoundRectangle 18" Padding="14,10" Margin="0,0,0,10">
             <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
                 <controls:Icon Name="info" Size="18" Color="{StaticResource Danger}" />
                 <Label Grid.Column="1" Text="{Binding LastError}" FontSize="12.5" LineBreakMode="WordWrap" MaxLines="3" />
+            </Grid>
+        </Border>
+        </VerticalStackLayout>
+
+        <!-- AmneziaVPN is connected while IBOX is idle: one tap connects IBOX (Android then turns Amnezia's VPN off). -->
+        <Border Grid.Row="2" IsVisible="{Binding AmneziaShown}" BackgroundColor="{StaticResource TealSoft}" Stroke="#6622C55E"
+                StrokeShape="RoundRectangle 18" Padding="14,8" Margin="0,0,0,10">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                <Ellipse WidthRequest="8" HeightRequest="8" Fill="{StaticResource Teal}" VerticalOptions="Center" />
+                <Label Grid.Column="1" Text="{Binding AmneziaText}" FontSize="12.5" LineBreakMode="WordWrap" MaxLines="2" VerticalOptions="Center" />
+                <Button Grid.Column="2" Style="{StaticResource Pill}" Text="{loc:T Amz_Switch}" Command="{Binding SwitchFromAmneziaCommand}" VerticalOptions="Center" />
             </Grid>
         </Border>
 
@@ -61,12 +86,19 @@
         <Border x:Name="InfoCard" Grid.Row="3" BackgroundColor="{StaticResource Surface}" Stroke="{StaticResource Stroke}" StrokeShape="RoundRectangle 24"
                 Padding="16,14" Margin="0,0,0,104">
             <VerticalStackLayout Spacing="12">
+                <Grid IsVisible="{Binding NexServiceAvailable}" ColumnDefinitions="Auto,*" ColumnSpacing="9">
+                    <views:NexBadge IsVisible="{Binding NexServiceAvailable}" />
+                    <Label Grid.Column="1" Text="{Binding NexPerks}" Style="{StaticResource Caption}" FontSize="10" MaxLines="2" LineBreakMode="TailTruncation" VerticalOptions="Center" />
+                </Grid>
                 <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
                     <Border WidthRequest="42" HeightRequest="42" StrokeShape="RoundRectangle 21" StrokeThickness="0" BackgroundColor="{StaticResource Surface2}">
                         <Label x:Name="FlagLabel" Text="{Binding LocationFlag}" FontSize="22" HorizontalOptions="Center" VerticalOptions="Center" />
                     </Border>
                     <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="1">
-                        <Label Text="{Binding LocationTitle}" Style="{StaticResource Value}" LineBreakMode="TailTruncation" />
+                        <HorizontalStackLayout Spacing="7">
+                            <Label Text="{Binding LocationTitle}" Style="{StaticResource Value}" LineBreakMode="TailTruncation" />
+                            <views:NexBadge IsVisible="{Binding ServerIsNex}" />
+                        </HorizontalStackLayout>
                         <Label Text="{Binding LocationSubtitle}" Style="{StaticResource Caption}" LineBreakMode="TailTruncation" />
                     </VerticalStackLayout>
                     <Button Grid.Column="2" Style="{StaticResource Pill}" Text="{loc:T Home_Change}" Command="{Binding ChooseServerCommand}" VerticalOptions="Center" />
@@ -105,6 +137,10 @@
                     <controls:Icon Name="chart" Size="16" Color="{StaticResource Text2}" VerticalOptions="Center" />
                     <Label Grid.Column="1" Text="{Binding UsageLine}" Style="{StaticResource Caption}" FontSize="12" LineBreakMode="TailTruncation" VerticalOptions="Center" />
                     <controls:Icon Grid.Column="2" Name="chevron" Size="14" Color="{StaticResource Text3}" VerticalOptions="Center" />
+                </Grid>
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="8" IsVisible="{Binding IboxSignedIn}">
+                    <Button Style="{StaticResource Pill}" Text="{loc:T Home_MySub}" Command="{Binding OpenSubscriptionCommand}" SemanticProperties.Description="{loc:T Home_MySub}" />
+                    <Button Grid.Column="1" Style="{StaticResource Pill}" Text="{loc:T Home_Music}" Command="{Binding OpenMusicCommand}" SemanticProperties.Description="{loc:T Home_Music}" />
                 </Grid>
             </VerticalStackLayout>
         </Border>

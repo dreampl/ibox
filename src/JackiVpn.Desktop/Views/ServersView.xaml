@@ -8,6 +8,7 @@
         <StackPanel DockPanel.Dock="Top">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
+                    <Button Content="Subscriptions" Click="OnSubscriptionsClick" Margin="0,0,8,0" />
                     <Button Content="Paste / Import…" Command="{Binding ImportPasteCommand}" Margin="0,0,8,0" ToolTip="Paste share links, Base64 lists or full configs" />
                     <Button Content="From clipboard" Command="{Binding ImportClipboardCommand}" Margin="0,0,8,0" />
                     <Button Content="From file…" Command="{Binding ImportFileCommand}" Margin="0,0,8,0" />
@@ -169,20 +170,21 @@
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="34" />
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="90" />
-                                <ColumnDefinition Width="120" />
+                                <ColumnDefinition Width="0" />
+                                <ColumnDefinition Width="0" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
                             <Button x:Name="Star" Style="{StaticResource Button.Icon}" Content="&#xE734;" ToolTip="Favorite"
                                     Command="{Binding Tag.ToggleFavoriteCommand, RelativeSource={RelativeSource AncestorType=ListBox}}" CommandParameter="{Binding}" />
 
-                            <DockPanel Grid.Column="1" VerticalAlignment="Center" Margin="4,0,8,0">
+                            <DockPanel Grid.Column="1" VerticalAlignment="Center" Margin="4,0,8,0" ClipToBounds="True">
                             <!-- Round flag: the exit seen through this server, else the country its name points at. -->
                             <v:FlagView DockPanel.Dock="Left" Width="36" Height="36" Margin="0,0,14,0" CountryCode="{Binding FlagCode}" ToolTip="{Binding FlagTip}" />
                             <StackPanel VerticalAlignment="Center">
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxWidth="420" />
+                                    <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxWidth="190" />
+                                    <Border Style="{StaticResource NexBadge}" Visibility="{Binding IsNex, Converter={StaticResource Bool2Vis}}"><TextBlock Text="Nex" FontSize="11" FontWeight="SemiBold" Foreground="#F2F2FF" /></Border>
                                     <Border Background="{DynamicResource B.AccentGradient}" CornerRadius="8" Padding="7,1" Margin="8,0,0,0" VerticalAlignment="Center"
                                             Visibility="{Binding IsOfficial, Converter={StaticResource Bool2Vis}}" ToolTip="Official Jacki server (verified official subscription)">
                                         <TextBlock Text="✓ Official" FontSize="11" FontWeight="SemiBold" Foreground="White" />
@@ -205,7 +207,7 @@
                                     </Border>
                                 </StackPanel>
                                 <TextBlock Style="{StaticResource Text.Caption}" Margin="0,3,0,0">
-                                    <Run Text="{Binding SubscriptionName, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding Details, Mode=OneWay}" />
+                                    <Run Text="{Binding Latency, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding Details, Mode=OneWay}" />
                                 </TextBlock>
                             </StackPanel>
                             </DockPanel>
@@ -244,7 +246,7 @@
                                 <Setter TargetName="Testing" Property="Visibility" Value="Visible" />
                                 <DataTrigger.EnterActions>
                                     <BeginStoryboard x:Name="Pulse">
-                                        <Storyboard>
+                                        <Storyboard Timeline.DesiredFrameRate="20">
                                             <DoubleAnimation Storyboard.TargetName="LatencyPill" Storyboard.TargetProperty="Opacity" From="1" To="0.35" Duration="0:0:0.6"
                                                              AutoReverse="True" RepeatBehavior="Forever" />
                                         </Storyboard>

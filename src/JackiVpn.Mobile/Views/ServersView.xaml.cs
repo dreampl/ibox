@@ -24,7 +24,7 @@ public partial class ServersView : ContentView
     {
         try
         {
-            await _vm.LoadAsync();
+            await _vm.LoadAsync(force: false);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
@@ -86,6 +86,7 @@ public sealed class ServerPicker : ContentView
         {
             ItemsSource = servers.Groups,
             IsGrouped = true,
+            ItemSizingStrategy = ItemSizingStrategy.MeasureFirstItem,
             SelectionMode = SelectionMode.None,
             HeightRequest = DeviceDisplay.Current.MainDisplayInfo.Height / DeviceDisplay.Current.MainDisplayInfo.Density * 0.55,
             ItemTemplate = new DataTemplate(() => new ServerCell(

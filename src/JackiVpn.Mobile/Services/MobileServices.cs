@@ -51,6 +51,7 @@ public sealed class MobileServices : IAsyncDisposable
         Database = new JackiDatabase(Path.Combine(DataDir, "jackivpn.db"));
         var protector = new AndroidKeystoreSecretProtector();
         Profiles = new SqliteProfileRepository(Database, protector);
+        Ibox = new Application.Account.IboxServices(DataDir, protector, LoggerFactory.CreateLogger("JackiVpn.Account"));
         Subscriptions = new SqliteSubscriptionRepository(Database, protector);
         HealthHistory = new SqliteHealthHistoryRepository(Database);
         ConnectionHistory = new SqliteConnectionHistoryRepository(Database);
@@ -156,10 +157,28 @@ public sealed class MobileServices : IAsyncDisposable
         Usage = usage;
         // No per-app process names on Android (one VPN process carries every app): domain and class rules only.
         Traffic = new Application.Traffic.TrafficController(Orchestrator, settings, Workplace, Usage, LoggerFactory.CreateLogger("JackiVpn.Traffic")) { ProcessAware = false };
+        // Only while the app is on screen: the banner is the only consumer.
+        Amnezia = new Application.Amnezia.AmneziaWatcher(
+            _ => Task.FromResult(!IsBackground && Platforms.Android.AmneziaAndroid.TunnelUp(Context)),
+            () => !Domain.Connection.ConnectionStateRules.IsIdle(Orchestrator.State),
+            async ct => (await Profiles.GetAllAsync(ct).ConfigureAwait(false)).Select(p => p.Server),
+            ct => Application.Amnezia.AmneziaWatcher.TraceEgressAsync(Settings.Current.Probe, ct));
         DualVpn.Changed += (_, _) => _ = Traffic.SettingsChangedAsync();
         Traffic.DetectDual = DualVpn.Detect;
         DualVpn.Attach(Orchestrator);
         RoutingWatcher = new Application.Routing.RoutingWatcher(Settings, Orchestrator, LoggerFactory.CreateLogger("JackiVpn.Routing"));
+        // Opt-in automations (Settings › Automations): started and stopped to follow the settings.
+        Automations = new Application.Automations.AutomationManager(new Application.Automations.AppAutomationEnvironment(
+            Settings, Orchestrator, Health, SubscriptionService, Profiles, Subscriptions,
+            (c, t, m) => Notifications.Notify(c, t, m),
+#if ANDROID
+            Platforms.Android.AndroidNetworkInfo.Current
+#else
+            null
+#endif
+            ));
+        Automations.Apply(Settings.Current.Automations);
+        Settings.Changed += (_, s) => Automations.Apply(s.Automations);
         var updateLog = LoggerFactory.CreateLogger("JackiVpn.Updates");
         Updates = new Infrastructure.Updates.UpdateMonitor(new Infrastructure.Updates.AppUpdateService(updateLog), () => Settings.Current.Updates,
             Version.TryParse(AppInfo.Current.VersionString, out var v) ? v : new Version(0, 0, 0), "android", CurrentAbi, updateLog)
@@ -168,7 +187,22 @@ public sealed class MobileServices : IAsyncDisposable
         };
         Activity = new ActivityMonitor(this);
         Orchestrator.StatusChanged += (_, st) => StatusSurfaces.Update(context, st);
+
+        // Android gives apps no way to change the time zone: only the "already on our servers" check runs here.
+        Privacy = new Application.Privacy.PrivacyFeatures(
+            Orchestrator,
+            null,
+            new Application.Privacy.OurServerDetector(
+                ct => Application.Privacy.OurServerDetector.LookupPublicIpAsync(Settings.Current.Probe, ct),
+                async ct => Application.Privacy.OurServerDetector.KnownIps(Insights, await Profiles.GetAllAsync(ct).ConfigureAwait(false)),
+                Application.Privacy.OurServerDetector.ForeignTunnelUp,
+                () => Settings.Current,
+                LoggerFactory.CreateLogger("JackiVpn.Privacy")));
+        Settings.Changed += (_, _) => Privacy.OnSettingsChanged();
     }
+
+    /// <summary>The "already on our servers through another app / the router" check (no time zone change on Android).</summary>
+    public Application.Privacy.PrivacyFeatures Privacy { get; }
 
     /// <summary>The APK flavour this process runs (the update feed has one APK per ABI).</summary>
     public static string CurrentAbi => System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture switch
@@ -189,6 +223,12 @@ public sealed class MobileServices : IAsyncDisposable
 
     /// <summary>Account export/import (.ibox) between Windows, Linux and Android.</summary>
     public Application.Accounts.AccountTransfer AccountTransfer { get; }
+
+    /// <summary>IBOX account (Telegram): subscription management and music (its player is also an INowPlayingSource).</summary>
+    public Application.Account.IboxServices Ibox { get; }
+
+    /// <summary>Adds the Telegram account's subscriptions after sign-in.</summary>
+    public Application.Account.AccountSubscriptionImport AccountImport { get; private set; } = null!;
     public Application.Connectivity.EndpointRescue Rescue { get; }
     public Application.Connectivity.DnsFinder DnsFinder { get; }
 
@@ -214,8 +254,13 @@ public sealed class MobileServices : IAsyncDisposable
     public Application.Usage.UsageMonitor Usage { get; }
     public Application.Traffic.TrafficController Traffic { get; }
 
+    /// <summary>Notices AmneziaVPN connected (to one of our servers) while IBOX is idle.</summary>
+    public Application.Amnezia.AmneziaWatcher Amnezia { get; }
+
     /// <summary>Applies routing changes to the running connection.</summary>
     public Application.Routing.RoutingWatcher RoutingWatcher { get; }
+
+    public Application.Automations.AutomationManager Automations { get; }
 
     /// <summary>"Samsung SM-S911B" — shown to the user's own panel and devices, never the device's user name.</summary>
     public static string PhoneModel => global::Android.OS.Build.Manufacturer + " " + global::Android.OS.Build.Model;
@@ -243,6 +288,7 @@ public sealed class MobileServices : IAsyncDisposable
         // Battery: usage is sampled every 15 s and orbs stop drawing while nobody looks.
         Usage.Interval = TimeSpan.FromSeconds(foreground ? 3 : 15);
         Controls.OrbView.AppVisible = foreground;
+        Controls.PowerButton.AppVisible = foreground;
     }
 
     /// <summary>The services, also from components Android starts on its own (widget, tile, always-on VPN).</summary>
@@ -314,12 +360,24 @@ public sealed class MobileServices : IAsyncDisposable
         {
             try
             {
+                await Amnezia.RunAsync(TimeSpan.FromSeconds(10), Lifetime).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        });
+        _ = Task.Run(async () =>
+        {
+            try
+            {
                 await SubscriptionService.RunAutoUpdateLoopAsync(TimeSpan.FromMinutes(1), Lifetime).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
             }
         });
+        AccountImport = new Application.Account.AccountSubscriptionImport(Ibox, SubscriptionService, Subscriptions, DataDir, LoggerFactory.CreateLogger("JackiVpn.Account"));
+        AccountImport.Attach(Lifetime);
         _ = Task.Run(async () =>
         {
             try

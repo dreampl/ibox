@@ -17,7 +17,7 @@ namespace JackiVpn.Linux.Ui;
 /// every app and site with its use (and per-app limits, Eco cut, priority), alerts, workplace networks and the
 /// signed company policy. Live numbers refresh every 2 s only while the page is on screen.
 /// </summary>
-public sealed class UsagePage(Shell shell) : OptionsPage(shell)
+public sealed class UsagePage(Shell shell, bool workplaceOnly = false) : OptionsPage(shell)
 {
     private static readonly (TrafficMode Mode, string Label)[] Modes =
         [(TrafficMode.Normal, "Auto"), (TrafficMode.Eco, "Eco"), (TrafficMode.Gaming, "Gaming"), (TrafficMode.Streaming, "Streaming"), (TrafficMode.Work, "Work")];
@@ -39,7 +39,7 @@ public sealed class UsagePage(Shell shell) : OptionsPage(shell)
     private int _days;
     private bool _settingMode;
 
-    public override string Title => "Usage";
+    public override string Title => workplaceOnly ? "Workplace" : "Usage";
 
     public override string Glyph => "M4 20V11 M10 20V4 M16 20v-6 M22 20H2";
 
@@ -103,6 +103,10 @@ public sealed class UsagePage(Shell shell) : OptionsPage(shell)
             Row("Background speed while gaming (kbit/s)", null, Number(t.BackgroundKbpsWhileGaming, 256, 1_000_000, v => _ = SetTrafficAsync(x => x with { BackgroundKbpsWhileGaming = (int)v }), 256)),
             Row("Background speed while streaming (kbit/s)", null, Number(t.BackgroundKbpsWhileStreaming, 256, 1_000_000, v => _ = SetTrafficAsync(x => x with { BackgroundKbpsWhileStreaming = (int)v }), 256)));
 
+        if (workplaceOnly)
+        {
+            return Section("Workplace", "Company domains and subnets stay outside the tunnel on recognised networks.", _workplace);
+        }
         var reset = Ghost("Reset counters", () => _ = ResetAsync());
         return Stack(
             Header("Usage", "How much data you use, by app and by site, and what may use it.", actions),
@@ -112,12 +116,12 @@ public sealed class UsagePage(Shell shell) : OptionsPage(shell)
             Section("Recent alerts", null, _alerts),
             control,
             limits,
-            Section("Workplace", "On a recognised company network internal names and subnets stay outside the tunnel and Work mode applies.", _workplace),
             new StackPanel { HorizontalAlignment = HorizontalAlignment.Left, Children = { reset } });
     }
 
     public override void OnShown()
     {
+        if (workplaceOnly) { RenderWorkplace(); return; }
         Render();
         _timer ??= new DispatcherTimer(TimeSpan.FromSeconds(2), DispatcherPriority.Background, (_, _) =>
         {

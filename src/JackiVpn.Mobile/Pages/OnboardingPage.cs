@@ -190,6 +190,11 @@ public sealed class OnboardingPage : ContentPage
     {
         _s.Settings.Update(x => x with { Ui = x.Ui with { OnboardingDone = true } });
         await Navigation.PopModalAsync(animated: true);
+        if (_s.Ibox.ShouldOfferSignIn)
+        {
+            // Then the optional Telegram sign-in (music and the in-app subscription manager).
+            await Shell.Current.Navigation.PushAsync(new IboxAccountPage(_s, firstRun: true));
+        }
     }
 
     private async Task ShowAsync(int index, bool animate = true)

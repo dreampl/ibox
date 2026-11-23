@@ -176,13 +176,22 @@ public sealed class NotchBody : FrameworkElement
 
     public double LateralCenter { get; set; } = 0.5;
 
+    /// <summary>
+    /// Island mode: a capsule floating below the top edge, rounded on all four corners, without the curves that tie
+    /// the classic notch into the edge. Its shadow falls all around it.
+    /// </summary>
+    public bool Floating { get; set; }
+
+    /// <summary>The curves into the top edge: classic notch only, and only when tall enough to carry them.</summary>
+    private bool HasEars => !Floating && BodyHeight >= 2 * Ear;
+
     /// <summary>Background of the body (black; a request tints it a little).</summary>
     public Brush Fill { get; set; } = Brushes.Black;
 
     public void SetSize(double width, double height, double radius)
     {
         BodyWidth = Math.Max(20, width);
-        BodyHeight = Math.Max(16, height);
+        BodyHeight = Math.Max(4, height);
         Radius = Math.Clamp(radius, 0, Math.Min(BodyWidth, BodyHeight) / 2);
         Width = BodyWidth;
         Height = BodyHeight;
@@ -227,7 +236,7 @@ public sealed class NotchBody : FrameworkElement
         }
 
         Cluster?.Draw(drawingContext, BodyWidth, Fill, VisualTreeHelper.GetDpi(this).PixelsPerDip);
-        _outline = Outline(0, 0, ears: true);
+        _outline = Outline(0, 0, ears: HasEars);
         drawingContext.DrawGeometry(Fill, null, _outline);
         if (Glass != GlassLevel.Off && GlassStrength > 0.01)
         {
@@ -390,6 +399,11 @@ public sealed class NotchBody : FrameworkElement
     /// <summary>The outline, grown by <paramref name="inflate"/> (shadow layers) and lowered by <paramref name="drop"/>.</summary>
     private StreamGeometry Outline(double inflate, double drop, bool ears)
     {
+        if (Floating)
+        {
+            return Capsule(inflate, drop);
+        }
+
         var w = BodyWidth;
         var h = BodyHeight;
         var r = Math.Min(Radius + inflate, (h + inflate + drop) / 2);
@@ -437,6 +451,61 @@ public sealed class NotchBody : FrameworkElement
         }
 
         // The stretch grows towards the bottom: nothing at the top edge, all of it at the lowest point.
+        return Finish(points, w, h);
+    }
+
+    /// <summary>
+    /// Island mode's outline: all four corners continuous (squircle), the shadow layers grown on every side and
+    /// lowered a little. The membrane and the sideways pull bend its lower part like the classic notch's.
+    /// </summary>
+    private StreamGeometry Capsule(double inflate, double drop)
+    {
+        var w = BodyWidth;
+        var h = BodyHeight;
+        var left = -inflate;
+        var right = w + inflate;
+        var top = -inflate + (drop * 1.6);
+        var bottom = h + inflate + drop;
+        var r = Math.Min(Radius + inflate, (bottom - top) / 2);
+        // Smoothing needs room beyond the radius: where there is none (a small capsule) the ends become half circles.
+        var smooth = Math.Min(Smoothing, Math.Max(0, (((bottom - top) / 2) / Math.Max(0.01, r)) - 1));
+        var corner = Domain.Visuals.Squircle.Corner(r, smooth, 7);
+        var full = Math.Max(0.01, Domain.Visuals.Squircle.Reach(r, smooth));
+        var reach = Math.Min(full, Math.Min((right - left) / 2, (bottom - top) / 2));
+        var squeeze = reach / full;
+        var points = new List<Point>(180);
+
+        // Top-left (from the top edge round to the side), down the left side, bottom-left…
+        for (var i = corner.Count - 1; i >= 0; i--)
+        {
+            points.Add(new Point(left - (corner[i].X * squeeze), top - (corner[i].Y * squeeze)));
+        }
+
+        Line(points, new Point(left, top + reach), new Point(left, bottom - reach), 6);
+        foreach (var (cx, cy) in corner)
+        {
+            points.Add(new Point(left - (cx * squeeze), bottom + (cy * squeeze)));
+        }
+
+        Line(points, new Point(left + reach, bottom), new Point(right - reach, bottom), Math.Max(8, (int)((right - left) / 3)));
+        for (var i = corner.Count - 1; i >= 0; i--)
+        {
+            points.Add(new Point(right + (corner[i].X * squeeze), bottom + (corner[i].Y * squeeze)));
+        }
+
+        Line(points, new Point(right, bottom - reach), new Point(right, top + reach), 6);
+        foreach (var (cx, cy) in corner)
+        {
+            points.Add(new Point(right + (cx * squeeze), top - (cy * squeeze)));
+        }
+
+        Line(points, new Point(right - reach, top), new Point(left + reach, top), Math.Max(8, (int)((right - left) / 3)));
+        return Finish(points, w, h);
+    }
+
+    /// <summary>Applies the membrane and the sideways pull to the outline's points and closes it.</summary>
+    private StreamGeometry Finish(List<Point> points, double w, double h)
+    {
         var lateral = Lateral;
         var center = LateralCenter * w;
         var spread = Math.Max(30, w * 0.22);

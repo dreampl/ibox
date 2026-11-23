@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -63,9 +64,9 @@ public sealed partial class NotchWindow
     private readonly TextBlock _askApp = new() { FontSize = 11, Foreground = new SolidColorBrush(Color.FromRgb(0x9C, 0xA3, 0xAF)), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(9, 0, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly TextBlock _askMore = new() { FontSize = 11, Foreground = new SolidColorBrush(Color.FromRgb(0x5A, 0xAC, 0xFF)), VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _askTitle = new() { FontSize = 14.5, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White, Margin = new Thickness(0, 9, 0, 7), TextTrimming = TextTrimming.CharacterEllipsis };
-    private readonly TextBlock _askDetail = new() { FontFamily = new FontFamily("Cascadia Mono, Consolas"), FontSize = 11.5, Foreground = new SolidColorBrush(Color.FromRgb(0xE5, 0xE7, 0xEB)), TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, MaxHeight = 47 };
+    private readonly TextBlock _askDetail = new() { FontFamily = new FontFamily("Cascadia Mono, Consolas"), FontSize = 11.5, Foreground = new SolidColorBrush(Color.FromRgb(0xE5, 0xE7, 0xEB)), TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, MaxHeight = 125, FlowDirection = FlowDirection.LeftToRight };
     private readonly Border _askDetailBox = new() { CornerRadius = new CornerRadius(9), Padding = new Thickness(10, 7, 10, 7), Background = new SolidColorBrush(Color.FromRgb(0x16, 0x1B, 0x26)) };
-    private readonly TextBlock _askNote = new() { FontSize = 11.5, Foreground = new SolidColorBrush(Color.FromRgb(0x9C, 0xA3, 0xAF)), Margin = new Thickness(0, 6, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis };
+    private readonly TextBlock _askNote = new() { FontSize = 11.5, Foreground = new SolidColorBrush(Color.FromRgb(0x9C, 0xA3, 0xAF)), Margin = new Thickness(0, 6, 0, 0), TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, MaxHeight = 32 };
     private readonly StackPanel _askButtons = new() { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
     private readonly ScaleTransform _askClock = new(1, 1);
     private readonly List<PendingAsk> _asks = [];
@@ -277,8 +278,28 @@ public sealed partial class NotchWindow
     public void ShowAlert(AiAlert alert)
     {
         ArgumentNullException.ThrowIfNull(alert);
-        if ((!_settings.AiAssistants && alert.Source != "plugin") || _hiddenForFullScreen || !IsVisible)
+        if ((!_settings.AiAssistants && alert.Source is not ("plugin" or NotchSources.Telegram)) || _hiddenForFullScreen || !IsVisible)
         {
+            return;
+        }
+
+        if (alert.Source == NotchSources.Telegram)
+        {
+            var otherAlerts = _alerts.Where(a => a.Source != NotchSources.Telegram).ToArray();
+            _alerts.Clear();
+            foreach (var other in otherAlerts) { _alerts.Enqueue(other); }
+        }
+
+        if (alert.Source == NotchSources.Telegram && _panel == NotchPanel.Alert && _alertShown?.Source == NotchSources.Telegram)
+        {
+            _alertShown = alert;
+            SetIcon(_alertIcon, alert.Icon, alert.Source, 18, alert.App);
+            _alertTitle.Text = alert.Title;
+            _alertBody.Text = alert.Body ?? string.Empty;
+            _alertBody.Visibility = string.IsNullOrEmpty(alert.Body) ? Visibility.Collapsed : Visibility.Visible;
+            _alertTimer.Stop();
+            _alertTimer.Interval = TimeSpan.FromSeconds(alert.Seconds ?? 5);
+            _alertTimer.Start();
             return;
         }
 
@@ -316,6 +337,8 @@ public sealed partial class NotchWindow
         SetIcon(_alertIcon, alert.Icon, alert.Source, 18, alert.App);
         _alertApp.Text = alert.App;
         _alertTitle.Text = alert.Title;
+        _alertTitle.FlowDirection = alert.Source == NotchSources.Telegram ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
+        _alertBody.FlowDirection = _alertTitle.FlowDirection;
         _alertBody.Text = alert.Body ?? string.Empty;
         _alertBody.Visibility = string.IsNullOrEmpty(alert.Body) ? Visibility.Collapsed : Visibility.Visible;
         var first = _panel != NotchPanel.Alert;
@@ -362,7 +385,7 @@ public sealed partial class NotchWindow
     public Task<string> AskAsync(NotchMessage message, ImageSource? icon, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(message);
-        if ((!_settings.AiAssistants && message.Source != "plugin") || _hiddenForFullScreen || !IsVisible || _asks.Count >= 8)
+        if (ct.IsCancellationRequested || (!_settings.AiAssistants && message.Source != "plugin") || !CanAsk || _asks.Count >= 8)
         {
             return Task.FromResult(NotchBridge.AskThere);
         }
@@ -382,6 +405,9 @@ public sealed partial class NotchWindow
         return pending.Done.Task;
     }
 
+    /// <summary>Whether a request shown here can be seen and answered (shown, not hidden by a full-screen app).</summary>
+    public bool CanAsk => IsVisible && !_hiddenForFullScreen;
+
     private void ShowAsk(PendingAsk pending)
     {
         var m = pending.Message;
@@ -391,6 +417,7 @@ public sealed partial class NotchWindow
         _askDetail.Text = m.Detail ?? m.Tool ?? string.Empty;
         _askDetailBox.Visibility = string.IsNullOrEmpty(_askDetail.Text) ? Visibility.Collapsed : Visibility.Visible;
         _askNote.Text = m.Note ?? string.Empty;
+        _askNote.FlowDirection = NotchBridge.IsRtl(m.Note) ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
         _askNote.Visibility = string.IsNullOrEmpty(m.Note) ? Visibility.Collapsed : Visibility.Visible;
         UpdateAskCount();
 

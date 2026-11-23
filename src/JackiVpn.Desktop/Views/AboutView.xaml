@@ -16,11 +16,11 @@
             <!-- How to start, again: the first-start tour. -->
             <v:ClaySurface Margin="0,0,0,16">
                 <DockPanel>
-                    <Button DockPanel.Dock="Right" Content="Show the tour" VerticalAlignment="Center"
+                    <Button DockPanel.Dock="Right" Content="Easy setup" VerticalAlignment="Center"
                             Command="{Binding DataContext.ShowTourCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
                     <StackPanel>
                         <TextBlock Text="Getting started" Style="{StaticResource Text.Section}" />
-                        <TextBlock Text="A one-minute walk through adding servers, choosing how to connect and the eye button." Style="{StaticResource Text.Hint}" TextWrapping="Wrap" />
+                        <TextBlock Text="Sign in with Telegram, add subscription or config links, or sync another device." Style="{StaticResource Text.Hint}" TextWrapping="Wrap" />
                     </StackPanel>
                 </DockPanel>
             </v:ClaySurface>

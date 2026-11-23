@@ -47,14 +47,15 @@ public static class XrayConfigBuilder
                 secrets.Add(auth.Password);
             }
 
-            inbounds.Add(new JsonObject
+            var inbound = new JsonObject
             {
                 ["tag"] = inTag,
                 ["listen"] = "127.0.0.1",
                 ["port"] = portsFor[i],
                 ["protocol"] = "socks",
                 ["settings"] = socks,
-            });
+            };
+            inbounds.Add(inbound);
             ports.Add(portsFor[i]);
 
             var (outbound, fragment) = BuildOutbound(plan.Profiles[i], outTag, caps, plan.MuxEnabled, secrets, notes);
@@ -62,6 +63,21 @@ public static class XrayConfigBuilder
             if (fragment is not null)
             {
                 outbounds.Add(fragment);
+            }
+
+            if (plan.Kind == SessionKind.ChainBackend && plan.Routing.Rules.Count > 0)
+            {
+                // The user's rules, repeated behind sing-box (see XrayRuleTranslator for why this is leak-safe).
+                // Sniffing (route only) lets domain rules see TLS/HTTP names like sing-box does.
+                var userRules = XrayRuleTranslator.Translate(plan.Routing, inTag, outTag, "direct", notes);
+                if (userRules.Count > 0)
+                {
+                    inbound["sniffing"] = new JsonObject { ["enabled"] = true, ["destOverride"] = new JsonArray("http", "tls", "quic"), ["routeOnly"] = true };
+                    foreach (var r in userRules)
+                    {
+                        rules.Add(r);
+                    }
+                }
             }
 
             rules.Add(new JsonObject
@@ -73,6 +89,7 @@ public static class XrayConfigBuilder
         }
 
         outbounds.Add(new JsonObject { ["tag"] = "direct", ["protocol"] = "freedom" });
+        outbounds.Add(new JsonObject { ["tag"] = XrayRuleTranslator.BlockTag, ["protocol"] = "blackhole" });
 
         var root = new JsonObject
         {

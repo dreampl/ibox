@@ -49,16 +49,18 @@ public sealed partial class ServerItem : ObservableObject
 
     public string FlagTip => CountryCode is { } cc ? "Exit seen through this server: " + cc : FlagCode is { } guess ? "From the server's name: " + guess + " (not connected yet)" : "Country not known yet";
 
-    public ServerItem(ProxyProfile profile, NodeHealthSnapshot health, string? subscriptionName, bool isOfficial = false)
+    public ServerItem(ProxyProfile profile, NodeHealthSnapshot health, string? subscriptionName, bool isOfficial = false, bool isNex = false)
     {
         _profile = profile;
         _health = health;
         SubscriptionName = subscriptionName ?? "Manual";
         IsOfficial = isOfficial;
+        IsNex = isNex;
     }
 
     /// <summary>From an official provider subscription (verified over HTTPS).</summary>
     public bool IsOfficial { get; }
+    public bool IsNex { get; }
 
     /// <summary>Measured fast (Excellent/Good) — the badge is only shown when a test backs it.</summary>
     public bool IsFast => Health.Label is HealthLabel.Excellent or HealthLabel.Good;
@@ -387,7 +389,7 @@ public sealed partial class ServersViewModel : ObservableObject
         foreach (var p in profiles.Where(p => p.Origin.ProviderId != Application.Workplace.SecondVpnService.OwnedTag))
         {
             var sub = p.Origin.SubscriptionId is { } sid && subs.TryGetValue(sid, out var s) ? s : null;
-            var item = new ServerItem(p, _s.Health.Snapshot(p.Id), sub?.Name, sub?.IsOfficial == true)
+            var item = new ServerItem(p, _s.Health.Snapshot(p.Id), sub?.Name, sub?.IsOfficial == true, sub?.IsNex == true)
             {
                 IsDefault = p.Id == selectedId,
                 IsActive = p.Id == active,

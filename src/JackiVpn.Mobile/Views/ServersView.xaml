@@ -22,7 +22,7 @@
             <Border x:Name="TestButton" Grid.Column="2" WidthRequest="44" HeightRequest="44" StrokeShape="RoundRectangle 15" StrokeThickness="0" Background="{StaticResource PrimaryGradient}">
                 <Grid>
                     <controls:Icon Name="bolt" Size="20" IsVisible="{Binding IsTesting, Converter={StaticResource Not}}" />
-                    <controls:OrbView State="Searching" IsVisible="{Binding IsTesting}" Tint="White" WidthRequest="24" HeightRequest="24" />
+                    <ActivityIndicator IsRunning="{Binding IsTesting}" IsVisible="{Binding IsTesting}" Color="White" WidthRequest="24" HeightRequest="24" />
                 </Grid>
                 <Border.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnTestTapped" />
@@ -54,7 +54,7 @@
             <Grid RowDefinitions="Auto,*">
                 <Border WidthRequest="40" HeightRequest="5" StrokeShape="RoundRectangle 3" StrokeThickness="0" BackgroundColor="#33FFFFFF" HorizontalOptions="Center" Margin="0,10,0,0" />
                 <RefreshView Grid.Row="1" IsRefreshing="{Binding IsRefreshing}" Command="{Binding RefreshCommand}">
-                    <CollectionView x:Name="List" ItemsSource="{Binding Groups}" IsGrouped="True" SelectionMode="None">
+                    <CollectionView x:Name="List" ItemsSource="{Binding Groups}" IsGrouped="True" SelectionMode="None" ItemSizingStrategy="MeasureFirstItem">
                         <CollectionView.EmptyView>
                             <VerticalStackLayout Padding="16,50" Spacing="8">
                                 <controls:Icon Name="servers" Size="40" Color="{StaticResource Text3}" />

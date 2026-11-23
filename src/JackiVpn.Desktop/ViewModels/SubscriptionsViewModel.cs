@@ -31,6 +31,7 @@ public sealed partial class SubscriptionItem : ObservableObject
     }
 
     public bool IsOfficial => Model.IsOfficial;
+    public bool IsNex => Model.IsNex;
 
     /// <summary>Official providers always get the device ID; for others it is the user's choice (default off).</summary>
     public bool SendDeviceId
@@ -58,7 +59,16 @@ public sealed partial class SubscriptionItem : ObservableObject
         _ => SendDeviceId ? "Device ID sent (counts toward the provider's device limit, if it has one)." : "Device ID not sent.",
     };
 
-    private SubscriptionMetadata M => Model.Metadata;
+    private Application.Account.SubscriptionCard? _accountCard;
+    public void SetAccountCard(Application.Account.SubscriptionCard? card) { _accountCard = card; OnPropertyChanged(string.Empty); }
+    public void RefreshTime() { OnPropertyChanged(nameof(LastUpdate)); OnPropertyChanged(nameof(TimeLeft)); }
+    private SubscriptionMetadata M => _accountCard is not { } card ? Model.Metadata : Model.Metadata with
+    {
+        Username = string.IsNullOrWhiteSpace(card.Username) ? Model.Metadata.Username : card.Username,
+        TotalBytes = card.LimitBytes, IsUnlimitedTraffic = card.Unlimited,
+
+        ExpireUtc = card.Expires, IsUnlimitedExpiry = card.Expires is null, ProviderStatus = card.Status,
+    };
 
     public bool HasAccountInfo => Model.Provider == SubscriptionProviderKind.PasarGuard;
 
@@ -99,27 +109,34 @@ public sealed partial class SubscriptionItem : ObservableObject
 
     public SubscriptionStatus Status => M.ComputeStatus(DateTimeOffset.UtcNow);
 
-    public string Used => Format.Bytes(M.UsedBytes);
+    public string Used => Format.Bytes(_accountCard?.UsedBytes ?? M.UsedBytes);
 
     public string Upload => Format.Bytes(M.UploadBytes);
 
     public string Download => Format.Bytes(M.DownloadBytes);
 
-    public string Total => M.IsUnlimitedTraffic == true ? "Unlimited" : Format.Bytes(M.TotalBytes);
+    public string Total => M.IsUnlimitedTraffic == true ? "∞" : Format.Bytes(M.TotalBytes);
 
-    public string Remaining => M.IsUnlimitedTraffic == true ? "Unlimited" : Format.Bytes(M.RemainingBytes);
+    public string Remaining => M.IsUnlimitedTraffic == true ? "∞" : Format.Bytes(_accountCard is { } card ? Math.Max(0, card.LimitBytes - card.UsedBytes) : M.RemainingBytes);
 
-    public double UsedPercent => M.UsedPercent ?? 0;
+    public double UsedPercent => _accountCard is { } card ? card.UsedFraction * 100 : M.UsedPercent ?? 0;
 
-    public bool HasQuota => M.UsedPercent is not null;
+    public bool HasQuota => _accountCard is { } card ? !card.Unlimited : M.UsedPercent is not null;
 
-    public string UsedPercentText => M.UsedPercent is { } p ? $"{p:0.#}%" : Format.Unknown;
+    public string UsedPercentText => HasQuota ? $"{UsedPercent:0.#}% used" : string.Empty;
 
-    public string Expire => M.IsUnlimitedExpiry == true ? "Never" : M.ExpireUtc is { } e ? Format.When(e) : Format.Unknown;
+    public string Expire => M.IsUnlimitedExpiry == true ? "∞" : M.ExpireUtc is { } e ? Format.When(e) : Format.Unknown;
 
-    public string TimeLeft => M.IsUnlimitedExpiry == true ? "Unlimited" : Format.Duration(M.TimeRemaining(DateTimeOffset.UtcNow));
+    public string TimeLeft => M.IsUnlimitedExpiry == true ? "∞" : Format.Duration(M.TimeRemaining(DateTimeOffset.UtcNow));
 
-    public string LastUpdate => Format.When(Model.LastUpdateUtc);
+    public string LastUpdate => Model.LastUpdateUtc is not { } time ? Format.Unknown :
+        (DateTimeOffset.UtcNow - time) switch
+        {
+            { TotalMinutes: < 1 } => "Just now",
+            { TotalMinutes: < 60 } age => $"{(int)age.TotalMinutes} minute{((int)age.TotalMinutes == 1 ? "" : "s")} ago",
+            { TotalHours: < 4 } age => $"{(int)age.TotalHours} hour{((int)age.TotalHours == 1 ? "" : "s")} ago",
+            _ => Format.When(time),
+        };
 
     public string? LastError => Model.LastError;
 
@@ -181,9 +198,51 @@ public sealed partial class SubscriptionsViewModel : ObservableObject
     {
         _s = services;
         _dialogs = dialogs;
+        if (services.Ibox.SignedIn) { services.Ibox.Watcher.Start(); }
         services.SubscriptionService.Updated += (_, r) => Ui.Post(() => _ = ReloadOneAsync(r.SubscriptionId));
         services.SubscriptionService.AccountChecked += (_, id) => Ui.Post(() => _ = ReloadOneAsync(id));
+        services.Ibox.Watcher.Updated += (_, _) => Ui.Post(() => _ = EnrichAsync());
+        services.Ibox.SignInChanged += (_, _) => Ui.Post(() => OnPropertyChanged(nameof(IboxSignedIn)));
     }
+
+    /// <summary>Signed in with Telegram: the subscriptions bought with that account can be picked and added.</summary>
+    public bool IboxSignedIn => _s.Ibox.SignedIn;
+
+    public Task<IReadOnlyList<Application.Account.AccountLink>> AccountLinksAsync() => _s.AccountImport.ListAsync(_s.Lifetime);
+
+    /// <summary>Adds one subscription picked from the Telegram account; the result goes to <see cref="Message"/>.</summary>
+    public async Task<bool> AddFromAccountAsync(Application.Account.SubscriptionCard card)
+    {
+        IsBusy = true;
+        Message = "Adding subscription…";
+        try
+        {
+            var sub = await _s.AccountImport.AddChosenAsync(card, _s.Lifetime);
+            await ReloadOneAsync(sub.Id);
+            Message = sub.LastError is null
+                ? $"Added \"{sub.Name}\" with {sub.ProfileCount} server(s)."
+                : $"Added \"{sub.Name}\", but the first update failed: {sub.LastError}";
+            return true;
+        }
+        catch (Exception ex) when (ex is SubscriptionException or Subscriptions.Fetching.FetchException or InvalidOperationException)
+        {
+            Message = "Could not add: " + SecretRedactor.Redact(ex.Message);
+            return false;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    public Task<Uri?> NexManagementUriAsync(SubscriptionItem item) =>
+        _s.SubscriptionService.GetNexManagementUriAsync(item.Id, _s.Lifetime);
+
+    public Task<IReadOnlyList<NexAmneziaConfig>> NexAmneziaConfigsAsync(SubscriptionItem item) =>
+        _s.SubscriptionService.GetNexAmneziaConfigsAsync(item.Id, _s.Lifetime);
+
+    /// <summary>Counts the key's server as ours when AmneziaVPN later connects to it.</summary>
+    public void RememberAmneziaKey(Application.Amnezia.AmneziaShareKey key) => _s.Amnezia.Remember(key);
 
     public ObservableCollection<SubscriptionItem> Items { get; } = [];
 
@@ -197,7 +256,20 @@ public sealed partial class SubscriptionsViewModel : ObservableObject
         {
             Items.Add(new SubscriptionItem(sub, SetIntervalAsync, SetSendDeviceIdAsync));
         }
+        await EnrichAsync();
     }
+
+    private async Task EnrichAsync()
+    {
+        var cards = _s.Ibox.SignedIn ? _s.Ibox.Watcher.Current?.Subscriptions : null;
+        foreach (var item in Items.ToArray())
+        {
+            var url = await _s.Subscriptions.GetSourceUrlAsync(item.Id, _s.Lifetime);
+            item.SetAccountCard(cards?.FirstOrDefault(c => (c.Link is not null && SameLink(c.Link, url) || c.Nex?.ComboLink is { } combo && SameLink(combo, url))));
+        }
+    }
+
+    private static bool SameLink(Uri link, string? url) => string.Equals(link.AbsoluteUri.TrimEnd('/'), url?.Trim().TrimEnd('/'), StringComparison.Ordinal);
 
     private async Task SetSendDeviceIdAsync(SubscriptionItem item, bool send)
     {
@@ -227,6 +299,7 @@ public sealed partial class SubscriptionsViewModel : ObservableObject
         {
             item.Model = sub;
         }
+        await EnrichAsync();
     }
 
     [RelayCommand]
@@ -335,7 +408,7 @@ public sealed partial class SubscriptionsViewModel : ObservableObject
         if (Uri.TryCreate(url, UriKind.Absolute, out var u) && (u.Scheme == Uri.UriSchemeHttps || u.Scheme == Uri.UriSchemeHttp)
             && _dialogs.Confirm("Open link", $"Open this provider link in your browser?{Environment.NewLine}{u.AbsoluteUri}"))
         {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(u.AbsoluteUri) { UseShellExecute = true });
+            Views.BrowserDrawer.Open(u);
         }
     }
 

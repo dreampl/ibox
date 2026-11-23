@@ -66,6 +66,7 @@ public sealed class AppServices : IAsyncDisposable
         Settings = new SettingsStore(new SqliteSettingsRepository(Database), LoggerFactory.CreateLogger("JackiVpn.Settings"));
         Func<AppSettings> settings = () => Settings.Current;
         Accounts = new Application.Accounts.LocalAccountService(System.IO.Path.Combine(Paths.UserDataRoot, "profiles"), protector, Settings, LoggerFactory.CreateLogger("JackiVpn.Profiles"));
+        Ibox = new Application.Account.IboxServices(Paths.UserDataRoot, protector, LoggerFactory.CreateLogger("JackiVpn.Account"));
         DualVpn = new Application.Workplace.SecondVpnService(Settings, Profiles, protector, Sandboxed ? null : new Services.WindowsIpsec(), LoggerFactory.CreateLogger("JackiVpn.DualVpn"));
 
         Catalog = new CoreBinaryCatalog(Paths.CoresDir);
@@ -184,8 +185,23 @@ public sealed class AppServices : IAsyncDisposable
         DualVpn.Changed += (_, _) => _ = Traffic.SettingsChangedAsync();
         Traffic.DetectDual = DualVpn.Detect;
         DualVpn.Attach(Orchestrator);
+        Amnezia = new Application.Amnezia.AmneziaWatcher(
+            _ => Task.FromResult(Services.AmneziaWindows.TunnelUp()),
+            () => !Domain.Connection.ConnectionStateRules.IsIdle(Orchestrator.State),
+            async ct => (await Profiles.GetAllAsync(ct).ConfigureAwait(false)).Select(p => p.Server),
+            ct => Application.Amnezia.AmneziaWatcher.TraceEgressAsync(Settings.Current.Probe, ct));
         RoutingWatcher = new Application.Routing.RoutingWatcher(Settings, Orchestrator, LoggerFactory.CreateLogger("JackiVpn.Routing"));
+        // Opt-in automations (Settings › Automations): started and stopped to follow the settings.
+        Automations = new Application.Automations.AutomationManager(new Application.Automations.AppAutomationEnvironment(
+            Settings, Orchestrator, Health, SubscriptionService, Profiles, Subscriptions,
+            (c, t, m) => Notifications.Notify(c, t, m),null));
+        Automations.Apply(Settings.Current.Automations);
+        Settings.Changed += (_, s) => Automations.Apply(s.Automations);
         RoutingEditor = new Application.Routing.RoutingEditorServer(Settings, LoggerFactory.CreateLogger("JackiVpn.RoutingEditor"));
+        // The owner's news for official subscriptions (shown on IBAR; a few bytes every five minutes when nothing is new).
+        News = new Application.News.NewsService(Subscriptions,
+            new Application.News.BroadcastClient(new System.Net.Http.HttpClient(new System.Net.Http.SocketsHttpHandler { ConnectTimeout = TimeSpan.FromSeconds(10) }) { Timeout = TimeSpan.FromSeconds(20) }),
+            LoggerFactory.CreateLogger("JackiVpn.News"));
         Agent = new Application.Agent.AgentPipeServer(
             new Application.Agent.AgentController(new Application.Agent.AgentDependencies
             {
@@ -200,6 +216,7 @@ public sealed class AppServices : IAsyncDisposable
                 Eco = () => Services.Ecosystem.Extras(this),
                 SetTraffic = mode => Services.Ecosystem.SetTraffic(this, mode),
                 SetDualVpn = (on, ct) => DualVpn.SetEnabledAsync(on, ct),
+                ReadNews = (ids, ct) => News.ReadAsync(ids, ct),
             }),
             () => Settings.Current.Agent,
             LoggerFactory.CreateLogger("JackiVpn.Agent"),
@@ -232,6 +249,18 @@ public sealed class AppServices : IAsyncDisposable
             Keep();
         }
         Traffic.Changed += (_, _) => Agent.NotifyChanged();
+
+        var privacyLog = LoggerFactory.CreateLogger("JackiVpn.Privacy");
+        Privacy = new Application.Privacy.PrivacyFeatures(
+            Orchestrator,
+            Sandboxed ? null : new Application.Privacy.TimeZoneSync(new Services.ServiceTimeZoneControl(Service), () => Settings.Current, privacyLog),
+            new Application.Privacy.OurServerDetector(
+                ct => Application.Privacy.OurServerDetector.LookupPublicIpAsync(Settings.Current.Probe, ct),
+                async ct => Application.Privacy.OurServerDetector.KnownIps(Insights, await Profiles.GetAllAsync(ct).ConfigureAwait(false)),
+                () => Application.Privacy.OurServerDetector.ForeignTunnelUp() || ForeignSystemProxy(),
+                () => Settings.Current,
+                privacyLog));
+        Settings.Changed += (_, _) => Privacy.OnSettingsChanged();
     }
 
     public Application.Connectivity.DnsFinder DnsFinder { get; }
@@ -280,6 +309,15 @@ public sealed class AppServices : IAsyncDisposable
     /// <summary>The standalone second VPN (Dual VPN).</summary>
     public Application.Workplace.SecondVpnService DualVpn { get; }
 
+    /// <summary>Notices AmneziaVPN connected to one of our servers while IBOX is idle.</summary>
+    public Application.Amnezia.AmneziaWatcher Amnezia { get; }
+
+    /// <summary>IBOX account (Telegram): subscription management and music.</summary>
+    public Application.Account.IboxServices Ibox { get; }
+
+    /// <summary>Adds the Telegram account's subscriptions after sign-in.</summary>
+    public Application.Account.AccountSubscriptionImport AccountImport { get; private set; } = null!;
+
     /// <summary>Account export/import (.ibox) between Windows, Linux and Android.</summary>
     public Application.Accounts.AccountTransfer AccountTransfer { get; }
     public Application.Connectivity.EndpointRescue Rescue { get; }
@@ -290,11 +328,15 @@ public sealed class AppServices : IAsyncDisposable
     /// <summary>Applies routing changes to the running connection.</summary>
     public Application.Routing.RoutingWatcher RoutingWatcher { get; }
 
+    public Application.Automations.AutomationManager Automations { get; }
+
     /// <summary>The node-based routing editor in the browser (loopback, on demand).</summary>
     public Application.Routing.RoutingEditorServer RoutingEditor { get; }
 
     /// <summary>Control by the command line and AI agents (MCP), when the user turns it on.</summary>
     public Application.Agent.AgentPipeServer Agent { get; }
+
+    public Application.News.NewsService News { get; }
 
     public Services.ProxyPortKeeper PortKeeper { get; }
 
@@ -341,6 +383,22 @@ public sealed class AppServices : IAsyncDisposable
     public RuleSetManager RuleSets { get; }
     public ServiceControl Service { get; }
 
+    /// <summary>Time zone matching and the "already on our servers through another app / the router" check.</summary>
+    public Application.Privacy.PrivacyFeatures Privacy { get; }
+
+    /// <summary>While IBOX is off its own proxy is restored, so an enabled system proxy belongs to another app.</summary>
+    private bool ForeignSystemProxy()
+    {
+        try
+        {
+            return WinInet.Query(null) is { ProxyEnabled: true, ProxyServer.Length: > 0 };
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            return false;
+        }
+    }
+
     /// <summary>Local profiles: each person's own (encrypted) settings.</summary>
     public Application.Accounts.LocalAccountService Accounts { get; }
 
@@ -372,8 +430,22 @@ public sealed class AppServices : IAsyncDisposable
         _ = Task.Run(Workplace.Refresh);
         _ = Task.Delay(TimeSpan.FromSeconds(4)).ContinueWith(_ => SearchDnsIfNeeded(), TaskScheduler.Default);
         Usage.Start();
+        News.Changed += (_, _) => Agent.NotifyChanged();
+        _ = Task.Run(() => News.RunAsync(_lifetime.Token));
 
         _ = Task.Run(() => Updates.RunAsync(_lifetime.Token));
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Amnezia.RunAsync(TimeSpan.FromSeconds(10), _lifetime.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        });
+        AccountImport = new Application.Account.AccountSubscriptionImport(Ibox, SubscriptionService, Subscriptions, Paths.UserDataRoot, LoggerFactory.CreateLogger("JackiVpn.Account"));
+        AccountImport.Attach(_lifetime.Token);
         _ = Task.Run(async () =>
         {
             try
@@ -422,6 +494,7 @@ public sealed class AppServices : IAsyncDisposable
         {
             await Accounts.SaveActiveAsync(CancellationToken.None).ConfigureAwait(false);
             await Agent.DisposeAsync().ConfigureAwait(false);
+            Ibox.Dispose();
             await RoutingEditor.DisposeAsync().ConfigureAwait(false);
             await Orchestrator.DisposeAsync().ConfigureAwait(false);
         }

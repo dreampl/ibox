@@ -16,14 +16,14 @@ namespace JackiVpn.Linux.Ui;
 internal static class ProfilesUi
 {
     /// <summary>A round avatar: the profile's picture, or its initials on its colour.</summary>
-    public static Control Avatar(LocalAccountService accounts, LocalAccount? account, double size)
+    public static Control Avatar(LocalAccountService accounts, LocalAccount? account, double size, string? telegramPhoto = null)
     {
         if (account is null)
         {
             return new Border { Width = size, Height = size, CornerRadius = new CornerRadius(size / 2), Background = B(TileBg), Child = Icon(Icons.User, size * 0.45, Text2, 1.8) };
         }
 
-        if (accounts.PicturePath(account) is { } path && File.Exists(path))
+        if ((telegramPhoto ?? accounts.PicturePath(account)) is { } path && File.Exists(path))
         {
             try
             {
@@ -95,6 +95,12 @@ internal static class ProfilesUi
                 }
             }
         }
+    }
+
+    private static async Task SignOutAsync(Shell shell, JackiVpn.Application.Account.IboxServices ibox)
+    {
+        await ibox.SignOutAsync(shell.Lifetime.Token);
+        shell.Toast("Telegram", "Signed out. Music and the subscription manager are off.");
     }
 
     public static void ShowPicker(Shell shell, Control anchor)
@@ -182,11 +188,32 @@ internal static class ProfilesUi
         transfer.Children.Add(export);
         transfer.Children.Add(import);
         list.Children.Add(transfer);
+
+        // Telegram: optional. Signed in adds music and the in-app subscription manager.
+        var ibox = shell.Services.Ibox;
+        var telegram = Ghost(ibox.SignedIn ? "Sign out of Telegram" : "Sign in with Telegram", () =>
+        {
+            flyout?.Hide();
+            if (ibox.SignedIn)
+            {
+                _ = SignOutAsync(shell, ibox);
+            }
+            else
+            {
+                AccountWindow.ShowSignIn(shell, ibox, firstRun: false);
+            }
+        });
+        ToolTip.SetTip(telegram, "Optional: signed in adds your music library and subscription management inside IBOX");
+        telegram.HorizontalAlignment = HorizontalAlignment.Stretch;
+        telegram.HorizontalContentAlignment = HorizontalAlignment.Center;
+        telegram.Margin = new Thickness(0, 4, 0, 0);
+        list.Children.Add(telegram);
         var hint = Hint("Each profile has its own settings (routing, DNS, modes, theme…), stored encrypted. Servers are shared. An exported account opens on Windows, Linux and Android.");
         hint.TextWrapping = TextWrapping.Wrap;
         list.Children.Add(hint);
-        flyout = new Flyout { Content = new Border { Padding = new Thickness(6), Child = list }, Placement = PlacementMode.RightEdgeAlignedBottom };
-        flyout.ShowAt(anchor);
+        list.Width = double.NaN;
+        list.Children.Insert(0, Avatar(accounts, accounts.Active, 76, shell.Services.Ibox.PhotoPath));
+        shell.ShowProfile(list);
     }
 
     private static async Task SwitchAsync(Shell shell, LocalAccount account)

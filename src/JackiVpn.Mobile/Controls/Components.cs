@@ -92,16 +92,10 @@ public sealed class ToggleSwitch : ContentView
             return;
         }
 
-        _ = _trackOn.FadeToAsync(on ? 1 : 0, 220, Easing.CubicOut);
-        _ = _thumb.TranslateToAsync(x, 0, 520, Motion.Spring);
-        _ = StretchThumbAsync();
+        _ = _trackOn.FadeToAsync(on ? 1 : 0, 120, Easing.CubicOut);
+        _ = _thumb.TranslateToAsync(x, 0, 120, Motion.Spring);
     }
 
-    private async Task StretchThumbAsync()
-    {
-        await _thumb.ScaleXToAsync(1.3, 110, Easing.CubicOut);
-        await _thumb.ScaleXToAsync(1, 480, Motion.Spring);
-    }
 }
 
 /// <summary>
@@ -214,8 +208,7 @@ public sealed class SegmentedControl : ContentView
             return;
         }
 
-        _ = _pill.TranslateToAsync(x, 0, 560, Motion.Spring);
-        _ = StretchAsync(Math.Abs(to - from));
+        _ = _pill.TranslateToAsync(x, 0, 140, Motion.Spring);
         try
         {
             HapticFeedback.Default.Perform(HapticFeedbackType.Click);
@@ -225,11 +218,6 @@ public sealed class SegmentedControl : ContentView
         }
     }
 
-    private async Task StretchAsync(int distance)
-    {
-        await _pill.ScaleXToAsync(1 + 0.18 * Math.Max(1, distance), 120, Easing.CubicOut);
-        await _pill.ScaleXToAsync(1, 520, Motion.Spring);
-    }
 }
 
 /// <summary>A settings row: tinted icon tile, title, optional subtitle, a trailing control or a chevron.</summary>

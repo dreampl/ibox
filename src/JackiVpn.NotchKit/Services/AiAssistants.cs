@@ -383,62 +383,61 @@ public sealed class AiAssistants : IAsyncDisposable
 
     private async Task ServeAsync(NamedPipeServerStream pipe, CancellationToken ct)
     {
-        using var reader = new StreamReader(pipe, Encoding.UTF8, false, 4096, leaveOpen: true);
-        await using var writer = new StreamWriter(pipe, new UTF8Encoding(false), 1024, leaveOpen: true) { AutoFlush = true, NewLine = "\n" };
-        var line = await ReadLineAsync(reader, ct).ConfigureAwait(false);
-        var message = line is null ? null : JsonSerializer.Deserialize<NotchMessage>(line, NotchBridge.Json);
-        if (message is null || message.V != NotchBridge.Version || message.Source is not (NotchSources.Claude or NotchSources.Codex))
+        await NotchPipeSession.ServeAsync(pipe, TellAsync, AskAsync, ct).ConfigureAwait(false);
+    }
+
+    private static string Who(NotchMessage message) => message.Source == NotchSources.Codex ? "chatgpt" : "claude";
+
+    private async Task TellAsync(NotchMessage message)
+    {
+        if (message.Source == NotchSources.Telegram)
         {
-            await Reply(writer, NotchBridge.AskThere).ConfigureAwait(false);
+            Alert?.Invoke(this, new AiAlert(NotchSources.Telegram, "Telegram", message.Title, message.Detail, BrandIcons.Telegram, null) { Seconds = 5 });
             return;
         }
-
         if (message.Source == NotchSources.Claude)
         {
             Interlocked.Exchange(ref _lastClaudeHookTicks, Environment.TickCount64);
         }
 
         var icon = await IconAsync(message.Source).ConfigureAwait(false);
-        var who = message.Source == NotchSources.Codex ? "chatgpt" : "claude";
         if (message.Kind == NotchMessage.StateKind)
         {
-            Activity?.Invoke(this, (who, message.State switch
+            Activity?.Invoke(this, (Who(message), message.State switch
             {
                 NotchMessage.Working => Views.AgentActivity.Working,
                 NotchMessage.Done => Views.AgentActivity.Done,
                 _ => Views.AgentActivity.Error,
             }, icon));
-            await Reply(writer, "ok").ConfigureAwait(false);
             return;
         }
 
-        if (message.IsAsk)
+        Alert?.Invoke(this, new AiAlert(message.Source, NotchBridge.AppName(message.Source) + (message.Project is { } p ? " · " + p : string.Empty), message.Title, message.Detail, icon, null));
+    }
+
+    /// <summary>
+    /// A request: shown on the notch while the hook waits (the token ends when the assistant gives up or time runs
+    /// out, and the notch then lets go).
+    /// </summary>
+    private async Task<string> AskAsync(NotchMessage message, CancellationToken answering)
+    {
+        if (message.Source == NotchSources.Claude)
         {
-            Activity?.Invoke(this, (who, Views.AgentActivity.Waiting, icon));
+            Interlocked.Exchange(ref _lastClaudeHookTicks, Environment.TickCount64);
         }
 
-        if (!message.IsAsk)
-        {
-            Alert?.Invoke(this, new AiAlert(message.Source, NotchBridge.AppName(message.Source) + (message.Project is { } p ? " · " + p : string.Empty), message.Title, message.Detail, icon, null));
-            await Reply(writer, "ok").ConfigureAwait(false);
-            return;
-        }
-
+        var icon = await IconAsync(message.Source).ConfigureAwait(false);
         if (Ask is not { } ask)
         {
-            await Reply(writer, NotchBridge.AskThere).ConfigureAwait(false);
-            return;
+            return NotchBridge.AskThere;
         }
 
-        // The request stays on the notch only while the hook waits: if the assistant gives up (its own timeout, or
-        // the user answered there), the pipe closes and the notch lets go.
-        using var answering = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        answering.CancelAfter(NotchBridge.AnswerTimeout - TimeSpan.FromSeconds(2));
-        var gone = WatchClosedAsync(reader, answering);
+        var who = Who(message);
+        Activity?.Invoke(this, (who, Views.AgentActivity.Waiting, icon));
         string decision;
         try
         {
-            decision = await ask(message, icon, answering.Token).ConfigureAwait(false);
+            decision = NotchPipeSession.Normalize(await ask(message, icon, answering).ConfigureAwait(false));
         }
         catch (OperationCanceledException)
         {
@@ -452,57 +451,7 @@ public sealed class AiAssistants : IAsyncDisposable
             Interlocked.Exchange(ref _lastClaudeHookTicks, Environment.TickCount64);
         }
 
-        if (!(gone.IsCompleted && gone.Result))
-        {
-            await Reply(writer, decision is NotchBridge.Allow or NotchBridge.Deny ? decision : NotchBridge.AskThere).ConfigureAwait(false);
-        }
-    }
-
-    /// <summary>True when the hook closed its end (the assistant stopped waiting).</summary>
-    private static async Task<bool> WatchClosedAsync(StreamReader reader, CancellationTokenSource answering)
-    {
-        try
-        {
-            var buffer = new char[1];
-            if (await reader.ReadAsync(buffer.AsMemory(), answering.Token).ConfigureAwait(false) == 0)
-            {
-                await answering.CancelAsync().ConfigureAwait(false);
-                return true;
-            }
-        }
-        catch (Exception ex) when (ex is OperationCanceledException or IOException or ObjectDisposedException)
-        {
-            // done
-        }
-
-        return false;
-    }
-
-    private static Task Reply(StreamWriter writer, string decision) =>
-        writer.WriteLineAsync(JsonSerializer.Serialize(new NotchReply(decision), NotchBridge.Json));
-
-    private static async Task<string?> ReadLineAsync(StreamReader reader, CancellationToken ct)
-    {
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        timeout.CancelAfter(TimeSpan.FromSeconds(5));
-        var sb = new StringBuilder();
-        var buffer = new char[1];
-        while (await reader.ReadAsync(buffer.AsMemory(), timeout.Token).ConfigureAwait(false) > 0)
-        {
-            if (buffer[0] == '\n')
-            {
-                return sb.ToString();
-            }
-
-            if (sb.Length >= NotchBridge.MaxLineBytes)
-            {
-                return null;
-            }
-
-            sb.Append(buffer[0]);
-        }
-
-        return null;
+        return decision;
     }
 
     public async ValueTask DisposeAsync()

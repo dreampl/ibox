@@ -18,9 +18,13 @@
 		</service>
 	</application>
 	<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+	<uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
 	<uses-permission android:name="android.permission.INTERNET" />
 	<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 	<uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+	<!-- IBOX music keeps playing with the screen off (MusicPlaybackService, only while playing). -->
+	<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+	<uses-permission android:name="android.permission.WAKE_LOCK" />
 	<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 	<!-- Haptic tick on the connect button (normal permission, granted at install). -->
 	<uses-permission android:name="android.permission.VIBRATE" />
@@ -34,6 +38,17 @@
 	<!-- Optional game detection (usage access is granted by the user in Android settings). -->
 	<!-- Per-app VPN: list launchable apps only (no QUERY_ALL_PACKAGES). -->
 	<queries>
+		<intent>
+			<action android:name="android.intent.action.VIEW" />
+			<data android:scheme="tg" />
+		</intent>
+		<intent>
+			<action android:name="android.intent.action.VIEW" />
+			<category android:name="android.intent.category.BROWSABLE" />
+			<data android:scheme="https" />
+		</intent>
+		<!-- AmneziaVPN: import its vpn:// key, open it, and notice when it is connected. -->
+		<package android:name="org.amnezia.vpn" />
 		<intent>
 			<action android:name="android.intent.action.MAIN" />
 			<category android:name="android.intent.category.LAUNCHER" />

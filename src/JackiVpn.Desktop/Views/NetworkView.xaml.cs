@@ -4,5 +4,9 @@ namespace JackiVpn.Desktop.Views;
 
 public partial class NetworkView : UserControl
 {
-    public NetworkView() => InitializeComponent();
+    public NetworkView()
+    {
+        InitializeComponent();
+        SectionTabs.Apply(this);
+    }
 }

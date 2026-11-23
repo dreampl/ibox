@@ -23,16 +23,18 @@ public sealed partial class ServerItem : ObservableObject
     [ObservableProperty] private bool _isTesting;
     [ObservableProperty] private string? _countryCode;
 
-    public ServerItem(ProxyProfile profile, NodeHealthSnapshot health, string group, bool isOfficial = false)
+    public ServerItem(ProxyProfile profile, NodeHealthSnapshot health, string group, bool isOfficial = false, bool isNex = false)
     {
         _profile = profile;
         _health = health;
         Group = group;
         IsOfficial = isOfficial;
+        IsNex = isNex;
     }
 
     /// <summary>From an official provider subscription (verified over HTTPS).</summary>
     public bool IsOfficial { get; }
+    public bool IsNex { get; }
 
     /// <summary>Measured fast (Excellent/Good) — shown only when a test backs it.</summary>
     public bool IsFast => Health.Label is HealthLabel.Excellent or HealthLabel.Good;
@@ -128,7 +130,7 @@ public sealed partial class ServerItem : ObservableObject
 }
 
 /// <summary>Servers of one subscription (or "Manual"); collapsible.</summary>
-public sealed class ServerGroup(string name, bool official, IReadOnlyList<ServerItem> items) : ObservableCollection<ServerItem>(items)
+public sealed class ServerGroup(string name, bool official, bool nex, IReadOnlyList<ServerItem> items) : BulkObservableCollection<ServerItem>(items)
 {
     private readonly IReadOnlyList<ServerItem> _all = items;
     private bool _isExpanded = true;
@@ -136,6 +138,7 @@ public sealed class ServerGroup(string name, bool official, IReadOnlyList<Server
     public string Name { get; } = name;
 
     public bool IsOfficial { get; } = official;
+    public bool IsNex { get; } = nex;
 
     public int Total => _all.Count;
 
@@ -147,14 +150,7 @@ public sealed class ServerGroup(string name, bool official, IReadOnlyList<Server
     {
         _isExpanded = !_isExpanded;
         OnPropertyChanged(new System.ComponentModel.PropertyChangedEventArgs(nameof(IsExpanded)));
-        Clear();
-        if (_isExpanded)
-        {
-            foreach (var i in _all)
-            {
-                Add(i);
-            }
-        }
+        ReplaceAll(_isExpanded ? _all : []);
     }
 }
 public sealed partial class ServersViewModel : ObservableObject
@@ -163,6 +159,8 @@ public sealed partial class ServersViewModel : ObservableObject
     private readonly Dictionary<string, ServerItem> _byId = new(StringComparer.Ordinal);
     private List<ServerItem> _all = [];
     private CancellationTokenSource? _testCts;
+    private bool _loaded;
+    private readonly SemaphoreSlim _loadGate = new(1, 1);
 
     [ObservableProperty] private string _filter = string.Empty;
     [ObservableProperty] private string _sortMode = "Best";
@@ -203,10 +201,10 @@ public sealed partial class ServersViewModel : ObservableObject
         });
     }
 
-    public ObservableCollection<ServerItem> Items { get; } = [];
+    public BulkObservableCollection<ServerItem> Items { get; } = [];
 
     /// <summary>Servers grouped by subscription (the list shows which subscription each config belongs to).</summary>
-    public ObservableCollection<ServerGroup> Groups { get; } = [];
+    public BulkObservableCollection<ServerGroup> Groups { get; } = [];
 
     public IReadOnlyList<string> Segments => [Localization.L.Get("Srv_All"), Localization.L.Get("Srv_Official"), Localization.L.Get("Srv_Favorites")];
 
@@ -239,12 +237,25 @@ public sealed partial class ServersViewModel : ObservableObject
 
     public bool IsEmpty => Items.Count == 0 && !IsRefreshing;
 
-    partial void OnFilterChanged(string value) => ApplyView();
+    private int _filterVersion;
+
+    partial void OnFilterChanged(string value)
+    {
+        var version = ++_filterVersion;
+        Microsoft.Maui.Controls.Application.Current!.Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(180), () =>
+        {
+            if (version == _filterVersion) { ApplyView(); }
+        });
+    }
 
     partial void OnSortModeChanged(string value) => ApplyView();
 
-    public async Task LoadAsync()
+    public async Task LoadAsync(bool force = true)
     {
+        await _loadGate.WaitAsync(_s.Lifetime);
+        try
+        {
+        if (_loaded && !force) { return; }
         await _s.InitializeAsync();
         var profiles = await _s.Profiles.GetAllAsync(_s.Lifetime);
         var subs = (await _s.Subscriptions.GetAllAsync(_s.Lifetime)).ToDictionary(x => x.Id, StringComparer.Ordinal);
@@ -254,7 +265,7 @@ public sealed partial class ServersViewModel : ObservableObject
         _all = profiles.Select(p =>
         {
             var sub = p.Origin.SubscriptionId is { } sid && subs.TryGetValue(sid, out var s) ? s : null;
-            var item = new ServerItem(p, _s.Health.Snapshot(p.Id), sub?.Name ?? "Manual", sub?.IsOfficial == true)
+            var item = new ServerItem(p, _s.Health.Snapshot(p.Id), sub?.Name ?? "Manual", sub?.IsOfficial == true, sub?.IsNex == true)
             {
                 IsDefault = p.Id == selectedId,
                 IsActive = p.Id == active,
@@ -264,6 +275,9 @@ public sealed partial class ServersViewModel : ObservableObject
             return item;
         }).ToList();
         ApplyView();
+        _loaded = true;
+        }
+        finally { _loadGate.Release(); }
     }
 
     private void ApplyView()
@@ -289,25 +303,22 @@ public sealed partial class ServersViewModel : ObservableObject
         };
 
         var list = q.ToList();
-        Items.Clear();
-        foreach (var i in list)
-        {
-            Items.Add(i);
-        }
+        Items.ReplaceAll(list);
 
         // Keep each group's open/closed state across refreshes.
         var collapsed = Groups.Where(g => !g.IsExpanded).Select(g => g.Name).ToHashSet(StringComparer.Ordinal);
-        Groups.Clear();
+        var groups = new List<ServerGroup>();
         foreach (var g in list.GroupBy(i => i.Group).OrderByDescending(g => g.Any(i => i.IsOfficial)).ThenBy(g => g.Key == "Manual").ThenBy(g => g.Key, StringComparer.CurrentCultureIgnoreCase))
         {
-            var group = new ServerGroup(g.Key == "Manual" ? Localization.L.Get("Srv_Manual") : g.Key, g.Any(i => i.IsOfficial), g.ToList());
+            var group = new ServerGroup(g.Key == "Manual" ? Localization.L.Get("Srv_Manual") : g.Key, g.Any(i => i.IsOfficial), g.Any(i => i.IsNex), g.ToList());
             if (collapsed.Contains(group.Name))
             {
                 group.Toggle();
             }
 
-            Groups.Add(group);
+            groups.Add(group);
         }
+        Groups.ReplaceAll(groups);
 
         var healthy = _all.Count(i => i.Label is not (HealthLabel.Unknown or HealthLabel.Failed));
         Summary = Localization.L.N(Localization.L.F("Srv_Summary", _all.Count, healthy));

@@ -32,7 +32,7 @@ public class NotchBridgeTests
     [Theory]
     [InlineData("""{"hook_event_name":"PermissionRequest","tool_name":"Edit","tool_input":{"file_path":"/src/a.cs","old_string":"x"}}""", "Change this file?", "/src/a.cs")]
     [InlineData("""{"hook_event_name":"PermissionRequest","tool_name":"WebFetch","tool_input":{"url":"https://example.com/x","prompt":"y"}}""", "Open this page?", "https://example.com/x")]
-    [InlineData("""{"hook_event_name":"PermissionRequest","tool_name":"mcp__github__create_issue","tool_input":{"title":"t"}}""", "Use create_issue (github)?", """{"title":"t"}""")]
+    [InlineData("""{"hook_event_name":"PermissionRequest","tool_name":"mcp__github__create_issue","tool_input":{"title":"t"}}""", "Use create_issue (github)?", "title: t")]
     [InlineData("""{"hook_event_name":"PermissionRequest","tool_name":"apply_patch","tool_input":{"command":"*** Begin Patch"}}""", "Apply this change?", "*** Begin Patch")]
     public void Each_kind_of_request_reads_naturally(string json, string title, string detail)
     {

@@ -85,6 +85,7 @@ public static partial class Ecosystem
             DualVpnOn = dual.Enabled && dual.IsConfigured,
             DualVpnText = dual.IsConfigured ? s.DualVpn.Describe(s.Orchestrator.Status.State) : null,
             Network = facts.Ssid ?? facts.AdDomain ?? facts.DnsSuffix,
+            News = s.News.Unread,
         };
     }
 

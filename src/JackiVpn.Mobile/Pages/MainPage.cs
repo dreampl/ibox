@@ -44,7 +44,6 @@ public sealed class MainPage : ContentPage
             InputTransparent = true,
             Children =
             {
-                new BlurBackdrop { FadeTop = true, Radius = 14 },
                 new BoxView { Background = (Brush)Microsoft.Maui.Controls.Application.Current!.Resources["BottomScrim"] },
             },
         };
@@ -92,6 +91,12 @@ public sealed class MainPage : ContentPage
             {
                 await Navigation.PushModalAsync(new OnboardingPage(app), animated: false);
                 return;
+            }
+
+            if (app.Ibox.ShouldOfferSignIn)
+            {
+                // Installed before the Telegram account existed: offered once, optional.
+                await Shell.Current.Navigation.PushAsync(new IboxAccountPage(app, firstRun: true));
             }
 
             var crash = MainApplication.CrashFile;
@@ -200,39 +205,21 @@ public sealed class MainPage : ContentPage
                 _host.Children.Add(view);
             }
 
-            var direction = (_current < 0 ? 0 : Math.Sign(index - _current)) * (L.IsPersian ? -1 : 1);
             _current = index;
             view.IsVisible = true;
             _ = RefreshAsync(index);
-            if (Motion.Reduced || previous is null)
+            if (previous is not null)
             {
-                view.Opacity = 1;
-                view.TranslationX = 0;
-                if (previous is not null)
-                {
-                    previous.IsVisible = false;
-                }
-
-                return;
+                previous.IsVisible = false;
+                _host.Children.Remove(previous);
             }
-
-            view.Opacity = 0;
-            view.TranslationX = 46 * direction;
-            view.Scale = 0.985;
-            var blur = new Animation(_ => BlurBackdrop.InvalidateAll());
-            blur.Commit(this, "blur-follow", 16, 560, repeat: () => false);
-            // The new page is usable as soon as it has faded in; its spring keeps settling on its own.
-            _ = view.TranslateToAsync(0, 0, 520, Motion.Spring);
-            _ = view.ScaleToAsync(1, 520, Motion.Spring);
-            await Task.WhenAll(
-                previous.FadeToAsync(0, 140, Easing.CubicIn),
-                previous.TranslateToAsync(-28 * direction, 0, 160, Easing.CubicIn),
-                previous.ScaleToAsync(0.97, 160, Easing.CubicIn),
-                view.FadeToAsync(1, 200, Easing.CubicOut));
-            previous.IsVisible = false;
-            previous.TranslationX = 0;
-            previous.Scale = 1;
-            previous.Opacity = 1;
+            view.TranslationX = 0;
+            view.Scale = 1;
+            view.Opacity = Motion.Reduced || previous is null ? 1 : 0;
+            if (view.Opacity == 0)
+            {
+                await view.FadeToAsync(1, 100, Easing.CubicOut);
+            }
         }
         finally
         {

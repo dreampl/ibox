@@ -43,7 +43,7 @@ public abstract class Page(Shell shell) : UserControl
     private bool _built;
 
     /// <summary>Forget the built page (theme changed): undo its event subscriptions; it builds again on the next visit.</summary>
-    public void Reset()
+    public virtual void Reset()
     {
         foreach (var undo in _undo)
         {
@@ -67,6 +67,7 @@ public abstract class Page(Shell shell) : UserControl
     public abstract string Glyph { get; }
 
     protected abstract Control Build();
+    protected virtual bool ScrollContent => true;
 
     public virtual void OnShown()
     {
@@ -77,11 +78,12 @@ public abstract class Page(Shell shell) : UserControl
         if (!_built)
         {
             _built = true;
-            Content = new ScrollViewer
+            var body = Build();
+            Content = this is OptionsPage ? SectionTabs.Create(body) : ScrollContent ? new ScrollViewer
             {
                 HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
-                Content = new Border { Padding = new Thickness(20, 8, 30, 30), Child = Build() },
-            };
+                Content = new Border { Padding = new Thickness(20, 8, 30, 30), Child = body },
+            } : body;
         }
 
         OnShown();
@@ -109,6 +111,9 @@ public abstract class Page(Shell shell) : UserControl
 public sealed class Shell : Window, INotificationSink
 {
     private readonly Dictionary<Page, Border> _nav = [];
+    private Control _accountRail = new Panel();
+    private readonly ContentControl _profileAvatar = new();
+    private bool _accountWatch;
     private readonly ContentControl _host = new();
     private readonly StackPanel _toasts = new() { Spacing = 8, Width = 350, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 22, 22) };
     private readonly List<(string Title, string Message, bool Warning, DateTime At)> _notices = [];
@@ -123,6 +128,10 @@ public sealed class Shell : Window, INotificationSink
     private int _unread;
     private Page? _current;
     private bool _closing;
+    private readonly StartupMark _startupMark = new();
+    private bool _showingSplash = true;
+    private readonly Grid _drawer = new() { IsVisible = false };
+    private Action? _drawerClosed;
 
     public Shell()
     {
@@ -135,11 +144,13 @@ public sealed class Shell : Window, INotificationSink
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         Services = new LinuxServices(this, () => true);
         Lifetime = new CancellationTokenSource();
+        _ = Services.Privacy.StartAsync(Lifetime.Token);
 
         _pages = CreatePages();
         BuildChrome();
         Look.Changed += (_, _) =>
         {
+            if (!IsReady) { return; }
             // Pages keep controls made with the old palette: make them again with the new one.
             var index = _current is { } shown ? Array.IndexOf(_pages, shown) : 0;
             foreach (var page in _pages)
@@ -154,6 +165,7 @@ public sealed class Shell : Window, INotificationSink
         Services.Orchestrator.StatusChanged += (_, st) => Dispatcher.UIThread.Post(() => ShowStatus(st));
         Services.Accounts.Changed += (_, _) => Dispatcher.UIThread.Post(() =>
         {
+            if (!IsReady) { return; }
             // Another profile (or a new name/avatar): its settings and avatar everywhere.
             foreach (var page in _pages)
             {
@@ -183,6 +195,10 @@ public sealed class Shell : Window, INotificationSink
             RendererDiagnostics.DebugOverlays = Avalonia.Rendering.RendererDebugOverlays.Fps | Avalonia.Rendering.RendererDebugOverlays.DirtyRects;
         }
         Closing += OnClosing;
+        KeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Escape && _drawer.IsVisible) { CloseDrawer(); e.Handled = true; }
+        };
         // Minimized: the memory nobody looks at goes back to the system (managed heap compacted, native heap trimmed).
         PropertyChanged += (_, e) =>
         {
@@ -198,6 +214,14 @@ public sealed class Shell : Window, INotificationSink
             }
         };
         Navigate(_pages[0]);
+        MinWidth = 240;
+        MinHeight = 160;
+        Width = 240;
+        Height = 160;
+        WindowDecorations = WindowDecorations.None;
+        TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
+        Background = Brushes.Transparent;
+        Content = _startupMark;
     }
 
     public LinuxServices Services { get; }
@@ -236,8 +260,10 @@ public sealed class Shell : Window, INotificationSink
         Subscriptions = new SubscriptionsPage(this);
         return
         [
-            Dashboard, Servers, Subscriptions, new UsagePage(this), new RoutingPage(this), new DnsPage(this),
-            new NetworkPage(this), new AdvancedPage(this), new LogsPage(this), new SettingsPage(this), new AboutPage(this),
+            new WorkspacePage(this, "Home", Dashboard.Glyph, Dashboard, new UsagePage(this)),
+            new WorkspacePage(this, "Servers", Servers.Glyph, Servers, Subscriptions),
+            new WorkspacePage(this, "Routing", Icons.Routing, new RoutingPage(this), new DnsPage(this), new NetworkPage(this), new UsagePage(this, true)),
+            new WorkspacePage(this, "Settings", Icons.Settings, new SettingsPage(this), new AdvancedPage(this), new AutomationsPage(this), new LogsPage(this), new AboutPage(this)),
         ];
     }
 
@@ -247,6 +273,24 @@ public sealed class Shell : Window, INotificationSink
 
     private void BuildChrome()
     {
+        (_profileAvatar.Parent as Panel)?.Children.Remove(_profileAvatar);
+        _profileAvatar.Content = ProfilesUi.Avatar(Services.Accounts, Services.Accounts.Active, 36, Services.Ibox.PhotoPath);
+        if (IsReady && _showingSplash)
+        {
+            _showingSplash = false;
+            WindowDecorations = WindowDecorations.Full;
+            TransparencyLevelHint = [];
+            MinWidth = 1024;
+            MinHeight = 700;
+            Width = 1320;
+            Height = 880;
+            if (Screens.ScreenFromWindow(this) is { WorkingArea: var area })
+            {
+                Position = new PixelPoint(area.X + Math.Max(0, (area.Width - (int)(Width * RenderScaling)) / 2), area.Y + Math.Max(0, (area.Height - (int)(Height * RenderScaling)) / 2));
+            }
+        }
+        CloseDrawer();
+        (_drawer.Parent as Panel)?.Children.Remove(_drawer);
         // The page host and the toast stack survive a rebuild: take them out of the old layout first.
         _toasts.Children.Clear();
         (_toasts.Parent as Panel)?.Children.Remove(_toasts);
@@ -256,7 +300,7 @@ public sealed class Shell : Window, INotificationSink
         _nav.Clear();
 
         // Icon rail
-        var navList = new StackPanel { Spacing = 14, HorizontalAlignment = HorizontalAlignment.Center };
+        var navList = new StackPanel { Spacing = 10, HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Center };
         foreach (var page in _pages)
         {
             var item = NavItem(page);
@@ -274,21 +318,60 @@ public sealed class Shell : Window, INotificationSink
             {
                 Orientation = Orientation.Horizontal,
                 Spacing = 6,
-                Children = { ProfilesUi.Avatar(Services.Accounts, Services.Accounts.Active, 36), Icon(Icons.Chevron, 10, Muted, 2) },
+                Children = { _profileAvatar, Icon(Icons.Chevron, 10, Muted, 2) },
             },
         };
         ToolTip.SetTip(profile, Services.Accounts.Active is { } who ? "Profile: " + who.Name : "Profile");
         profile.Click += (_, _) => ProfilesUi.ShowPicker(this, profile);
+        // The IBOX account: one click to the subscription and to music.
+        Button AccountButton(string icon, string tip, int tab)
+        {
+            var b = new Button
+            {
+                Background = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Padding = new Thickness(8),
+                Content = Icon(icon, 20, Text2),
+            };
+            ToolTip.SetTip(b, tip);
+            Avalonia.Automation.AutomationProperties.SetName(b, tip);
+            b.Click += (_, _) => AccountWindow.Open(this, Services.Ibox, tab);
+            return b;
+        }
+
+        var account = new StackPanel
+        {
+            IsVisible = Services.Ibox.SignedIn,
+            Spacing = 4,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 8, 0, 4),
+            Children =
+            {
+                AccountButton(Icons.User, "My subscription", AccountWindow.SubscriptionTab),
+                AccountButton(Icons.Music, "Music", AccountWindow.MusicTab),
+            },
+        };
+        _accountRail = account;
+        if (!_accountWatch)
+        {
+            // Only signed in with Telegram: music and the subscription manager.
+            _accountWatch = true;
+            Services.Ibox.SignInChanged += (_, _) => Dispatcher.UIThread.Post(() => _accountRail.IsVisible = Services.Ibox.SignedIn);
+            Services.Ibox.AvatarChanged += (_, _) => Dispatcher.UIThread.Post(() => _profileAvatar.Content = ProfilesUi.Avatar(Services.Accounts, Services.Accounts.Active, 36, Services.Ibox.PhotoPath));
+        }
+
         var railDock = new DockPanel();
         DockPanel.SetDock(profile, Dock.Bottom);
         railDock.Children.Add(profile);
-        railDock.Children.Add(new ScrollViewer { VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Hidden, Content = navList });
-        var rail = Clay(railDock, new Thickness(0, 18, 0, 12), 28);
-        rail.Margin = new Thickness(16, 0, 16, 18);
-        var logo = Wordmark(19);
+        DockPanel.SetDock(account, Dock.Bottom);
+        railDock.Children.Add(account);
+        railDock.Children.Add(new Grid { Children = { navList } });
+        var rail = new Border { Child = railDock, Padding = new Thickness(12, 8, 12, 16), Background = B(Look.P.Sidebar), CornerRadius = new CornerRadius(22) };
+        var logo = Wordmark(24);
         logo.HorizontalAlignment = HorizontalAlignment.Center;
         logo.Margin = new Thickness(0, 28, 0, 22);
-        var left = new DockPanel { Width = 112 };
+        var left = new DockPanel { Width = 188, Margin = new Thickness(14, 14, 0, 14), Background = B(Look.P.Sidebar) };
         DockPanel.SetDock(logo, Dock.Top);
         left.Children.Add(logo);
         left.Children.Add(rail);
@@ -344,12 +427,20 @@ public sealed class Shell : Window, INotificationSink
         root.Children.Add(left);
         Grid.SetColumn(content, 1);
         root.Children.Add(content);
+        Grid.SetColumnSpan(_drawer, 2);
+        root.Children.Add(_drawer);
         Content = root;
         ShowStatus(Services.Orchestrator.Status);
     }
 
     public void Navigate(Page page)
     {
+        if (!_pages.Contains(page) && _pages.OfType<WorkspacePage>().FirstOrDefault(w => w.Contains(page)) is { } workspace)
+        {
+            Navigate(workspace);
+            workspace.Select(page);
+            return;
+        }
         _current = page;
         foreach (var (p, item) in _nav)
         {
@@ -362,6 +453,44 @@ public sealed class Shell : Window, INotificationSink
         {
             page.Show();
         }
+    }
+
+    public void ShowProfile(Control content)
+    {
+        _current = null;
+        foreach (var item in _nav.Values) { StyleNav(item, false); }
+        _title.Text = "Profile";
+        _host.Content = new ScrollViewer { Content = new Border { Padding = new Thickness(28), MaxWidth = 780, Child = content } };
+    }
+
+    public void ShowDrawer(string title, Control content, Action? closed = null)
+    {
+        CloseDrawer();
+        _drawerClosed = closed;
+        var backdrop = new Button { Background = new SolidColorBrush(Color.FromArgb(100, 0, 0, 0)), HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch };
+        backdrop.Click += (_, _) => CloseDrawer();
+        var panel = new DockPanel();
+        var header = new DockPanel { Margin = new Thickness(0, 0, 0, 16) };
+        var close = Ghost("Close", CloseDrawer);
+        DockPanel.SetDock(close, Dock.Right);
+        header.Children.Add(close);
+        header.Children.Add(T(title, 22, FontWeight.SemiBold));
+        DockPanel.SetDock(header, Dock.Top);
+        panel.Children.Add(header);
+        panel.Children.Add(content);
+        _drawer.Children.Add(backdrop);
+        _drawer.Children.Add(new Border { Width = 560, MaxWidth = Width - 120, HorizontalAlignment = HorizontalAlignment.Right, Background = B(CardBg), Padding = new Thickness(24), Child = panel });
+        _drawer.IsVisible = true;
+        close.Focus();
+    }
+
+    public void CloseDrawer()
+    {
+        _drawer.IsVisible = false;
+        _drawer.Children.Clear();
+        var closed = _drawerClosed;
+        _drawerClosed = null;
+        closed?.Invoke();
     }
 
     private void ShowNotices(Control anchor)
@@ -404,7 +533,7 @@ public sealed class Shell : Window, INotificationSink
         item.Background = selected ? AccentGradientVertical() : Brushes.Transparent;
         item.BorderBrush = Brushes.Transparent;
         item.BoxShadow = default;
-        if (item.Child is Viewbox icon && icon.Child is Canvas c && c.Children[0] is Avalonia.Controls.Shapes.Path path)
+        if (item.Child is StackPanel content && content.Children[0] is Viewbox icon && icon.Child is Canvas c && c.Children[0] is Avalonia.Controls.Shapes.Path path)
         {
             path.Stroke = selected ? Brushes.White : B(Text2);
         }
@@ -453,6 +582,19 @@ public sealed class Shell : Window, INotificationSink
     }
 
     /// <summary>The first-start tour (also from About); ending it with nothing set up opens Subscriptions.</summary>
+    private async Task FirstRunAsync(bool tour)
+    {
+        if (tour)
+        {
+            await ShowTourAsync();
+        }
+
+        if (Services.Ibox.ShouldOfferSignIn)
+        {
+            AccountWindow.ShowSignIn(this, Services.Ibox, firstRun: true);
+        }
+    }
+
     public async Task ShowTourAsync()
     {
         var servers = (await Services.ServersAsync(Lifetime.Token)).Count;
@@ -460,7 +602,7 @@ public sealed class Shell : Window, INotificationSink
         Services.Settings.Update(s => s with { Ui = s.Ui with { TourSeen = true } });
         if (addFirst)
         {
-            Navigate(_pages.OfType<SubscriptionsPage>().First());
+            Navigate(Subscriptions);
         }
     }
     /// <summary>A small modal text prompt (rename, …). Null when cancelled.</summary>
@@ -518,14 +660,19 @@ public sealed class Shell : Window, INotificationSink
     {
         var item = new Border
         {
-            Width = 58,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
             Height = 58,
             CornerRadius = new CornerRadius(18),
             BorderThickness = new Thickness(1),
             BorderBrush = Brushes.Transparent,
             Background = Brushes.Transparent,
             Cursor = new Cursor(StandardCursorType.Hand),
-            Child = Icon(page.Glyph, 21, Text2, 1.8),
+            Padding = new Thickness(14, 0),
+            Child = new StackPanel
+            {
+                Orientation = Orientation.Horizontal, Spacing = 14, VerticalAlignment = VerticalAlignment.Center,
+                Children = { Icon(page.Glyph, 21, Text2, 1.8), T(page.Title, 14, FontWeight.SemiBold) },
+            },
         };
         ToolTip.SetTip(item, page.Title);
 
@@ -637,6 +784,7 @@ public sealed class Shell : Window, INotificationSink
         {
             await Services.InitializeAsync(Lifetime.Token);
             Look.Apply(Services.Settings.Current.Ui.Theme);
+            await _startupMark.FinishAsync(Services.Settings.Current.Ui.ReduceMotion);
             IsReady = true;
             BuildChrome(); // the active profile's avatar is known now
             Navigate(_current ?? _pages[0]);
@@ -649,11 +797,13 @@ public sealed class Shell : Window, INotificationSink
             Services.Agent.Sync();
             Services.Orchestrator.StatusChanged += (_, st) => Dispatcher.UIThread.Post(() => _notch?.Update(st));
             Services.NowPlaying.Changed += (_, item) => Dispatcher.UIThread.Post(() => _notch?.SetNowPlaying(item));
+            Services.Ibox.LoginStateChanged += (_, state) => Dispatcher.UIThread.Post(() => _notch?.ShowLoginState(state));
             SyncNotch(Services.Settings.Current.Ui.Notch);
-            if (Application.Onboarding.Tour.ShouldShow(Services.Settings.Current.Ui.TourSeen, (await Services.ServersAsync(Lifetime.Token)).Count))
+            var tour = Application.Onboarding.Tour.ShouldShow(Services.Settings.Current.Ui.TourSeen, (await Services.ServersAsync(Lifetime.Token)).Count);
+            if (tour || Services.Ibox.ShouldOfferSignIn)
             {
-                // A fresh install: the short tour, once the window has settled.
-                DispatcherTimer.RunOnce(() => _ = ShowTourAsync(), TimeSpan.FromMilliseconds(700));
+                // A fresh install: the short tour, then the optional Telegram sign-in, once the window has settled.
+                DispatcherTimer.RunOnce(() => _ = FirstRunAsync(tour), TimeSpan.FromMilliseconds(700));
             }
             if (Services.Settings.Current.Startup.AutoConnect)
             {

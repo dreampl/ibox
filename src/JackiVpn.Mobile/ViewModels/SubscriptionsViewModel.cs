@@ -25,6 +25,7 @@ public sealed partial class SubscriptionItem : ObservableObject
     public string Provider => Model.Provider == SubscriptionProviderKind.PasarGuard ? "PasarGuard" : "Subscription";
 
     public bool IsOfficial => Model.IsOfficial;
+    public bool IsNex => Model.IsNex;
 
     public bool SendsDeviceId => Model.SendDeviceId ?? Model.IsOfficial;
 
@@ -124,7 +125,14 @@ public sealed partial class SubscriptionsViewModel : ObservableObject
         _s = services;
         services.SubscriptionService.Updated += (_, r) => Fmt.OnUi(() => _ = ReloadOneAsync(r.SubscriptionId));
         services.SubscriptionService.AccountChecked += (_, id) => Fmt.OnUi(() => _ = ReloadOneAsync(id));
+        services.Ibox.SignInChanged += (_, _) => Fmt.OnUi(() => OnPropertyChanged(nameof(IboxSignedIn)));
     }
+
+    /// <summary>Signed in with Telegram: the subscriptions bought with that account can be picked and added.</summary>
+    public bool IboxSignedIn => _s.Ibox.SignedIn;
+
+    [RelayCommand]
+    private Task FromAccountAsync() => Shell.Current.Navigation.PushAsync(new Pages.AccountSubscriptionsPage(_s));
 
     public ObservableCollection<SubscriptionItem> Items { get; } = [];
 
@@ -260,6 +268,12 @@ public sealed partial class SubscriptionsViewModel : ObservableObject
             ("sync", L.Get("Sub_SendToDevice"), "sync", false),
             ("rename", L.Get("Act_Rename"), "edit", false),
         };
+        if (item.Model.IsNex)
+        {
+            actions.Insert(0, ("nexpage", L.Get("Sub_NexPage"), "edit", false));
+            actions.Insert(0, ("nexamnezia", "AmneziaWG", "devices", false));
+        }
+
         if (!item.IsOfficial)
         {
             actions.Add((item.SendsDeviceId ? "idoff" : "idon", L.Get(item.SendsDeviceId ? "Sub_StopDeviceId" : "Sub_SendDeviceId"), "fingerprint", false));
@@ -268,7 +282,11 @@ public sealed partial class SubscriptionsViewModel : ObservableObject
         actions.Add(("delete", L.Get("Act_Delete"), "trash", true));
         var choice = await Controls.Sheets.ActionsAsync(item.Name, [.. actions]);
         switch (choice)
-        {            case "update":
+        {
+            case "nexpage" or "nexamnezia":
+                await OpenNexAsync(item, choice == "nexamnezia");
+                break;
+            case "update":
                 await RefreshOneAsync(item);
                 break;
             case "check":
@@ -310,6 +328,78 @@ public sealed partial class SubscriptionsViewModel : ObservableObject
                 }
 
                 break;
+        }
+    }
+
+    private async Task OpenNexAsync(SubscriptionItem item, bool showAmnezia)
+    {
+        try
+        {
+            if (!showAmnezia)
+            {
+                var uri = await _s.SubscriptionService.GetNexManagementUriAsync(item.Id, _s.Lifetime);
+                if (uri is null || !await Browser.Default.OpenAsync(uri, BrowserLaunchMode.External))
+                {
+                    Message = L.Get("Sub_NexUnavailable");
+                }
+
+                return;
+            }
+
+            var configs = await _s.SubscriptionService.GetNexAmneziaConfigsAsync(item.Id, _s.Lifetime);
+            if (configs.Count == 0)
+            {
+                Message = L.Get("Sub_NexUnavailable");
+                return;
+            }
+
+            var labels = configs.Select((config, index) => $"{index + 1}. {config.Location} {config.Label}".Trim()).ToArray();
+            var choice = await Shell.Current.DisplayActionSheetAsync("AmneziaWG", L.Get("Cancel"), null, labels);
+            var selected = Array.IndexOf(labels, choice);
+            if (selected < 0)
+            {
+                return;
+            }
+
+            var raw = configs[selected].Key!;
+            if (!Application.Amnezia.AmneziaShareKey.TryParse(raw, out var key) || key is null)
+            {
+                await Clipboard.Default.SetTextAsync(raw);
+                Message = L.Get("Sub_NexCopied");
+                return;
+            }
+
+            _s.Amnezia.Remember(key);
+            var context = Platform.CurrentActivity ?? global::Android.App.Application.Context;
+            if (!Platforms.Android.AmneziaAndroid.IsInstalled(context))
+            {
+                await Clipboard.Default.SetTextAsync(key.Key);
+                if (await Shell.Current.DisplayAlertAsync("AmneziaVPN", L.Get("Amz_Missing"), L.Get("Amz_Download"), L.Get("Cancel")))
+                {
+                    await Browser.Default.OpenAsync(new Uri(Platforms.Android.AmneziaAndroid.DownloadUrl), BrowserLaunchMode.External);
+                }
+
+                Message = L.Get("Sub_NexCopied");
+                return;
+            }
+
+            var open = L.Get("Amz_Open");
+            var copy = L.Get("Sub_NexCopy");
+            var how = await Shell.Current.DisplayActionSheetAsync(L.Get("Amz_OpenHint"), L.Get("Cancel"), null, open, copy);
+            if (how == open)
+            {
+                await Clipboard.Default.SetTextAsync(key.Key);
+                Message = L.Get(Platforms.Android.AmneziaAndroid.Import(context, key) ? "Amz_Sent" : "Sub_NexCopied");
+            }
+            else if (how == copy)
+            {
+                await Clipboard.Default.SetTextAsync(key.Key);
+                Message = L.Get("Sub_NexCopied");
+            }
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            Message = L.Get("Sub_NexUnavailable");
         }
     }
 }
