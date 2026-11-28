@@ -97,6 +97,7 @@
 
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="20,10,30,26" k:Motion.StaggerChildren="True">
+            <v:AccountDeviceIndicators />
             <!-- Banners -->
             <Border Style="{StaticResource Banner.Warning}" Visibility="{Binding ServiceBanner, Converter={StaticResource Null2Vis}}">
                 <DockPanel>

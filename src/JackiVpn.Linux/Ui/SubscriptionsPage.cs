@@ -12,12 +12,12 @@ namespace JackiVpn.Linux.Ui;
 /// <summary>Add, update and manage subscriptions; usage, expiry, device limit and errors as on Windows.</summary>
 public sealed class SubscriptionsPage(Shell shell) : Page(shell)
 {
-    private readonly StackPanel _list = new() { Spacing = 12 };
-    private readonly TextBox _url = new() { PlaceholderText = "https://panel.example.com/sub/…" };
-    private readonly TextBox _name = new() { PlaceholderText = "Name (optional)", Width = 220 };
+    private StackPanel _list = new() { Spacing = 12 };
+    private TextBox _url = new() { PlaceholderText = "https://panel.example.com/sub/…" };
+    private TextBox _name = new() { PlaceholderText = "Name (optional)", Width = 220 };
     private readonly HashSet<string> _updating = new(StringComparer.Ordinal);
     private Button? _add;
-    private readonly StackPanel _fromAccount = new() { Spacing = 8 };
+    private StackPanel _fromAccount = new() { Spacing = 8 };
 
     public override string Title => "Subscriptions";
 
@@ -25,6 +25,10 @@ public sealed class SubscriptionsPage(Shell shell) : Page(shell)
 
     protected override Control Build()
     {
+        _list = new StackPanel { Spacing = 12 };
+        _url = new TextBox { PlaceholderText = "https://panel.example.com/sub/…", Text = _url.Text };
+        _name = new TextBox { PlaceholderText = "Name (optional)", Width = 220, Text = _name.Text };
+        _fromAccount = new StackPanel { Spacing = 8 };
         _add = Primary("Add", () => _ = AddAsync());
         var addRow = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"), ColumnSpacing = 8 };
         addRow.Children.Add(_url);

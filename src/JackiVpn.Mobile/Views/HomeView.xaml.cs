@@ -14,6 +14,8 @@ namespace JackiVpn.Mobile.Views;
 public partial class HomeView : ContentView
 {
     private readonly HomeViewModel _vm;
+    private Application.Account.AccountControl? _deviceControl;
+    private bool _viewLoaded;
     private bool _wasConnected;
     private bool _hadActivity;
     private bool _hadError;
@@ -37,8 +39,10 @@ public partial class HomeView : ContentView
 #endif
         Loaded += (_, _) =>
         {
-            if (Services.MobileServices.Instance is { } s) { s.Ibox.AvatarChanged += OnAvatarChanged; }
+            _viewLoaded = true;
+            if (Services.MobileServices.Instance is { } s) { s.Ibox.AvatarChanged += OnAvatarChanged; s.Ibox.ControlAttached += OnControlAttached; }
             RefreshAvatar();
+            AttachDeviceControl();
             vm.PropertyChanged += OnChanged;
             _wasConnected = vm.IsConnected;
             _hadActivity = vm.HasActivity;
@@ -46,9 +50,37 @@ public partial class HomeView : ContentView
         };
         Unloaded += (_, _) =>
         {
+            _viewLoaded = false;
             vm.PropertyChanged -= OnChanged;
-            if (Services.MobileServices.Instance is { } s) { s.Ibox.AvatarChanged -= OnAvatarChanged; }
+            if (Services.MobileServices.Instance is { } s) { s.Ibox.AvatarChanged -= OnAvatarChanged; s.Ibox.ControlAttached -= OnControlAttached; }
+            if (_deviceControl is not null) { _deviceControl.Changed -= OnDevicesChanged; _deviceControl = null; }
         };
+    }
+
+    private void OnControlAttached(object? sender, EventArgs e) => MainThread.BeginInvokeOnMainThread(AttachDeviceControl);
+    private void AttachDeviceControl()
+    {
+        if (!_viewLoaded) { return; }
+        if (_deviceControl is not null) { _deviceControl.Changed -= OnDevicesChanged; }
+        _deviceControl = Services.MobileServices.Instance?.Ibox.Control;
+        if (_deviceControl is not null) { _deviceControl.Changed += OnDevicesChanged; }
+        RefreshDevices();
+    }
+    private void OnDevicesChanged(object? sender, EventArgs e) => MainThread.BeginInvokeOnMainThread(RefreshDevices);
+    private void RefreshDevices()
+    {
+        AccountDevices.Children.Clear();
+        var services = Services.MobileServices.Instance;
+        foreach (var device in services?.Ibox.Control?.Devices.Where(d => d.Connected) ?? [])
+        {
+            var icon = new Controls.Icon { Name = device.Platform == "Android" ? "phone" : "devices", Color = Color.FromArgb("#30D17D"), Size = 22, WidthRequest = 40, HeightRequest = 40 };
+            SemanticProperties.SetDescription(icon, device.Tooltip);
+            var tap = new TapGestureRecognizer();
+            tap.Tapped += async (_, _) => { if (services is not null) { await Shell.Current.Navigation.PushAsync(new Pages.AccountManagementPage(services)); } };
+            icon.GestureRecognizers.Add(tap);
+            AccountDevices.Children.Add(icon);
+        }
+        AccountDevices.IsVisible = AccountDevices.Children.Count > 0;
     }
 
     private void OnAvatarChanged(object? sender, EventArgs e) => MainThread.BeginInvokeOnMainThread(RefreshAvatar);

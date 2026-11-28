@@ -173,6 +173,7 @@
                             ToolTip="Light / dark" AutomationProperties.Name="Light or dark theme" />
                     <Button Style="{StaticResource Button.Round}" Content="&#xE8C7;" Command="{Binding OpenSubscriptionCommand}" Margin="12,0,0,0" Visibility="{Binding IboxSignedIn, Converter={StaticResource Bool2Vis}}"
                             ToolTip="My subscription (Telegram account)" AutomationProperties.Name="My subscription" />
+                    <Button Style="{StaticResource Button.Round}" Content="&#xE772;" Command="{Binding ManageAccountCommand}" Margin="12,0,0,0" ToolTip="Devices &amp; Nex Family" Visibility="{Binding IboxSignedIn, Converter={StaticResource Bool2Vis}}" />
                     <v:MusicHeader x:Name="MusicHeader" Margin="12,0,0,0" Visibility="{Binding IboxSignedIn, Converter={StaticResource Bool2Vis}}" />
                     <Button Style="{StaticResource Button.Round}" Content="&#xE73F;" Command="{Binding ShowMiniCommand}" Margin="12,0,0,0"
                             ToolTip="Mini view" AutomationProperties.Name="Mini view" />

@@ -132,6 +132,7 @@ public sealed class Shell : Window, INotificationSink
     private bool _showingSplash = true;
     private readonly Grid _drawer = new() { IsVisible = false };
     private Action? _drawerClosed;
+    private ContentControl? _drawerBody;
 
     public Shell()
     {
@@ -477,7 +478,8 @@ public sealed class Shell : Window, INotificationSink
         header.Children.Add(T(title, 22, FontWeight.SemiBold));
         DockPanel.SetDock(header, Dock.Top);
         panel.Children.Add(header);
-        panel.Children.Add(content);
+        _drawerBody = new ContentControl { Content = content, HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch };
+        panel.Children.Add(_drawerBody);
         _drawer.Children.Add(backdrop);
         _drawer.Children.Add(new Border { Width = 560, MaxWidth = Width - 120, HorizontalAlignment = HorizontalAlignment.Right, Background = B(CardBg), Padding = new Thickness(24), Child = panel });
         _drawer.IsVisible = true;
@@ -487,6 +489,7 @@ public sealed class Shell : Window, INotificationSink
     public void CloseDrawer()
     {
         _drawer.IsVisible = false;
+        if (_drawerBody is not null) { _drawerBody.Content = null; _drawerBody = null; }
         _drawer.Children.Clear();
         var closed = _drawerClosed;
         _drawerClosed = null;
@@ -546,9 +549,11 @@ public sealed class Shell : Window, INotificationSink
         GradientStops = { new GradientStop(Look.P.Accent, 0), new GradientStop(Look.P.Accent, 1) },
     };
 
-    public void Show(AppNotification notification) => Dispatcher.UIThread.Post(() => Toast(notification.Title, notification.Message));
+    public void Show(AppNotification notification) => Dispatcher.UIThread.Post(() => Toast(notification.Title, notification.Message,
+        warning: notification.Category is Domain.Settings.NotificationCategory.ConnectionFailed or Domain.Settings.NotificationCategory.CoreCrashed or Domain.Settings.NotificationCategory.KillSwitchActivated or Domain.Settings.NotificationCategory.SubscriptionExpired or Domain.Settings.NotificationCategory.TrafficAlmostFinished or Domain.Settings.NotificationCategory.AutomaticFailover,
+        success: notification.Category == Domain.Settings.NotificationCategory.Connected));
 
-    public void Toast(string title, string message, bool warning = false)
+    public void Toast(string title, string message, bool warning = false, bool success = false)
     {
         _notices.Add((title, message, warning, DateTime.Now));
         if (_notices.Count > 50)
@@ -559,7 +564,7 @@ public sealed class Shell : Window, INotificationSink
         _unread++;
         _badgeText.Text = _unread.ToString(System.Globalization.CultureInfo.InvariantCulture);
         _badge.IsVisible = true;
-        var color = warning ? Warning : Accent;
+        var color = warning ? Warning : success ? Success : Accent;
         var toast = new Border
         {
             Background = CardFill,
@@ -577,6 +582,7 @@ public sealed class Shell : Window, INotificationSink
                 },
             },
         };
+        while (_toasts.Children.Count >= 3) { _toasts.Children.RemoveAt(0); }
         _toasts.Children.Add(toast);
         DispatcherTimer.RunOnce(() => _toasts.Children.Remove(toast), TimeSpan.FromSeconds(warning ? 7 : 4.5));
     }

@@ -35,6 +35,7 @@
 
         <!-- Hero -->
         <VerticalStackLayout Grid.Row="1" VerticalOptions="Center" Spacing="0">
+            <FlexLayout x:Name="AccountDevices" Direction="Row" Wrap="Wrap" JustifyContent="Center" IsVisible="False" Margin="0,0,0,8" />
             <HorizontalStackLayout HorizontalOptions="Center" Spacing="6" HeightRequest="22">
                 <controls:Icon x:Name="StatusIcon" Name="check" Size="16" Color="{StaticResource Teal}" IsVisible="{Binding IsConnected}" />
                 <Label x:Name="StatusLine" Text="{Binding StatusLine}" FontSize="13" TextColor="{StaticResource Text2}" VerticalOptions="Center" />

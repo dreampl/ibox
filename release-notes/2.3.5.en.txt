@@ -1,0 +1,21 @@
+IBOX 2.3.5
+
+Linux
+- Fix subscription-add crashes after deletion, drawer reopening or page rebuilds.
+- Detach drawer content on close and create fresh subscription controls when rebuilding the page.
+- Show actual warnings in the warning color, connection success in green, and at most three simultaneous toasts.
+
+Routing
+- Limit core-process direct bypass to TUN ingress so it cannot capture traffic returning from the traffic-control relay.
+- Pin Claude traffic and DNS to the tunnel in proxy-routed modes, including when other DNS queries use the system resolver. Explicit Direct mode is preserved.
+
+Devices and Nex Family
+- Devices & Nex Family management on Windows, Linux and Android.
+- Account-scoped sessions with online state, current config, connection time and remote session revocation.
+- Relay-backed connect/disconnect of existing configs on another device, without requiring a shared LAN. The target must opt in to remote control.
+- Green connected-device indicators on Home, with desktop tooltips and access to device details on mobile.
+- Authorized family heads can view usage, manage member caps, remove members, add their linked Nex accounts and copy member subscription links.
+- Creating new family accounts requires an explicit administrator grant with a bounded member budget; clients cannot increase the purchased family total.
+- Telegram-verified identity remains recorded by the main account service; device metadata and last-seen are refreshed. Config secrets and full config URIs are not uploaded. Phone sharing remains optional in Telegram.
+
+The target app must remain running with network access. This feature cannot wake an app killed or suspended by the OS. Android VPN permission must first be granted locally on the target device.

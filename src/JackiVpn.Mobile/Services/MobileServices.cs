@@ -378,6 +378,7 @@ public sealed class MobileServices : IAsyncDisposable
         });
         AccountImport = new Application.Account.AccountSubscriptionImport(Ibox, SubscriptionService, Subscriptions, DataDir, LoggerFactory.CreateLogger("JackiVpn.Account"));
         AccountImport.Attach(Lifetime);
+        Ibox.AttachControl(Profiles, Orchestrator, "Android", typeof(JackiVpn.Application.Account.IboxServices).Assembly.GetName().Version?.ToString() ?? "unknown");
         _ = Task.Run(async () =>
         {
             try
@@ -414,6 +415,7 @@ public sealed class MobileServices : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        Ibox.Dispose();
         await Usage.DisposeAsync().ConfigureAwait(false);
         await Orchestrator.DisposeAsync().ConfigureAwait(false);
         await _lifetime.CancelAsync().ConfigureAwait(false);

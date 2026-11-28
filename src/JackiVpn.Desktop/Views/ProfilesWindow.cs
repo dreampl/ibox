@@ -200,6 +200,9 @@ internal sealed class ProfilesWindow
         RenderTelegram();
         root.Children.Add(tgState);
         root.Children.Add(tgButton);
+        var manage = new Button { Content = "Devices & Nex Family", Margin = new Thickness(0,10,0,0) };
+        manage.Click += (_, _) => main.OpenDrawer("Devices & Nex Family", new AccountManagementView(_s.Ibox), width: 760);
+        root.Children.Add(manage);
         var page = new ScrollViewer { Content = root, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxWidth = 800, HorizontalAlignment = HorizontalAlignment.Stretch };
         EventHandler avatarChanged = (_, _) => main.Dispatcher.BeginInvoke(() =>
         {

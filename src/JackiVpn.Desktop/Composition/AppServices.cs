@@ -446,6 +446,7 @@ public sealed class AppServices : IAsyncDisposable
         });
         AccountImport = new Application.Account.AccountSubscriptionImport(Ibox, SubscriptionService, Subscriptions, Paths.UserDataRoot, LoggerFactory.CreateLogger("JackiVpn.Account"));
         AccountImport.Attach(_lifetime.Token);
+        Ibox.AttachControl(Profiles, Orchestrator, "Windows", typeof(JackiVpn.Application.Account.IboxServices).Assembly.GetName().Version?.ToString() ?? "unknown");
         _ = Task.Run(async () =>
         {
             try

@@ -271,6 +271,7 @@ public sealed class LinuxServices : IAsyncDisposable
         await Health.LoadAsync(ct).ConfigureAwait(false);
         AccountImport = new Application.Account.AccountSubscriptionImport(Ibox, SubscriptionService, Subscriptions, DataDir, _loggerFactory.CreateLogger("JackiVpn.Account"));
         AccountImport.Attach(CancellationToken.None);
+        Ibox.AttachControl(Profiles, Orchestrator, "Linux", typeof(JackiVpn.Application.Account.IboxServices).Assembly.GetName().Version?.ToString() ?? "unknown");
         GnomeProxy.RecoverStale(Logger);
         _ = Task.Run(Workplace.Refresh, CancellationToken.None);
         System.Net.NetworkInformation.NetworkChange.NetworkAddressChanged += (_, _) => _ = Task.Run(Workplace.Refresh, CancellationToken.None);

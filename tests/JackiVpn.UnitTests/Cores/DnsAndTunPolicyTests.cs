@@ -120,12 +120,13 @@ public class DnsAndTunPolicyTests
     }
 
     [Fact]
-    public void System_dns_mode_is_direct_only()
+    public void System_dns_keeps_the_direct_default_with_a_tunnel_resolver_for_pinned_services()
     {
         var c = Build(Tun(b => b.Plan = b.Plan with { Dns = new DnsSettings { Mode = DnsMode.System } }));
 
         c["dns"]!["final"]!.GetValue<string>().Should().Be("dns-direct");
-        c["dns"]!["servers"]!.AsArray().Should().NotContain(s => s!["detour"] != null);
+        c["dns"]!["servers"]!.AsArray().Should().Contain(s => s!["tag"]!.GetValue<string>() == "dns-direct" && s["detour"] == null);
+        c["dns"]!["rules"]!.AsArray().OfType<JsonObject>().Where(rule => rule["server"]?.GetValue<string>() == "dns-remote").Should().OnlyContain(rule => rule["domain_suffix"] != null);
     }
 
     [Fact]

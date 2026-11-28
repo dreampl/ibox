@@ -108,6 +108,9 @@ public sealed class IboxAccount
     public Task<ApiResult> SessionsAsync(string? revoke = null, CancellationToken ct = default) =>
         CallAsync("sessions", revoke is null ? null : new { revoke }, null, ct);
 
+    public Task<ApiResult> ControlAsync(string operation, object? body = null, CancellationToken ct = default) =>
+        operation is "state" or "pulse" or "command" or "family" ? CallAsync("control/" + operation, body, null, ct) : throw new ArgumentException("Unknown account control operation.", nameof(operation));
+
     private async Task<ApiResult> CallAsync(string path, object? body, string? etag, CancellationToken ct)
     {
         var token = _tokens.Get(TokenName) ?? throw new InvalidOperationException("Sign in with Telegram first.");

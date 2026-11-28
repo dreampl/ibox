@@ -285,6 +285,10 @@ public sealed partial class MainViewModel : ObservableObject
     private void ShowPro() => ViewModeRequested?.Invoke(this, false);
 
     /// <summary>Signed in with Telegram: only then the music and subscription buttons show.</summary>
+    public Application.Account.IboxServices Ibox => _services.Ibox;
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    private void ManageAccount() => Views.MainWindow.Current?.OpenDrawer("Devices & Nex Family", new Views.AccountManagementView(_services.Ibox), width: 760);
+
     public bool IboxSignedIn => _services.Ibox.SignedIn;
 
     [CommunityToolkit.Mvvm.Input.RelayCommand]

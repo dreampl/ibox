@@ -140,6 +140,7 @@ public sealed class IboxServices : IDisposable
 
     public void SignIn(LoginResult result)
     {
+        if (User?.Id != result.User.Id) { Tokens.Remove("allow-remote-control"); }
         Account.Accept(result);
         SaveIdentity(result.User);
         MarkSignInOffered();
@@ -212,6 +213,14 @@ public sealed class IboxServices : IDisposable
     public AccountWatcher Watcher { get; }
 
     public MusicClient Music { get; }
+    public AccountControl? Control { get; private set; }
+    public event EventHandler? ControlAttached;
+    public void AttachControl(Domain.Abstractions.IProfileRepository profiles, Connection.ConnectionOrchestrator connection, string platform, string version)
+    {
+        Control?.Dispose();
+        Control = new AccountControl(this, profiles, connection, platform, version, _log);
+        ControlAttached?.Invoke(this, EventArgs.Empty);
+    }
 
     /// <summary>Set by the app once its audio output exists; also the notch's now-playing source.</summary>
     public MusicPlayer? Player { get; set; }
@@ -222,6 +231,7 @@ public sealed class IboxServices : IDisposable
     {
         _photoRequest?.Cancel();
         _photoRequest?.Dispose();
+        Control?.Dispose();
         Watcher.Dispose();
         Player?.Dispose();
         _http.Dispose();

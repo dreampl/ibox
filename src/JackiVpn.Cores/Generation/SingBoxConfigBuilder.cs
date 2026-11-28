@@ -250,6 +250,7 @@ public static class SingBoxConfigBuilder
         {
             routeRules.Add(new JsonObject
             {
+                ["inbound"] = SingBoxOutboundBuilder.Array([TunInboundTag]),
                 ["process_path"] = SingBoxOutboundBuilder.Array(directProcesses.Distinct(StringComparer.OrdinalIgnoreCase)),
                 ["outbound"] = DirectTag,
             });
@@ -295,6 +296,10 @@ public static class SingBoxConfigBuilder
             // through a direct rule or a poisoned local DNS answer reports an unsupported region and signs the
             // app out. Ahead of the LAN bypass and the user's rules.
             routeRules.Add(new JsonObject { ["domain_suffix"] = SingBoxOutboundBuilder.Array(AlwaysTunneledDomains), ["outbound"] = ProxyTag });
+            if (plan.Kind == SessionKind.Tun)
+            {
+                routeRules.Add(new JsonObject { ["inbound"] = SingBoxOutboundBuilder.Array([TunInboundTag]), ["process_path_regex"] = SingBoxOutboundBuilder.Array(new[] { "claude", "claude.exe", "claude-code" }.Select(AppPattern).OfType<string>()), ["outbound"] = ProxyTag });
+            }
         }
 
         if (plan.Routing.BypassLan)
@@ -482,6 +487,7 @@ public static class SingBoxConfigBuilder
             // Backend cores resolve their own server names outside the tunnel (no resolution loop).
             rules.Add(new JsonObject
             {
+                ["inbound"] = SingBoxOutboundBuilder.Array([TunInboundTag]),
                 ["process_path"] = SingBoxOutboundBuilder.Array(directProcesses.Distinct(StringComparer.OrdinalIgnoreCase)),
                 ["action"] = "route",
                 ["server"] = DnsBootstrap,
@@ -546,12 +552,16 @@ public static class SingBoxConfigBuilder
             rules.Add(new JsonObject { ["query_type"] = SingBoxOutboundBuilder.Array(["AAAA"]), ["action"] = "predefined", ["rcode"] = "NOERROR" });
         }
 
-        if (final == DnsRemote && plan.Routing.Final != RuleActionType.Direct)
+        if (plan.Routing.Final != RuleActionType.Direct)
         {
+            if (!servers.OfType<JsonObject>().Any(server => server["tag"]?.GetValue<string>() == DnsRemote))
+            {
+                servers.Add(DnsServer(dns.Remote.Transport == DnsTransport.Local ? DnsServerEndpoint.CloudflareDoh : dns.Remote, DnsRemote, detour: ProxyTag));
+            }
             // Never resolved by the local network's resolver (see AlwaysTunneledDomains), even if a user rule
             // routes a broader name set Direct: fake-IP (resolved on the server) or the tunnel's resolver.
             var tunneled = new JsonObject { ["domain_suffix"] = SingBoxOutboundBuilder.Array(AlwaysTunneledDomains), ["action"] = "route", ["server"] = DnsRemote };
-            if (UsesFakeIp(plan))
+            if (final == DnsRemote && UsesFakeIp(plan))
             {
                 tunneled["query_type"] = SingBoxOutboundBuilder.Array(ipv6 ? new[] { "A", "AAAA" } : new[] { "A" });
                 tunneled["server"] = DnsFake;

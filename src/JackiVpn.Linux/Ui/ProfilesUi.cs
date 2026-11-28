@@ -208,6 +208,7 @@ internal static class ProfilesUi
         telegram.HorizontalContentAlignment = HorizontalAlignment.Center;
         telegram.Margin = new Thickness(0, 4, 0, 0);
         list.Children.Add(telegram);
+        list.Children.Add(Ghost("Devices & Nex Family", () => AccountManagementPage.Open(shell)));
         var hint = Hint("Each profile has its own settings (routing, DNS, modes, theme…), stored encrypted. Servers are shared. An exported account opens on Windows, Linux and Android.");
         hint.TextWrapping = TextWrapping.Wrap;
         list.Children.Add(hint);

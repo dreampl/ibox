@@ -287,7 +287,25 @@ public sealed class DashboardPage(Shell shell) : Page(shell)
         cards.Children.Add(speed);
         Grid.SetColumn(server, 2);
         cards.Children.Add(server);
-        return new ScrollViewer { Content = new StackPanel { Spacing = 18, Margin = new Thickness(20, 8, 24, 24), Children = { hero, cards, _plan } } };
+        var devices = new WrapPanel();
+        void RenderDevices()
+        {
+            devices.Children.Clear();
+            foreach (var device in S.Ibox.Control?.Devices.Where(d => d.Connected) ?? [])
+            {
+                var button = Ghost("", () => AccountManagementPage.Open(Shell));
+                button.Content = Icon(Icons.Servers, 18, Success);
+                ToolTip.SetTip(button, device.Tooltip);
+                Avalonia.Automation.AutomationProperties.SetName(button, device.Tooltip);
+                button.Margin = new Thickness(0,0,8,0);
+                devices.Children.Add(button);
+            }
+            devices.IsVisible = devices.Children.Count > 0;
+        }
+        EventHandler devicesChanged = (_, _) => Dispatcher.UIThread.Post(RenderDevices);
+        if (S.Ibox.Control is { } control) { control.Changed += devicesChanged; Track(() => control.Changed -= devicesChanged); }
+        RenderDevices();
+        return new ScrollViewer { Content = new StackPanel { Spacing = 18, Margin = new Thickness(20, 8, 24, 24), Children = { devices, hero, cards, _plan } } };
     }
 
     private void ShowOurServer(Application.Privacy.OurServerFinding? f)

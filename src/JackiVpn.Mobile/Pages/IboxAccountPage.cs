@@ -39,9 +39,12 @@ public sealed class IboxAccountPage : ContentPage
         tabs.Add(_subTab, 0);
         tabs.Add(_musicTab, 1);
         _tabs = tabs;
-        var root = new Grid { RowDefinitions = { new(GridLength.Auto), new(GridLength.Star) } };
+        var root = new Grid { RowDefinitions = { new(GridLength.Auto), new(GridLength.Auto), new(GridLength.Star) } };
         root.Add(tabs, 0, 0);
-        root.Add(_body, 0, 1);
+        var manage = new Button { Text = Tx("Devices & Nex Family", "دستگاه‌ها و Nex Family"), Margin = new Thickness(16, 8) };
+        manage.Clicked += async (_, _) => await Navigation.PushAsync(new AccountManagementPage(_s));
+        root.Add(manage, 0, 1);
+        root.Add(_body, 0, 2);
         Content = root;
     }
 

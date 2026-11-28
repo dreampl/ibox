@@ -24,3 +24,5 @@ cores/linux-download/
 tests/**/fixtures/private/
 cores/download/
 src/JackiVpn.Mobile/Platforms/Android/libs/**/*.so
+
+__pycache__/
